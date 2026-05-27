@@ -43,6 +43,18 @@
         <artifactId>spring-boot-starter-data-jpa</artifactId>
     </dependency>
 
+    <!-- JDBC for SQL-first services backed by Flyway schema -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+
+    <!-- Request validation -->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+
     <!-- Security -->
     <dependency>
         <groupId>org.springframework.boot</groupId>
