@@ -12,6 +12,8 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,10 +24,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class RoutineController {
+    private static final Set<String> ALLOWED_DIFFICULTIES = Set.of("BEGINNER", "INTERMEDIATE", "ADVANCED");
     private final JdbcTemplate jdbcTemplate;
 
     public RoutineController(JdbcTemplate jdbcTemplate) {
@@ -49,29 +53,80 @@ public class RoutineController {
     }
 
     @GetMapping("/routines")
-    public List<RoutineResponse> routines() {
+    public List<RoutineResponse> routines(@RequestParam(required = false) UUID categoryId) {
         UUID userId = CurrentUser.id();
-        List<UUID> ids = jdbcTemplate.query(
-                """
-                SELECT id FROM routines
-                WHERE user_id = ? AND is_active = true
-                ORDER BY updated_at DESC
-                """,
-                (rs, rowNum) -> rs.getObject("id", UUID.class),
-                userId
-        );
+        boolean categoriesAvailable = routineCategoriesAvailable();
+        List<UUID> ids;
+        if (categoryId != null && !categoriesAvailable) {
+            return List.of();
+        }
+        if (categoryId == null || !categoriesAvailable) {
+            ids = jdbcTemplate.query(
+                    """
+                    SELECT id FROM routines
+                    WHERE user_id = ? AND is_active = true
+                    ORDER BY updated_at DESC
+                    """,
+                    (rs, rowNum) -> rs.getObject("id", UUID.class),
+                    userId
+            );
+        } else {
+            ids = jdbcTemplate.query(
+                    """
+                    SELECT id FROM routines
+                    WHERE user_id = ? AND is_active = true AND category_id = ?
+                    ORDER BY updated_at DESC
+                    """,
+                    (rs, rowNum) -> rs.getObject("id", UUID.class),
+                    userId,
+                    categoryId
+            );
+        }
         return ids.stream().map(this::getRoutine).toList();
+    }
+
+    @GetMapping("/routine-categories")
+    public List<RoutineCategoryResponse> routineCategories() {
+        if (!routineCategoriesAvailable()) {
+            return List.of();
+        }
+        return jdbcTemplate.query(
+                """
+                SELECT id, name, description, icon, color
+                FROM routine_categories
+                ORDER BY created_at, name
+                """,
+                (rs, rowNum) -> new RoutineCategoryResponse(
+                        rs.getObject("id", UUID.class).toString(),
+                        rs.getString("name"),
+                        rs.getString("description"),
+                        rs.getString("icon"),
+                        rs.getString("color")
+                )
+        );
     }
 
     @GetMapping("/routines/{id}")
     public RoutineResponse getRoutine(@PathVariable UUID id) {
         UUID userId = CurrentUser.id();
+         boolean categoriesAvailable = routineCategoriesAvailable();
         RoutineHeader header = jdbcTemplate.query(
-                """
-                SELECT id, title, description, objective, difficulty, estimated_duration_minutes, days_per_week
-                FROM routines
-                WHERE id = ? AND user_id = ? AND is_active = true
-                """,
+              categoriesAvailable
+                   ? """
+                   SELECT r.id, r.title, r.description, r.objective, r.difficulty,
+                       r.estimated_duration_minutes, r.days_per_week,
+                       r.category_id, rc.name AS category_name
+                   FROM routines r
+                   LEFT JOIN routine_categories rc ON rc.id = r.category_id
+                   WHERE r.id = ? AND r.user_id = ? AND r.is_active = true
+                   """
+                   : """
+                   SELECT r.id, r.title, r.description, r.objective, r.difficulty,
+                       r.estimated_duration_minutes, r.days_per_week,
+                       NULL::uuid AS category_id, NULL::varchar AS category_name
+                   FROM routines r
+                   WHERE r.id = ? AND r.user_id = ? AND r.is_active = true
+                   """,
                 this::mapHeader,
                 id,
                 userId
@@ -84,6 +139,8 @@ public class RoutineController {
                 header.difficulty(),
                 header.estimatedDurationMinutes(),
                 header.daysPerWeek(),
+                header.categoryId() == null ? null : header.categoryId().toString(),
+                header.categoryName(),
                 exercisesForRoutine(header.id())
         );
     }
@@ -92,21 +149,44 @@ public class RoutineController {
     @Transactional
     public RoutineResponse createRoutine(@Valid @RequestBody RoutineRequest request) {
         UUID userId = CurrentUser.id();
-        UUID routineId = jdbcTemplate.queryForObject(
-                """
-                INSERT INTO routines (user_id, title, description, objective, source, difficulty, estimated_duration_minutes, days_per_week)
-                VALUES (?, ?, ?, ?, 'MANUAL', ?, ?, ?)
-                RETURNING id
-                """,
-                UUID.class,
-                userId,
-                request.title().trim(),
-                request.description(),
-                request.objective(),
-                request.difficulty(),
-                request.estimatedDurationMinutes(),
-                request.daysPerWeek()
-        );
+        boolean categoriesAvailable = routineCategoriesAvailable();
+        UUID categoryId = validateCategoryId(request.categoryId(), categoriesAvailable);
+        String difficulty = normalizeDifficulty(request.difficulty(), "Routine difficulty");
+        UUID routineId;
+        if (categoriesAvailable) {
+            routineId = jdbcTemplate.queryForObject(
+                    """
+                    INSERT INTO routines (user_id, title, description, objective, source, difficulty, estimated_duration_minutes, days_per_week, category_id)
+                    VALUES (?, ?, ?, ?, 'MANUAL', ?, ?, ?, ?)
+                    RETURNING id
+                    """,
+                    UUID.class,
+                    userId,
+                    request.title().trim(),
+                    request.description(),
+                    request.objective(),
+                    difficulty,
+                    request.estimatedDurationMinutes(),
+                    request.daysPerWeek(),
+                    categoryId
+            );
+        } else {
+            routineId = jdbcTemplate.queryForObject(
+                    """
+                    INSERT INTO routines (user_id, title, description, objective, source, difficulty, estimated_duration_minutes, days_per_week)
+                    VALUES (?, ?, ?, ?, 'MANUAL', ?, ?, ?)
+                    RETURNING id
+                    """,
+                    UUID.class,
+                    userId,
+                    request.title().trim(),
+                    request.description(),
+                    request.objective(),
+                        difficulty,
+                    request.estimatedDurationMinutes(),
+                    request.daysPerWeek()
+            );
+        }
         replaceExercises(routineId, request.exercises());
         return getRoutine(routineId);
     }
@@ -115,22 +195,46 @@ public class RoutineController {
     @Transactional
     public RoutineResponse updateRoutine(@PathVariable UUID id, @Valid @RequestBody RoutineRequest request) {
         UUID userId = CurrentUser.id();
-        int updated = jdbcTemplate.update(
-                """
-                UPDATE routines
-                SET title = ?, description = ?, objective = ?, difficulty = ?,
-                    estimated_duration_minutes = ?, days_per_week = ?, updated_at = now()
-                WHERE id = ? AND user_id = ? AND is_active = true
-                """,
-                request.title().trim(),
-                request.description(),
-                request.objective(),
-                request.difficulty(),
-                request.estimatedDurationMinutes(),
-                request.daysPerWeek(),
-                id,
-                userId
-        );
+        boolean categoriesAvailable = routineCategoriesAvailable();
+        UUID categoryId = validateCategoryId(request.categoryId(), categoriesAvailable);
+        String difficulty = normalizeDifficulty(request.difficulty(), "Routine difficulty");
+        int updated;
+        if (categoriesAvailable) {
+            updated = jdbcTemplate.update(
+                    """
+                    UPDATE routines
+                    SET title = ?, description = ?, objective = ?, difficulty = ?,
+                        estimated_duration_minutes = ?, days_per_week = ?, category_id = ?, updated_at = now()
+                    WHERE id = ? AND user_id = ? AND is_active = true
+                    """,
+                    request.title().trim(),
+                    request.description(),
+                    request.objective(),
+                    difficulty,
+                    request.estimatedDurationMinutes(),
+                    request.daysPerWeek(),
+                    categoryId,
+                    id,
+                    userId
+            );
+        } else {
+            updated = jdbcTemplate.update(
+                    """
+                    UPDATE routines
+                    SET title = ?, description = ?, objective = ?, difficulty = ?,
+                        estimated_duration_minutes = ?, days_per_week = ?, updated_at = now()
+                    WHERE id = ? AND user_id = ? AND is_active = true
+                    """,
+                    request.title().trim(),
+                    request.description(),
+                    request.objective(),
+                    difficulty,
+                    request.estimatedDurationMinutes(),
+                    request.daysPerWeek(),
+                    id,
+                    userId
+            );
+        }
         if (updated == 0) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Routine not found");
         }
@@ -228,6 +332,7 @@ public class RoutineController {
         );
         int position = 1;
         for (ExerciseRequest exercise : exercises) {
+            String exerciseDifficulty = normalizeDifficulty(exercise.difficulty(), "Exercise difficulty");
             UUID exerciseId = jdbcTemplate.queryForObject(
                     """
                     INSERT INTO exercises (name, primary_muscle_group, difficulty)
@@ -237,7 +342,7 @@ public class RoutineController {
                     UUID.class,
                     exercise.name().trim(),
                     exercise.primaryMuscleGroup(),
-                    exercise.difficulty()
+                        exerciseDifficulty
             );
             jdbcTemplate.update(
                     """
@@ -271,6 +376,60 @@ public class RoutineController {
         );
     }
 
+    private boolean routineCategoriesAvailable() {
+        Integer tableCount = jdbcTemplate.queryForObject(
+                """
+                SELECT count(*)
+                FROM information_schema.tables
+                WHERE table_schema = current_schema() AND table_name = 'routine_categories'
+                """,
+                Integer.class
+        );
+        Integer columnCount = jdbcTemplate.queryForObject(
+                """
+                SELECT count(*)
+                FROM information_schema.columns
+                WHERE table_schema = current_schema() AND table_name = 'routines' AND column_name = 'category_id'
+                """,
+                Integer.class
+        );
+        return tableCount != null && tableCount > 0 && columnCount != null && columnCount > 0;
+    }
+
+    private UUID validateCategoryId(UUID categoryId, boolean categoriesAvailable) {
+        if (categoryId == null) {
+            return null;
+        }
+        if (!categoriesAvailable) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Routine categories are not available until migrations are applied");
+        }
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM routine_categories WHERE id = ?",
+                Integer.class,
+                categoryId
+        );
+        if (count == null || count == 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Routine category not found");
+        }
+        return categoryId;
+    }
+
+    private String normalizeDifficulty(String difficulty, String fieldName) {
+        if (difficulty == null) {
+            return null;
+        }
+        String normalized = difficulty.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        normalized = normalized.toUpperCase(Locale.ROOT);
+        if (!ALLOWED_DIFFICULTIES.contains(normalized)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                    fieldName + " must be BEGINNER, INTERMEDIATE or ADVANCED");
+        }
+        return normalized;
+    }
+
     private RoutineHeader mapHeader(ResultSet rs, int rowNum) throws SQLException {
         return new RoutineHeader(
                 rs.getObject("id", UUID.class),
@@ -279,7 +438,9 @@ public class RoutineController {
                 rs.getString("objective"),
                 rs.getString("difficulty"),
                 (Integer) rs.getObject("estimated_duration_minutes"),
-                (Integer) rs.getObject("days_per_week")
+                (Integer) rs.getObject("days_per_week"),
+                rs.getObject("category_id", UUID.class),
+                rs.getString("category_name")
         );
     }
 
@@ -304,6 +465,7 @@ public class RoutineController {
 
     public record RoutineRequest(
             @NotBlank String title,
+            UUID categoryId,
             String description,
             String objective,
             String difficulty,
@@ -333,9 +495,20 @@ public class RoutineController {
             String difficulty,
             Integer estimatedDurationMinutes,
             Integer daysPerWeek,
+            String categoryId,
+            String categoryName,
             List<ExerciseResponse> exercises
     ) {
     }
+
+        public record RoutineCategoryResponse(
+            String id,
+            String name,
+            String description,
+            String icon,
+            String color
+        ) {
+        }
 
     public record ExerciseResponse(String id, String name, int sets, int reps, int restSeconds, String notes) {
     }
@@ -356,7 +529,8 @@ public class RoutineController {
     }
 
     private record RoutineHeader(UUID id, String title, String description, String objective, String difficulty,
-                                 Integer estimatedDurationMinutes, Integer daysPerWeek) {
+                                 Integer estimatedDurationMinutes, Integer daysPerWeek, UUID categoryId,
+                                 String categoryName) {
     }
 
     private record ExerciseLookup(UUID exerciseId, Integer targetReps, java.math.BigDecimal targetWeightKg) {
