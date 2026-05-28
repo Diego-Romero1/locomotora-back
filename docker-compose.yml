@@ -1,18 +1,40 @@
 services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: locomotora-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_ADDRESS: 0.0.0.0
+      SERVER_PORT: 8080
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/locomotora
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      LOCOMOTORA_JWT_SECRET: change-this-secret-in-production
+    ports:
+      - "0.0.0.0:8080:8080"
+    restart: unless-stopped
+
   postgres:
     image: postgres:17
     container_name: locomotora-postgres
-
     environment:
       POSTGRES_DB: locomotora
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d locomotora"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     ports:
-      - "5433:5432"
-
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
 volumes:
   postgres_data:
