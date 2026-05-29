@@ -56,33 +56,55 @@ public class RoutineController {
     public List<RoutineResponse> routines(@RequestParam(required = false) UUID categoryId) {
         UUID userId = CurrentUser.id();
         boolean categoriesAvailable = routineCategoriesAvailable();
-        List<UUID> ids;
         if (categoryId != null && !categoriesAvailable) {
             return List.of();
         }
         if (categoryId == null || !categoriesAvailable) {
-            ids = jdbcTemplate.query(
-                    """
-                    SELECT id FROM routines
-                    WHERE user_id = ? AND is_active = true
-                    ORDER BY updated_at DESC
-                    """,
-                    (rs, rowNum) -> rs.getObject("id", UUID.class),
-                    userId
-            );
-        } else {
-            ids = jdbcTemplate.query(
-                    """
-                    SELECT id FROM routines
-                    WHERE user_id = ? AND is_active = true AND category_id = ?
-                    ORDER BY updated_at DESC
-                    """,
-                    (rs, rowNum) -> rs.getObject("id", UUID.class),
+            return jdbcTemplate.query(
+                    categoriesAvailable
+                            ? """
+                            SELECT r.id, r.title, r.description, r.objective, r.difficulty,
+                                   r.estimated_duration_minutes, r.days_per_week,
+                                   r.category_id, rc.name AS category_name,
+                                   r.source, r.template_key, r.routine_split
+                            FROM routines r
+                            LEFT JOIN routine_categories rc ON rc.id = r.category_id
+                            WHERE (r.user_id = ? OR r.user_id IS NULL) AND r.is_active = true
+                            ORDER BY CASE WHEN r.user_id = ? THEN 0 ELSE 1 END, r.updated_at DESC, r.title
+                            """
+                            : """
+                            SELECT r.id, r.title, r.description, r.objective, r.difficulty,
+                                   r.estimated_duration_minutes, r.days_per_week,
+                                   NULL::uuid AS category_id, NULL::varchar AS category_name,
+                                   r.source, r.template_key, r.routine_split
+                            FROM routines r
+                            WHERE (r.user_id = ? OR r.user_id IS NULL) AND r.is_active = true
+                            ORDER BY CASE WHEN r.user_id = ? THEN 0 ELSE 1 END, r.updated_at DESC, r.title
+                            """,
+                    this::mapHeader,
                     userId,
-                    categoryId
-            );
+                    userId
+            ).stream().map(this::buildRoutineResponse).toList();
         }
-        return ids.stream().map(this::getRoutine).toList();
+
+        return jdbcTemplate.query(
+                """
+                SELECT r.id, r.title, r.description, r.objective, r.difficulty,
+                       r.estimated_duration_minutes, r.days_per_week,
+                       r.category_id, rc.name AS category_name,
+                       r.source, r.template_key, r.routine_split
+                FROM routines r
+                LEFT JOIN routine_categories rc ON rc.id = r.category_id
+                WHERE (r.user_id = ? OR r.user_id IS NULL)
+                  AND r.is_active = true
+                  AND r.category_id = ?
+                ORDER BY CASE WHEN r.user_id = ? THEN 0 ELSE 1 END, r.updated_at DESC, r.title
+                """,
+                this::mapHeader,
+                userId,
+                categoryId,
+                userId
+        ).stream().map(this::buildRoutineResponse).toList();
     }
 
     @GetMapping("/routine-categories")
@@ -109,40 +131,31 @@ public class RoutineController {
     @GetMapping("/routines/{id}")
     public RoutineResponse getRoutine(@PathVariable UUID id) {
         UUID userId = CurrentUser.id();
-         boolean categoriesAvailable = routineCategoriesAvailable();
+        boolean categoriesAvailable = routineCategoriesAvailable();
         RoutineHeader header = jdbcTemplate.query(
-              categoriesAvailable
-                   ? """
-                   SELECT r.id, r.title, r.description, r.objective, r.difficulty,
-                       r.estimated_duration_minutes, r.days_per_week,
-                       r.category_id, rc.name AS category_name
-                   FROM routines r
-                   LEFT JOIN routine_categories rc ON rc.id = r.category_id
-                   WHERE r.id = ? AND r.user_id = ? AND r.is_active = true
-                   """
-                   : """
-                   SELECT r.id, r.title, r.description, r.objective, r.difficulty,
-                       r.estimated_duration_minutes, r.days_per_week,
-                       NULL::uuid AS category_id, NULL::varchar AS category_name
-                   FROM routines r
-                   WHERE r.id = ? AND r.user_id = ? AND r.is_active = true
-                   """,
+                categoriesAvailable
+                        ? """
+                        SELECT r.id, r.title, r.description, r.objective, r.difficulty,
+                            r.estimated_duration_minutes, r.days_per_week,
+                            r.category_id, rc.name AS category_name,
+                            r.source, r.template_key, r.routine_split
+                        FROM routines r
+                        LEFT JOIN routine_categories rc ON rc.id = r.category_id
+                        WHERE r.id = ? AND r.user_id = ? AND r.is_active = true
+                        """
+                        : """
+                        SELECT r.id, r.title, r.description, r.objective, r.difficulty,
+                            r.estimated_duration_minutes, r.days_per_week,
+                            NULL::uuid AS category_id, NULL::varchar AS category_name,
+                            r.source, r.template_key, r.routine_split
+                        FROM routines r
+                        WHERE r.id = ? AND r.user_id = ? AND r.is_active = true
+                        """,
                 this::mapHeader,
                 id,
                 userId
         ).stream().findFirst().orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Routine not found"));
-        return new RoutineResponse(
-                header.id().toString(),
-                header.title(),
-                header.description(),
-                header.objective(),
-                header.difficulty(),
-                header.estimatedDurationMinutes(),
-                header.daysPerWeek(),
-                header.categoryId() == null ? null : header.categoryId().toString(),
-                header.categoryName(),
-                exercisesForRoutine(header.id())
-        );
+        return buildRoutineResponse(header);
     }
 
     @PostMapping("/routines")
@@ -198,6 +211,21 @@ public class RoutineController {
         boolean categoriesAvailable = routineCategoriesAvailable();
         UUID categoryId = validateCategoryId(request.categoryId(), categoriesAvailable);
         String difficulty = normalizeDifficulty(request.difficulty(), "Routine difficulty");
+        Integer dayCount = jdbcTemplate.queryForObject(
+            """
+            SELECT count(*)
+            FROM routine_days rd
+            JOIN routines r ON r.id = rd.routine_id
+            WHERE r.id = ? AND r.user_id = ? AND r.is_active = true
+            """,
+            Integer.class,
+            id,
+            userId
+        );
+        if (dayCount != null && dayCount > 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST,
+                "This routine has multiple days and cannot be edited with the legacy single-day payload");
+        }
         int updated;
         if (categoriesAvailable) {
             updated = jdbcTemplate.update(
@@ -333,17 +361,21 @@ public class RoutineController {
         int position = 1;
         for (ExerciseRequest exercise : exercises) {
             String exerciseDifficulty = normalizeDifficulty(exercise.difficulty(), "Exercise difficulty");
-            UUID exerciseId = jdbcTemplate.queryForObject(
-                    """
-                    INSERT INTO exercises (name, primary_muscle_group, difficulty)
-                    VALUES (?, ?, ?)
-                    RETURNING id
-                    """,
-                    UUID.class,
-                    exercise.name().trim(),
-                    exercise.primaryMuscleGroup(),
-                        exerciseDifficulty
-            );
+            UUID exerciseId = jdbcTemplate.query(
+                "SELECT id FROM exercises WHERE lower(name) = lower(?) ORDER BY created_at LIMIT 1",
+                (rs, rowNum) -> rs.getObject("id", UUID.class),
+                exercise.name().trim()
+            ).stream().findFirst().orElseGet(() -> jdbcTemplate.queryForObject(
+                """
+                INSERT INTO exercises (name, primary_muscle_group, difficulty)
+                VALUES (?, ?, ?)
+                RETURNING id
+                """,
+                UUID.class,
+                exercise.name().trim(),
+                exercise.primaryMuscleGroup(),
+                exerciseDifficulty
+            ));
             jdbcTemplate.update(
                     """
                     INSERT INTO routine_exercises
@@ -361,18 +393,59 @@ public class RoutineController {
         }
     }
 
-    private List<ExerciseResponse> exercisesForRoutine(UUID routineId) {
+        private RoutineResponse buildRoutineResponse(RoutineHeader header) {
+        List<RoutineDayResponse> days = daysForRoutine(header.id());
+        List<ExerciseResponse> legacyExercises = days.isEmpty() ? List.of() : days.get(0).exercises();
+        return new RoutineResponse(
+            header.id().toString(),
+            header.title(),
+            header.description(),
+            header.objective(),
+            header.difficulty(),
+            header.estimatedDurationMinutes(),
+            header.daysPerWeek(),
+            header.categoryId() == null ? null : header.categoryId().toString(),
+            header.categoryName(),
+            header.routineSplit(),
+            header.source(),
+            "TEMPLATE".equalsIgnoreCase(header.source()) && header.templateKey() != null,
+            header.templateKey(),
+            days,
+            legacyExercises
+        );
+        }
+
+        private List<RoutineDayResponse> daysForRoutine(UUID routineId) {
+        return jdbcTemplate.query(
+            """
+            SELECT id, day_index, title, focus
+            FROM routine_days
+            WHERE routine_id = ?
+            ORDER BY day_index
+            """,
+            this::mapDayHeader,
+            routineId
+        ).stream().map(day -> new RoutineDayResponse(
+            day.id().toString(),
+            day.dayIndex(),
+            day.title(),
+            day.focus(),
+            exercisesForDay(day.id())
+        )).toList();
+        }
+
+        private List<ExerciseResponse> exercisesForDay(UUID dayId) {
         return jdbcTemplate.query(
                 """
-                SELECT re.id, e.name, re.sets, re.target_reps, re.rest_seconds, re.notes
+            SELECT re.id, re.exercise_id, e.name, e.primary_muscle_group,
+                   re.sets, re.target_reps, re.reps_min, re.reps_max, re.rest_seconds, re.notes
                 FROM routine_exercises re
                 JOIN exercises e ON e.id = re.exercise_id
-                JOIN routine_days rd ON rd.id = re.routine_day_id
-                WHERE rd.routine_id = ?
-                ORDER BY rd.day_index, re.position
+            WHERE re.routine_day_id = ?
+            ORDER BY re.position
                 """,
                 this::mapExercise,
-                routineId
+            dayId
         );
     }
 
@@ -430,6 +503,10 @@ public class RoutineController {
         return normalized;
     }
 
+    private Integer asInteger(Object value) {
+        return value == null ? null : ((Number) value).intValue();
+    }
+
     private RoutineHeader mapHeader(ResultSet rs, int rowNum) throws SQLException {
         return new RoutineHeader(
                 rs.getObject("id", UUID.class),
@@ -437,20 +514,39 @@ public class RoutineController {
                 rs.getString("description"),
                 rs.getString("objective"),
                 rs.getString("difficulty"),
-                (Integer) rs.getObject("estimated_duration_minutes"),
-                (Integer) rs.getObject("days_per_week"),
+                asInteger(rs.getObject("estimated_duration_minutes")),
+                asInteger(rs.getObject("days_per_week")),
                 rs.getObject("category_id", UUID.class),
-                rs.getString("category_name")
+            rs.getString("category_name"),
+            rs.getString("source"),
+            rs.getString("template_key"),
+            rs.getString("routine_split")
+        );
+        }
+
+        private RoutineDayHeader mapDayHeader(ResultSet rs, int rowNum) throws SQLException {
+        return new RoutineDayHeader(
+            rs.getObject("id", UUID.class),
+            rs.getInt("day_index"),
+            rs.getString("title"),
+            rs.getString("focus")
         );
     }
 
     private ExerciseResponse mapExercise(ResultSet rs, int rowNum) throws SQLException {
+        Integer targetReps = (Integer) rs.getObject("target_reps");
+        Integer repsMin = (Integer) rs.getObject("reps_min");
+        Integer repsMax = (Integer) rs.getObject("reps_max");
         return new ExerciseResponse(
                 rs.getObject("id", UUID.class).toString(),
+            rs.getObject("exercise_id", UUID.class).toString(),
                 rs.getString("name"),
                 rs.getInt("sets"),
-                rs.getInt("target_reps"),
+            targetReps != null ? targetReps : (repsMax != null ? repsMax : (repsMin != null ? repsMin : 0)),
+            repsMin,
+            repsMax,
                 rs.getInt("rest_seconds"),
+            rs.getString("primary_muscle_group"),
                 rs.getString("notes")
         );
     }
@@ -497,9 +593,23 @@ public class RoutineController {
             Integer daysPerWeek,
             String categoryId,
             String categoryName,
+            String routineSplit,
+            String source,
+            boolean isTemplate,
+            String templateKey,
+            List<RoutineDayResponse> days,
             List<ExerciseResponse> exercises
     ) {
     }
+
+        public record RoutineDayResponse(
+            String id,
+            int dayIndex,
+            String title,
+            String focus,
+            List<ExerciseResponse> exercises
+        ) {
+        }
 
         public record RoutineCategoryResponse(
             String id,
@@ -510,7 +620,18 @@ public class RoutineController {
         ) {
         }
 
-    public record ExerciseResponse(String id, String name, int sets, int reps, int restSeconds, String notes) {
+        public record ExerciseResponse(
+            String id,
+            String exerciseId,
+            String name,
+            int sets,
+            int reps,
+            Integer repsMin,
+            Integer repsMax,
+            int restSeconds,
+            String primaryMuscleGroup,
+            String notes
+        ) {
     }
 
     public record WorkoutLogRequest(
@@ -530,7 +651,10 @@ public class RoutineController {
 
     private record RoutineHeader(UUID id, String title, String description, String objective, String difficulty,
                                  Integer estimatedDurationMinutes, Integer daysPerWeek, UUID categoryId,
-                                 String categoryName) {
+                                 String categoryName, String source, String templateKey, String routineSplit) {
+    }
+
+    private record RoutineDayHeader(UUID id, int dayIndex, String title, String focus) {
     }
 
     private record ExerciseLookup(UUID exerciseId, Integer targetReps, java.math.BigDecimal targetWeightKg) {
