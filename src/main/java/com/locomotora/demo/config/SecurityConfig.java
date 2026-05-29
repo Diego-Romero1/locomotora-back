@@ -46,11 +46,11 @@ public class SecurityConfig {
     }
 
     @Bean
-    CorsConfigurationSource corsConfigurationSource(@Value("${locomotora.cors.allowed-origins}") String origins) {
+    CorsConfigurationSource corsConfigurationSource(@Value("${locomotora.cors.allowed-origin-patterns}") String originPatterns) {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.stream(origins.split(",")).map(String::trim).toList());
+        configuration.setAllowedOriginPatterns(Arrays.stream(originPatterns.split(",")).map(String::trim).toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        configuration.setAllowedHeaders(List.of("*"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

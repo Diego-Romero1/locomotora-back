@@ -14,6 +14,7 @@ services:
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       LOCOMOTORA_JWT_SECRET: change-this-secret-in-production
+      LOCOMOTORA_CORS_ALLOWED_ORIGIN_PATTERNS: http://localhost:*,http://127.0.0.1:*,http://192.168.*:*,http://10.*:*
     ports:
       - "0.0.0.0:8080:8080"
     restart: unless-stopped
