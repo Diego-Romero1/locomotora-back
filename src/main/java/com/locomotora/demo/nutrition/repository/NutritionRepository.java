@@ -1,45 +1,40 @@
-package com.locomotora.demo.nutrition;
+package com.locomotora.demo.nutrition.repository;
 
-import com.locomotora.demo.common.CurrentUser;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import java.math.BigDecimal;
+import com.locomotora.demo.nutrition.dto.NutritionEntryRequest;
+import com.locomotora.demo.nutrition.dto.NutritionEntryResponse;
+import com.locomotora.demo.nutrition.dto.NutritionSummaryResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.stereotype.Repository;
 
-@RestController
-public class NutritionController {
+@Repository
+public class NutritionRepository {
     private final JdbcTemplate jdbcTemplate;
 
-    public NutritionController(JdbcTemplate jdbcTemplate) {
+    public NutritionRepository(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    @GetMapping("/nutrition")
-    public List<NutritionEntryResponse> entries(@RequestParam(required = false) LocalDate date) {
-        UUID userId = CurrentUser.id();
-        if (date != null) {
-            return jdbcTemplate.query(
-                    """
-                    SELECT id, entry_date, meal_type, description, calories, protein_g, carbs_g, fat_g, fiber_g, source, metadata::text AS metadata
-                    FROM nutrition_entries
-                    WHERE user_id = ? AND entry_date = ?
-                    ORDER BY created_at DESC
-                    """,
-                    this::mapEntry,
-                    userId,
-                    date
-            );
-        }
+    public List<NutritionEntryResponse> findByUserIdAndDate(UUID userId, LocalDate date) {
+        return jdbcTemplate.query(
+                """
+                SELECT id, entry_date, meal_type, description, calories, protein_g, carbs_g, fat_g, fiber_g, source, metadata::text AS metadata
+                FROM nutrition_entries
+                WHERE user_id = ? AND entry_date = ?
+                ORDER BY created_at DESC
+                """,
+                this::mapEntry,
+                userId,
+                date
+        );
+    }
+
+    public List<NutritionEntryResponse> findRecentByUserId(UUID userId) {
         return jdbcTemplate.query(
                 """
                 SELECT id, entry_date, meal_type, description, calories, protein_g, carbs_g, fat_g, fiber_g, source, metadata::text AS metadata
@@ -53,10 +48,21 @@ public class NutritionController {
         );
     }
 
-    @PostMapping("/nutrition")
-    public NutritionEntryResponse create(@Valid @RequestBody NutritionEntryRequest request) {
-        UUID userId = CurrentUser.id();
-        UUID id = jdbcTemplate.queryForObject(
+    public Optional<NutritionEntryResponse> findByIdAndUserId(UUID id, UUID userId) {
+        return jdbcTemplate.query(
+                """
+                SELECT id, entry_date, meal_type, description, calories, protein_g, carbs_g, fat_g, fiber_g, source, metadata::text AS metadata
+                FROM nutrition_entries
+                WHERE id = ? AND user_id = ?
+                """,
+                this::mapEntry,
+                id,
+                userId
+        ).stream().findFirst();
+    }
+
+    public UUID create(UUID userId, NutritionEntryRequest request, LocalDate entryDate) {
+        return jdbcTemplate.queryForObject(
                 """
                 INSERT INTO nutrition_entries
                     (user_id, entry_date, meal_type, description, calories, protein_g, carbs_g, fat_g, fiber_g, source, metadata)
@@ -65,7 +71,7 @@ public class NutritionController {
                 """,
                 UUID.class,
                 userId,
-                request.entryDate() == null ? LocalDate.now() : request.entryDate(),
+                entryDate,
                 request.mealType(),
                 request.description(),
                 request.calories(),
@@ -76,12 +82,9 @@ public class NutritionController {
                 request.source() == null ? "USER" : request.source(),
                 request.metadataJson() == null ? "{}" : request.metadataJson()
         );
-        return entries(null).stream().filter(entry -> entry.id().equals(id.toString())).findFirst().orElseThrow();
     }
 
-    @GetMapping("/nutrition/summary")
-    public NutritionSummary summary(@RequestParam(required = false) LocalDate date) {
-        LocalDate targetDate = date == null ? LocalDate.now() : date;
+    public NutritionSummaryResponse summary(UUID userId, LocalDate targetDate) {
         return jdbcTemplate.queryForObject(
                 """
                 SELECT COALESCE(sum(calories), 0) AS calories,
@@ -92,7 +95,7 @@ public class NutritionController {
                 FROM nutrition_entries
                 WHERE user_id = ? AND entry_date = ?
                 """,
-                (rs, rowNum) -> new NutritionSummary(
+                (rs, rowNum) -> new NutritionSummaryResponse(
                         targetDate.toString(),
                         rs.getBigDecimal("calories"),
                         rs.getBigDecimal("protein_g"),
@@ -100,7 +103,7 @@ public class NutritionController {
                         rs.getBigDecimal("fat_g"),
                         rs.getBigDecimal("fiber_g")
                 ),
-                CurrentUser.id(),
+                userId,
                 targetDate
         );
     }
@@ -120,28 +123,5 @@ public class NutritionController {
                 rs.getString("source"),
                 rs.getString("metadata")
         );
-    }
-
-    public record NutritionEntryRequest(
-            LocalDate entryDate,
-            String mealType,
-            @NotBlank String description,
-            BigDecimal calories,
-            BigDecimal proteinG,
-            BigDecimal carbsG,
-            BigDecimal fatG,
-            BigDecimal fiberG,
-            String source,
-            String metadataJson
-    ) {
-    }
-
-    public record NutritionEntryResponse(String id, String entryDate, String mealType, String description,
-                                         BigDecimal calories, BigDecimal proteinG, BigDecimal carbsG,
-                                         BigDecimal fatG, BigDecimal fiberG, String source, String metadataJson) {
-    }
-
-    public record NutritionSummary(String entryDate, BigDecimal calories, BigDecimal proteinG,
-                                   BigDecimal carbsG, BigDecimal fatG, BigDecimal fiberG) {
     }
 }

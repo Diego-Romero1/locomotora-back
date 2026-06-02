@@ -69,8 +69,8 @@ public class RoutineController {
                                    r.source, r.template_key, r.routine_split
                             FROM routines r
                             LEFT JOIN routine_categories rc ON rc.id = r.category_id
-                            WHERE (r.user_id = ? OR r.user_id IS NULL) AND r.is_active = true
-                            ORDER BY CASE WHEN r.user_id = ? THEN 0 ELSE 1 END, r.updated_at DESC, r.title
+                            WHERE r.user_id = ? AND r.is_active = true
+                            ORDER BY r.updated_at DESC, r.title
                             """
                             : """
                             SELECT r.id, r.title, r.description, r.objective, r.difficulty,
@@ -78,11 +78,10 @@ public class RoutineController {
                                    NULL::uuid AS category_id, NULL::varchar AS category_name,
                                    r.source, r.template_key, r.routine_split
                             FROM routines r
-                            WHERE (r.user_id = ? OR r.user_id IS NULL) AND r.is_active = true
-                            ORDER BY CASE WHEN r.user_id = ? THEN 0 ELSE 1 END, r.updated_at DESC, r.title
+                            WHERE r.user_id = ? AND r.is_active = true
+                            ORDER BY r.updated_at DESC, r.title
                             """,
                     this::mapHeader,
-                    userId,
                     userId
             ).stream().map(this::buildRoutineResponse).toList();
         }
@@ -95,15 +94,14 @@ public class RoutineController {
                        r.source, r.template_key, r.routine_split
                 FROM routines r
                 LEFT JOIN routine_categories rc ON rc.id = r.category_id
-                WHERE (r.user_id = ? OR r.user_id IS NULL)
+                  WHERE r.user_id = ?
                   AND r.is_active = true
                   AND r.category_id = ?
-                ORDER BY CASE WHEN r.user_id = ? THEN 0 ELSE 1 END, r.updated_at DESC, r.title
+                  ORDER BY r.updated_at DESC, r.title
                 """,
                 this::mapHeader,
                 userId,
-                categoryId,
-                userId
+                  categoryId
         ).stream().map(this::buildRoutineResponse).toList();
     }
 
