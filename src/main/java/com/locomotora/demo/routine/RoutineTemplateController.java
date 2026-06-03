@@ -2,6 +2,9 @@ package com.locomotora.demo.routine;
 
 import com.locomotora.demo.common.ApiException;
 import com.locomotora.demo.common.CurrentUser;
+import com.locomotora.demo.routine.dto.ExerciseResponse;
+import com.locomotora.demo.routine.dto.RoutineDayResponse;
+import com.locomotora.demo.routine.dto.RoutineResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -38,7 +41,7 @@ public class RoutineTemplateController {
     }
 
     @GetMapping("/routines/templates")
-    public List<RoutineController.RoutineResponse> templates(@RequestParam(required = false) String goal) {
+    public List<RoutineResponse> templates(@RequestParam(required = false) String goal) {
         String normalizedGoal = normalizeGoal(goal);
         List<UUID> ids = normalizedGoal == null
                 ? jdbcTemplate.query(
@@ -64,12 +67,12 @@ public class RoutineTemplateController {
     }
 
     @GetMapping("/routines/templates/{id}")
-    public RoutineController.RoutineResponse getTemplate(@PathVariable UUID id) {
+    public RoutineResponse getTemplate(@PathVariable UUID id) {
         return getTemplateResponse(id);
     }
 
     @GetMapping("/routines/recommendation")
-    public RoutineController.RoutineResponse recommendation() {
+    public RoutineResponse recommendation() {
         UUID userId = CurrentUser.id();
         UUID templateId = findRecommendedTemplateId(loadRecommendationProfile(userId));
         return getTemplateResponse(templateId);
@@ -77,7 +80,7 @@ public class RoutineTemplateController {
 
     @PostMapping("/routines/templates/{templateId}/use")
     @Transactional
-    public RoutineController.RoutineResponse useTemplate(@PathVariable UUID templateId) {
+    public RoutineResponse useTemplate(@PathVariable UUID templateId) {
         UUID userId = CurrentUser.id();
         UUID clonedId = cloneTemplateRoutine(templateId, userId);
         return getUserRoutineResponse(clonedId, userId);
@@ -85,14 +88,14 @@ public class RoutineTemplateController {
 
     @PostMapping("/routines/recommendation/use")
     @Transactional
-    public RoutineController.RoutineResponse useRecommendation() {
+    public RoutineResponse useRecommendation() {
         UUID userId = CurrentUser.id();
         UUID templateId = findRecommendedTemplateId(loadRecommendationProfile(userId));
         UUID clonedId = cloneTemplateRoutine(templateId, userId);
         return getUserRoutineResponse(clonedId, userId);
     }
 
-    private RoutineController.RoutineResponse getTemplateResponse(UUID routineId) {
+    private RoutineResponse getTemplateResponse(UUID routineId) {
         boolean categoriesAvailable = routineCategoriesAvailable();
         TemplateHeader header = jdbcTemplate.query(
                 categoriesAvailable
@@ -119,7 +122,7 @@ public class RoutineTemplateController {
         return buildRoutineResponse(header);
     }
 
-    private RoutineController.RoutineResponse getUserRoutineResponse(UUID routineId, UUID userId) {
+    private RoutineResponse getUserRoutineResponse(UUID routineId, UUID userId) {
         boolean categoriesAvailable = routineCategoriesAvailable();
         TemplateHeader header = jdbcTemplate.query(
                 categoriesAvailable
@@ -147,8 +150,8 @@ public class RoutineTemplateController {
         return buildRoutineResponse(header);
     }
 
-    private RoutineController.RoutineResponse buildRoutineResponse(TemplateHeader header) {
-        List<RoutineController.RoutineDayResponse> days = jdbcTemplate.query(
+    private RoutineResponse buildRoutineResponse(TemplateHeader header) {
+        List<RoutineDayResponse> days = jdbcTemplate.query(
                 """
                 SELECT id, day_index, title, focus
                 FROM routine_days
@@ -157,7 +160,7 @@ public class RoutineTemplateController {
                 """,
                 this::mapDayHeader,
                 header.id()
-        ).stream().map(day -> new RoutineController.RoutineDayResponse(
+        ).stream().map(day -> new RoutineDayResponse(
                 day.id().toString(),
                 day.dayIndex(),
                 day.title(),
@@ -165,8 +168,8 @@ public class RoutineTemplateController {
                 exercisesForDay(day.id())
         )).toList();
 
-        List<RoutineController.ExerciseResponse> legacyExercises = days.isEmpty() ? List.of() : days.get(0).exercises();
-        return new RoutineController.RoutineResponse(
+        List<ExerciseResponse> legacyExercises = days.isEmpty() ? List.of() : days.get(0).exercises();
+        return new RoutineResponse(
                 header.id().toString(),
                 header.title(),
                 header.description(),
@@ -185,7 +188,7 @@ public class RoutineTemplateController {
         );
     }
 
-    private List<RoutineController.ExerciseResponse> exercisesForDay(UUID dayId) {
+    private List<ExerciseResponse> exercisesForDay(UUID dayId) {
         return jdbcTemplate.query(
                 """
                 SELECT re.id, re.exercise_id, e.name, e.primary_muscle_group,
@@ -551,12 +554,12 @@ public class RoutineTemplateController {
         );
     }
 
-    private RoutineController.ExerciseResponse mapExercise(ResultSet rs, int rowNum) throws SQLException {
+    private ExerciseResponse mapExercise(ResultSet rs, int rowNum) throws SQLException {
         Integer targetReps = (Integer) rs.getObject("target_reps");
         Integer repsMin = (Integer) rs.getObject("reps_min");
         Integer repsMax = (Integer) rs.getObject("reps_max");
         int reps = targetReps != null ? targetReps : (repsMax != null ? repsMax : (repsMin != null ? repsMin : 0));
-        return new RoutineController.ExerciseResponse(
+        return new ExerciseResponse(
                 rs.getObject("id", UUID.class).toString(),
                 rs.getObject("exercise_id", UUID.class).toString(),
                 rs.getString("name"),
