@@ -1,5 +1,6 @@
 package com.locomotora.demo.routine.repository;
 
+import com.locomotora.demo.routine.dto.ExerciseCatalogItemResponse;
 import com.locomotora.demo.routine.dto.ExerciseResponse;
 import com.locomotora.demo.routine.dto.RoutineCategoryResponse;
 import com.locomotora.demo.routine.model.RoutineDayHeader;
@@ -151,6 +152,18 @@ public class RoutineRepository {
         );
     }
 
+    public List<ExerciseCatalogItemResponse> findExerciseCatalog() {
+        return jdbcTemplate.query(
+                """
+                SELECT id, name, category, primary_muscle_group, equipment, difficulty, description, instructions
+                FROM exercises
+                WHERE is_active = true
+                ORDER BY COALESCE(primary_muscle_group, 'ZZZ'), name
+                """,
+                this::mapExerciseCatalogItem
+        );
+    }
+
     public boolean routineCategoriesAvailable() {
         Integer tableCount = jdbcTemplate.queryForObject(
                 """
@@ -221,6 +234,19 @@ public class RoutineRepository {
                 rs.getInt("rest_seconds"),
                 rs.getString("primary_muscle_group"),
                 rs.getString("notes")
+        );
+    }
+
+    private ExerciseCatalogItemResponse mapExerciseCatalogItem(ResultSet rs, int rowNum) throws SQLException {
+        return new ExerciseCatalogItemResponse(
+                rs.getObject("id", UUID.class).toString(),
+                rs.getString("name"),
+                rs.getString("category"),
+                rs.getString("primary_muscle_group"),
+                rs.getString("equipment"),
+                rs.getString("difficulty"),
+                rs.getString("description"),
+                rs.getString("instructions")
         );
     }
 

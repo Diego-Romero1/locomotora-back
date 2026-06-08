@@ -1,10 +1,14 @@
 package com.locomotora.demo.routine;
 
+import com.locomotora.demo.routine.dto.ExerciseCatalogItemResponse;
+import com.locomotora.demo.routine.dto.ExerciseProgressLogRequest;
+import com.locomotora.demo.routine.dto.ExerciseProgressLogResponse;
 import com.locomotora.demo.routine.dto.RoutineCategoryResponse;
 import com.locomotora.demo.routine.dto.RoutineRequest;
 import com.locomotora.demo.routine.dto.RoutineResponse;
 import com.locomotora.demo.routine.dto.WorkoutLogRequest;
 import com.locomotora.demo.routine.dto.WorkoutLogResponse;
+import com.locomotora.demo.routine.service.ExerciseProgressService;
 import com.locomotora.demo.routine.service.RoutineReadService;
 import com.locomotora.demo.routine.service.RoutineService;
 import com.locomotora.demo.routine.service.WorkoutLogService;
@@ -25,11 +29,18 @@ public class RoutineController {
     private final RoutineReadService routineReadService;
     private final RoutineService routineService;
     private final WorkoutLogService workoutLogService;
+    private final ExerciseProgressService exerciseProgressService;
 
-    public RoutineController(RoutineReadService routineReadService, RoutineService routineService, WorkoutLogService workoutLogService) {
+    public RoutineController(
+            RoutineReadService routineReadService,
+            RoutineService routineService,
+            WorkoutLogService workoutLogService,
+            ExerciseProgressService exerciseProgressService
+    ) {
         this.routineReadService = routineReadService;
         this.routineService = routineService;
         this.workoutLogService = workoutLogService;
+        this.exerciseProgressService = exerciseProgressService;
     }
 
     @GetMapping("/routine")
@@ -45,6 +56,19 @@ public class RoutineController {
     @GetMapping("/routine-categories")
     public List<RoutineCategoryResponse> routineCategories() {
         return routineReadService.routineCategories();
+    }
+
+    @GetMapping("/exercises")
+    public List<ExerciseCatalogItemResponse> exercises() {
+        return routineReadService.exerciseCatalog();
+    }
+
+    @PostMapping("/exercises/{id}/logs")
+    public ExerciseProgressLogResponse logExerciseProgress(
+            @PathVariable UUID id,
+            @Valid @RequestBody ExerciseProgressLogRequest request
+    ) {
+        return exerciseProgressService.logExerciseProgress(id, request);
     }
 
     @GetMapping("/routines/{id}")

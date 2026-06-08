@@ -67,6 +67,15 @@ public class WorkoutSessionRepository {
         ).stream().findFirst();
     }
 
+    public boolean activeExerciseExists(UUID exerciseId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM exercises WHERE id = ? AND is_active = true",
+                Integer.class,
+                exerciseId
+        );
+        return count != null && count > 0;
+    }
+
     public void insertExerciseLog(UUID sessionId, UUID routineExerciseId, ExerciseLookup exercise) {
         jdbcTemplate.update(
                 """
@@ -79,6 +88,20 @@ public class WorkoutSessionRepository {
                 exercise.exerciseId(),
                 exercise.targetReps(),
                 exercise.targetWeightKg()
+        );
+    }
+
+    public void insertStandaloneExerciseLog(UUID sessionId, UUID exerciseId, Integer reps, BigDecimal weightKg) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO workout_exercise_logs
+                    (workout_session_id, routine_exercise_id, exercise_id, set_number, reps, weight_kg, completed)
+                VALUES (?, NULL, ?, 1, ?, ?, true)
+                """,
+                sessionId,
+                exerciseId,
+                reps,
+                weightKg
         );
     }
 

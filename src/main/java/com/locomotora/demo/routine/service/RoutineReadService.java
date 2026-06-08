@@ -2,6 +2,7 @@ package com.locomotora.demo.routine.service;
 
 import com.locomotora.demo.common.ApiException;
 import com.locomotora.demo.common.CurrentUser;
+import com.locomotora.demo.routine.dto.ExerciseCatalogItemResponse;
 import com.locomotora.demo.routine.dto.ExerciseResponse;
 import com.locomotora.demo.routine.dto.RoutineCategoryResponse;
 import com.locomotora.demo.routine.dto.RoutineDayResponse;
@@ -52,6 +53,10 @@ public class RoutineReadService {
             return List.of();
         }
         return routineRepository.findCategories();
+    }
+
+    public List<ExerciseCatalogItemResponse> exerciseCatalog() {
+        return routineRepository.findExerciseCatalog();
     }
 
     public RoutineResponse getRoutine(UUID id) {

@@ -2,9 +2,11 @@ package com.locomotora.demo.progress.service;
 
 import com.locomotora.demo.common.CurrentUser;
 import com.locomotora.demo.progress.dto.BodyMetricResponse;
+import com.locomotora.demo.progress.dto.ExerciseActivityResponse;
 import com.locomotora.demo.progress.dto.ProgressSummaryResponse;
 import com.locomotora.demo.progress.repository.BodyMetricRepository;
 import com.locomotora.demo.progress.repository.ProgressRepository;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 
@@ -27,5 +29,10 @@ public class ProgressService {
                 progressRepository.countActiveDaysLast30(userId),
                 latestMetric
         );
+    }
+
+    public List<ExerciseActivityResponse> recentActivity() {
+        UUID userId = CurrentUser.id();
+        return progressRepository.findRecentExerciseActivity(userId);
     }
 }
