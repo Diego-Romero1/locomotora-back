@@ -3,9 +3,12 @@ package com.locomotora.demo.routine.service;
 import com.locomotora.demo.common.ApiException;
 import com.locomotora.demo.common.CurrentUser;
 import com.locomotora.demo.routine.dto.ExerciseRequest;
+import com.locomotora.demo.routine.dto.RoutineDayRequest;
 import com.locomotora.demo.routine.dto.RoutineRequest;
 import com.locomotora.demo.routine.dto.RoutineResponse;
 import com.locomotora.demo.routine.repository.RoutineWriteRepository;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -32,8 +35,9 @@ public class RoutineService {
         boolean categoriesAvailable = routineReadService.routineCategoriesAvailable();
         UUID categoryId = validateCategoryId(request.categoryId(), categoriesAvailable);
         String difficulty = normalizeDifficulty(request.difficulty(), "Routine difficulty");
+        List<RoutineDayRequest> days = normalizeDays(request);
         UUID routineId = routineWriteRepository.createRoutine(userId, request, difficulty, categoryId, categoriesAvailable);
-        replaceExercises(routineId, request.exercises());
+        replaceDays(routineId, days);
         return routineReadService.getRoutine(routineId);
     }
 
@@ -43,16 +47,16 @@ public class RoutineService {
         boolean categoriesAvailable = routineReadService.routineCategoriesAvailable();
         UUID categoryId = validateCategoryId(request.categoryId(), categoriesAvailable);
         String difficulty = normalizeDifficulty(request.difficulty(), "Routine difficulty");
-        if (routineWriteRepository.countRoutineDays(routineId, userId) > 1) {
-            throw new ApiException(HttpStatus.BAD_REQUEST,
-                    "This routine has multiple days and cannot be edited with the legacy single-day payload");
-        }
+        List<RoutineDayRequest> days = normalizeDays(request);
 
         int updated = routineWriteRepository.updateRoutine(routineId, userId, request, difficulty, categoryId, categoriesAvailable);
         if (updated == 0) {
+            if (routineWriteRepository.isActiveGlobalTemplate(routineId)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Global templates cannot be edited");
+            }
             throw new ApiException(HttpStatus.NOT_FOUND, "Routine not found");
         }
-        replaceExercises(routineId, request.exercises());
+        replaceDays(routineId, days);
         return routineReadService.getRoutine(routineId);
     }
 
@@ -63,14 +67,100 @@ public class RoutineService {
         }
     }
 
-    private void replaceExercises(UUID routineId, List<ExerciseRequest> exercises) {
+    private List<RoutineDayRequest> normalizeDays(RoutineRequest request) {
+        if (request.days() != null && !request.days().isEmpty()) {
+            return request.days().stream()
+                    .sorted(Comparator.comparing(day -> day.dayIndex() == null ? Integer.MAX_VALUE : day.dayIndex()))
+                    .map(this::validateDay)
+                    .toList();
+        }
+
+        if (request.exercises() != null && !request.exercises().isEmpty()) {
+            List<ExerciseRequest> exercises = request.exercises().stream().map(this::validateExercise).toList();
+            return List.of(new RoutineDayRequest(null, 1, "Dia 1", "General", exercises));
+        }
+
+        throw new ApiException(HttpStatus.BAD_REQUEST, "Add at least one training day or exercise");
+    }
+
+    private RoutineDayRequest validateDay(RoutineDayRequest day) {
+        if (day == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Routine day is required");
+        }
+        int dayIndex = day.dayIndex() == null ? 1 : day.dayIndex();
+        if (dayIndex < 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Day index must be greater than 0");
+        }
+        List<ExerciseRequest> exercises = day.exercises() == null
+                ? List.of()
+                : day.exercises().stream().map(this::validateExercise).toList();
+        if (exercises.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Each routine day needs at least one exercise");
+        }
+        String title = normalizeText(day.title());
+        return new RoutineDayRequest(
+                day.id(),
+                dayIndex,
+                title == null ? "Dia " + dayIndex : title,
+                normalizeText(day.focus()),
+                exercises
+        );
+    }
+
+    private ExerciseRequest validateExercise(ExerciseRequest exercise) {
+        if (exercise == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Exercise is required");
+        }
+        if (exercise.name() == null || exercise.name().trim().isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Exercise name is required");
+        }
+        int sets = exercise.sets() == null ? 0 : exercise.sets();
+        int restSeconds = exercise.restSeconds() == null ? 0 : exercise.restSeconds();
+        Integer reps = exercise.reps();
+        Integer repsMin = exercise.repsMin();
+        Integer repsMax = exercise.repsMax();
+        if (sets < 1 || restSeconds < 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Exercise sets and rest values are invalid");
+        }
+        if (reps == null && repsMin == null && repsMax == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Exercise reps are required");
+        }
+        if (repsMin != null && repsMax != null && repsMin > repsMax) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Exercise reps range is invalid");
+        }
+        String exerciseDifficulty = normalizeDifficulty(exercise.difficulty(), "Exercise difficulty");
+        return new ExerciseRequest(
+                exercise.id(),
+                exercise.exerciseId(),
+                exercise.name().trim(),
+                sets,
+                reps,
+                repsMin,
+                repsMax,
+                restSeconds,
+                normalizeText(exercise.primaryMuscleGroup()),
+                exerciseDifficulty,
+                normalizeText(exercise.notes())
+        );
+    }
+
+    private void replaceDays(UUID routineId, List<RoutineDayRequest> days) {
         routineWriteRepository.deleteDays(routineId);
-        UUID routineDayId = routineWriteRepository.createDefaultDay(routineId);
-        int position = 1;
-        for (ExerciseRequest exercise : exercises) {
-            String exerciseDifficulty = normalizeDifficulty(exercise.difficulty(), "Exercise difficulty");
-            UUID exerciseId = routineWriteRepository.findOrCreateExercise(exercise, exerciseDifficulty);
-            routineWriteRepository.insertRoutineExercise(routineDayId, exerciseId, position++, exercise);
+        List<Integer> usedDayIndexes = new ArrayList<>();
+        int fallbackDayIndex = 1;
+        for (RoutineDayRequest day : days) {
+            int dayIndex = day.dayIndex() == null ? fallbackDayIndex : day.dayIndex();
+            while (usedDayIndexes.contains(dayIndex)) {
+                dayIndex++;
+            }
+            usedDayIndexes.add(dayIndex);
+            fallbackDayIndex = dayIndex + 1;
+            UUID routineDayId = routineWriteRepository.createDay(routineId, dayIndex, day.title(), day.focus());
+            int position = 1;
+            for (ExerciseRequest exercise : day.exercises()) {
+                UUID exerciseId = routineWriteRepository.findOrCreateExercise(exercise);
+                routineWriteRepository.insertRoutineExercise(routineDayId, exerciseId, position++, exercise);
+            }
         }
     }
 
@@ -101,5 +191,12 @@ public class RoutineService {
                     fieldName + " must be BEGINNER, INTERMEDIATE or ADVANCED");
         }
         return normalized;
+    }
+    private String normalizeText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 }

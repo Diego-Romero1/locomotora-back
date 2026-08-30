@@ -51,19 +51,17 @@ public class RoutineWriteRepository {
         );
     }
 
-    public int countRoutineDays(UUID routineId, UUID userId) {
-        Integer dayCount = jdbcTemplate.queryForObject(
+    public boolean isActiveGlobalTemplate(UUID routineId) {
+        Integer count = jdbcTemplate.queryForObject(
                 """
                 SELECT count(*)
-                FROM routine_days rd
-                JOIN routines r ON r.id = rd.routine_id
-                WHERE r.id = ? AND r.user_id = ? AND r.is_active = true
+                FROM routines
+                WHERE id = ? AND user_id IS NULL AND source = 'TEMPLATE' AND is_active = true
                 """,
                 Integer.class,
-                routineId,
-                userId
+                routineId
         );
-        return dayCount == null ? 0 : dayCount;
+        return count != null && count > 0;
     }
 
     public int updateRoutine(UUID routineId, UUID userId, RoutineRequest request, String difficulty, UUID categoryId, boolean categoriesAvailable) {
@@ -117,15 +115,23 @@ public class RoutineWriteRepository {
         jdbcTemplate.update("DELETE FROM routine_days WHERE routine_id = ?", routineId);
     }
 
-    public UUID createDefaultDay(UUID routineId) {
+    public UUID createDay(UUID routineId, int dayIndex, String title, String focus) {
         return jdbcTemplate.queryForObject(
-                "INSERT INTO routine_days (routine_id, day_index, title, focus) VALUES (?, 1, 'Dia 1', 'General') RETURNING id",
+                "INSERT INTO routine_days (routine_id, day_index, title, focus) VALUES (?, ?, ?, ?) RETURNING id",
                 UUID.class,
-                routineId
+                routineId,
+                dayIndex,
+                title,
+                focus
         );
     }
 
-    public UUID findOrCreateExercise(ExerciseRequest exercise, String exerciseDifficulty) {
+    public UUID findOrCreateExercise(ExerciseRequest exercise) {
+        UUID requestedExerciseId = parseUuid(exercise.exerciseId());
+        if (requestedExerciseId != null && exerciseExists(requestedExerciseId)) {
+            return requestedExerciseId;
+        }
+
         return jdbcTemplate.query(
                 "SELECT id FROM exercises WHERE lower(name) = lower(?) ORDER BY created_at LIMIT 1",
                 (rs, rowNum) -> rs.getObject("id", UUID.class),
@@ -139,24 +145,49 @@ public class RoutineWriteRepository {
                 UUID.class,
                 exercise.name().trim(),
                 exercise.primaryMuscleGroup(),
-                exerciseDifficulty
+                exercise.difficulty()
         ));
     }
 
     public void insertRoutineExercise(UUID routineDayId, UUID exerciseId, int position, ExerciseRequest exercise) {
+        Integer targetReps = exercise.reps() != null
+                ? exercise.reps()
+                : (exercise.repsMax() != null ? exercise.repsMax() : exercise.repsMin());
         jdbcTemplate.update(
                 """
                 INSERT INTO routine_exercises
-                    (routine_day_id, exercise_id, position, sets, target_reps, rest_seconds, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (routine_day_id, exercise_id, position, sets, reps_min, reps_max, target_reps, rest_seconds, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 routineDayId,
                 exerciseId,
                 position,
                 exercise.sets(),
-                exercise.reps(),
+                exercise.repsMin(),
+                exercise.repsMax(),
+                targetReps,
                 exercise.restSeconds(),
                 exercise.notes()
         );
+    }
+
+    private boolean exerciseExists(UUID exerciseId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM exercises WHERE id = ? AND is_active = true",
+                Integer.class,
+                exerciseId
+        );
+        return count != null && count > 0;
+    }
+
+    private UUID parseUuid(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 }

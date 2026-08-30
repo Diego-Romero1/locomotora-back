@@ -1,6 +1,7 @@
 package com.locomotora.demo.progress.repository;
 
 import com.locomotora.demo.progress.dto.ExerciseActivityResponse;
+import com.locomotora.demo.progress.dto.WorkoutActivityResponse;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
@@ -47,7 +48,42 @@ public class ProgressRepository {
         return count == null ? 0 : count;
     }
 
-    public List<ExerciseActivityResponse> findRecentExerciseActivity(UUID userId) {
+    public List<WorkoutActivityResponse> findRecentWorkoutActivity(UUID userId) {
+        return jdbcTemplate.query(
+                """
+                SELECT ws.id,
+                       ws.routine_id,
+                       COALESCE(r.title, 'Rutina') AS routine_title,
+                       ws.routine_day_id,
+                       rd.title AS routine_day_title,
+                       ws.completed_at
+                FROM workout_sessions ws
+                LEFT JOIN routines r ON r.id = ws.routine_id
+                LEFT JOIN routine_days rd ON rd.id = ws.routine_day_id
+                WHERE ws.user_id = ?
+                  AND ws.status = 'COMPLETED'
+                ORDER BY ws.completed_at DESC
+                LIMIT 10
+                """,
+                (rs, rowNum) -> {
+                    UUID sessionId = rs.getObject("id", UUID.class);
+                    UUID routineId = rs.getObject("routine_id", UUID.class);
+                    UUID routineDayId = rs.getObject("routine_day_id", UUID.class);
+                    return new WorkoutActivityResponse(
+                            sessionId.toString(),
+                            routineId == null ? null : routineId.toString(),
+                            rs.getString("routine_title"),
+                            routineDayId == null ? null : routineDayId.toString(),
+                            rs.getString("routine_day_title"),
+                            rs.getTimestamp("completed_at").toInstant().toString(),
+                            findExercisesForSession(sessionId)
+                    );
+                },
+                userId
+        );
+    }
+
+    private List<ExerciseActivityResponse> findExercisesForSession(UUID sessionId) {
         return jdbcTemplate.query(
                 """
                 SELECT wel.id,
@@ -60,14 +96,12 @@ public class ProgressRepository {
                 FROM workout_exercise_logs wel
                 JOIN workout_sessions ws ON ws.id = wel.workout_session_id
                 JOIN exercises e ON e.id = wel.exercise_id
-                WHERE ws.user_id = ?
-                  AND ws.status = 'COMPLETED'
+                WHERE ws.id = ?
                   AND wel.completed = true
-                ORDER BY COALESCE(ws.completed_at, wel.created_at) DESC, wel.created_at DESC
-                LIMIT 20
+                ORDER BY wel.created_at, wel.set_number, e.name
                 """,
                 this::mapExerciseActivity,
-                userId
+                sessionId
         );
     }
 

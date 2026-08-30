@@ -5,10 +5,13 @@ import jakarta.validation.constraints.NotBlank;
 
 public record ExerciseRequest(
         String id,
+        String exerciseId,
         @NotBlank String name,
-        @Min(1) int sets,
-        @Min(1) int reps,
-        @Min(0) int restSeconds,
+        @Min(1) Integer sets,
+        @Min(1) Integer reps,
+        @Min(1) Integer repsMin,
+        @Min(1) Integer repsMax,
+        @Min(0) Integer restSeconds,
         String primaryMuscleGroup,
         String difficulty,
         String notes

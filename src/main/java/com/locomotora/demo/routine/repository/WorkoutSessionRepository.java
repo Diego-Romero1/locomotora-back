@@ -77,6 +77,10 @@ public class WorkoutSessionRepository {
     }
 
     public void insertExerciseLog(UUID sessionId, UUID routineExerciseId, ExerciseLookup exercise) {
+        insertExerciseLog(sessionId, routineExerciseId, exercise, exercise.targetReps(), exercise.targetWeightKg());
+    }
+
+    public void insertExerciseLog(UUID sessionId, UUID routineExerciseId, ExerciseLookup exercise, Integer reps, BigDecimal weightKg) {
         jdbcTemplate.update(
                 """
                 INSERT INTO workout_exercise_logs
@@ -86,8 +90,8 @@ public class WorkoutSessionRepository {
                 sessionId,
                 routineExerciseId,
                 exercise.exerciseId(),
-                exercise.targetReps(),
-                exercise.targetWeightKg()
+                reps == null ? exercise.targetReps() : reps,
+                weightKg == null ? exercise.targetWeightKg() : weightKg
         );
     }
 

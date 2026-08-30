@@ -2,6 +2,7 @@ package com.locomotora.demo.routine.service;
 
 import com.locomotora.demo.common.ApiException;
 import com.locomotora.demo.common.CurrentUser;
+import com.locomotora.demo.routine.dto.WorkoutExerciseLogRequest;
 import com.locomotora.demo.routine.dto.WorkoutLogRequest;
 import com.locomotora.demo.routine.dto.WorkoutLogResponse;
 import com.locomotora.demo.routine.repository.WorkoutSessionRepository;
@@ -38,15 +39,38 @@ public class WorkoutLogService {
                 Timestamp.from(completedAt)
         );
 
-        for (String completedId : request.completedExerciseIds()) {
-            UUID routineExerciseId = UUID.fromString(completedId);
-            ExerciseLookup exercise = workoutSessionRepository.findExerciseForRoutineLog(routineExerciseId, routineId)
-                    .orElse(null);
-            if (exercise != null) {
-                workoutSessionRepository.insertExerciseLog(sessionId, routineExerciseId, exercise);
+        int completedCount = 0;
+        if (!request.completedExercises().isEmpty()) {
+            for (WorkoutExerciseLogRequest completedExercise : request.completedExercises()) {
+                if (completedExercise.routineExerciseId() == null || completedExercise.routineExerciseId().isBlank()) {
+                    continue;
+                }
+                UUID routineExerciseId = UUID.fromString(completedExercise.routineExerciseId());
+                ExerciseLookup exercise = workoutSessionRepository.findExerciseForRoutineLog(routineExerciseId, routineId)
+                        .orElse(null);
+                if (exercise != null) {
+                    workoutSessionRepository.insertExerciseLog(
+                            sessionId,
+                            routineExerciseId,
+                            exercise,
+                            completedExercise.reps(),
+                            completedExercise.weightKg()
+                    );
+                    completedCount += 1;
+                }
+            }
+        } else {
+            for (String completedId : request.completedExerciseIds()) {
+                UUID routineExerciseId = UUID.fromString(completedId);
+                ExerciseLookup exercise = workoutSessionRepository.findExerciseForRoutineLog(routineExerciseId, routineId)
+                        .orElse(null);
+                if (exercise != null) {
+                    workoutSessionRepository.insertExerciseLog(sessionId, routineExerciseId, exercise);
+                    completedCount += 1;
+                }
             }
         }
 
-        return new WorkoutLogResponse(sessionId.toString(), request.completedExerciseIds().size(), completedAt.toString());
+        return new WorkoutLogResponse(sessionId.toString(), completedCount, completedAt.toString());
     }
 }

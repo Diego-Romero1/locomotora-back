@@ -2,7 +2,7 @@ package com.locomotora.demo.progress.controller;
 
 import com.locomotora.demo.progress.dto.BodyMetricRequest;
 import com.locomotora.demo.progress.dto.BodyMetricResponse;
-import com.locomotora.demo.progress.dto.ExerciseActivityResponse;
+import com.locomotora.demo.progress.dto.WorkoutActivityResponse;
 import com.locomotora.demo.progress.dto.ProgressSummaryResponse;
 import com.locomotora.demo.progress.service.BodyMetricService;
 import com.locomotora.demo.progress.service.ProgressService;
@@ -29,7 +29,7 @@ public class ProgressController {
     }
 
     @GetMapping("/progress/activity")
-    public List<ExerciseActivityResponse> recentActivity() {
+    public List<WorkoutActivityResponse> recentActivity() {
         return progressService.recentActivity();
     }
 
