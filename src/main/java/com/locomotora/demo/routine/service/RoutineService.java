@@ -9,6 +9,7 @@ import com.locomotora.demo.routine.dto.RoutineResponse;
 import com.locomotora.demo.routine.repository.RoutineWriteRepository;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -37,7 +38,7 @@ public class RoutineService {
         String difficulty = normalizeDifficulty(request.difficulty(), "Routine difficulty");
         List<RoutineDayRequest> days = normalizeDays(request);
         UUID routineId = routineWriteRepository.createRoutine(userId, request, difficulty, categoryId, categoriesAvailable);
-        replaceDays(routineId, days);
+        syncDays(routineId, days);
         return routineReadService.getRoutine(routineId);
     }
 
@@ -56,7 +57,7 @@ public class RoutineService {
             }
             throw new ApiException(HttpStatus.NOT_FOUND, "Routine not found");
         }
-        replaceDays(routineId, days);
+        syncDays(routineId, days);
         return routineReadService.getRoutine(routineId);
     }
 
@@ -144,8 +145,18 @@ public class RoutineService {
         );
     }
 
-    private void replaceDays(UUID routineId, List<RoutineDayRequest> days) {
-        routineWriteRepository.deleteDays(routineId);
+    /**
+     * Deja los dias y ejercicios de la rutina iguales al request, conservando los ids
+     * que ya existen: asi las sesiones registradas siguen apuntando a su dia y a su
+     * ejercicio despues de editar. Un id que no pertenece a la rutina (o repetido)
+     * se trata como nuevo. Lo que no aparece en el request se borra.
+     */
+    private void syncDays(UUID routineId, List<RoutineDayRequest> days) {
+        Set<UUID> existingDayIds = routineWriteRepository.findDayIds(routineId);
+        Set<UUID> existingExerciseIds = routineWriteRepository.findRoutineExerciseIds(routineId);
+        Set<UUID> keptDayIds = new HashSet<>();
+        Set<UUID> keptExerciseIds = new HashSet<>();
+
         List<Integer> usedDayIndexes = new ArrayList<>();
         int fallbackDayIndex = 1;
         for (RoutineDayRequest day : days) {
@@ -155,12 +166,50 @@ public class RoutineService {
             }
             usedDayIndexes.add(dayIndex);
             fallbackDayIndex = dayIndex + 1;
-            UUID routineDayId = routineWriteRepository.createDay(routineId, dayIndex, day.title(), day.focus());
+
+            UUID requestedDayId = parseUuid(day.id());
+            UUID routineDayId;
+            if (requestedDayId != null && existingDayIds.contains(requestedDayId) && keptDayIds.add(requestedDayId)) {
+                routineWriteRepository.updateDay(requestedDayId, dayIndex, day.title(), day.focus());
+                routineDayId = requestedDayId;
+            } else {
+                routineDayId = routineWriteRepository.createDay(routineId, dayIndex, day.title(), day.focus());
+            }
+
             int position = 1;
             for (ExerciseRequest exercise : day.exercises()) {
                 UUID exerciseId = routineWriteRepository.findOrCreateExercise(exercise);
-                routineWriteRepository.insertRoutineExercise(routineDayId, exerciseId, position++, exercise);
+                UUID requestedRowId = parseUuid(exercise.id());
+                if (requestedRowId != null
+                        && existingExerciseIds.contains(requestedRowId)
+                        && keptExerciseIds.add(requestedRowId)) {
+                    routineWriteRepository.updateRoutineExercise(requestedRowId, routineDayId, exerciseId, position++, exercise);
+                } else {
+                    routineWriteRepository.insertRoutineExercise(routineDayId, exerciseId, position++, exercise);
+                }
             }
+        }
+
+        // Primero los ejercicios: uno movido desde un dia que se borra ya cambio de dia
+        // arriba, asi que el borrado en cascada del dia no lo alcanza.
+        List<UUID> removedExerciseIds = existingExerciseIds.stream().filter(id -> !keptExerciseIds.contains(id)).toList();
+        if (!removedExerciseIds.isEmpty()) {
+            routineWriteRepository.deleteRoutineExercises(removedExerciseIds);
+        }
+        List<UUID> removedDayIds = existingDayIds.stream().filter(id -> !keptDayIds.contains(id)).toList();
+        if (!removedDayIds.isEmpty()) {
+            routineWriteRepository.deleteDays(removedDayIds);
+        }
+    }
+
+    private UUID parseUuid(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ignored) {
+            return null;
         }
     }
 

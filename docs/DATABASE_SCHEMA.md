@@ -197,6 +197,7 @@ Campos principales:
 | V5      | `V5__seed_hypertrophy_exercises.sql`     | Columnas extra en `exercises` (`category`, `equipment`…), indice unico por `lower(name)`, 105 ejercicios. |
 | V6      | `V6__routine_templates_hypertrophy.sql`  | `routines.user_id` opcional, `template_key`, `routine_split`. 4 ejercicios mas y 7 plantillas multi-dia. |
 | V7      | `V7__normalize_exercise_catalog.sql`     | Unifica grupos musculares sin tilde (`Cuadriceps`, `Triceps`, `Biceps`, `Gluteos`) con la forma con tilde. |
+| V8      | `V8__deferrable_routine_order_constraints.sql` | `UNIQUE (routine_id, day_index)` y `UNIQUE (routine_day_id, position)` pasan a `DEFERRABLE INITIALLY DEFERRED`, para reordenar dentro de una transaccion. |
 
 ### Tablas agregadas en V2 y V3
 
@@ -223,9 +224,9 @@ Campos principales:
 | `workout_exercise_logs.routine_exercise_id → routine_exercises` | `SET NULL` |
 | `workout_exercise_logs.exercise_id → exercises` | sin accion (bloquea) |
 
-Consecuencia: como `PUT /routines/{id}` borra y recrea los dias, cada edicion deja las sesiones anteriores sin `routine_day_id` y los logs sin `routine_exercise_id` (H4). El `exercise_id` se conserva, asi que el historial por ejercicio no se pierde, pero si el vinculo con el dia. La correccion propuesta (update por id) esta en `ROADMAP_RUTINAS.md`, tarea 1.B1.
+Consecuencia: `PUT /routines/{id}` actualiza por id (tarea 1.B1), asi que editar conserva el vinculo de las sesiones con su dia y ejercicio. Solo se pierde (queda en `NULL`) para los dias o ejercicios que se quitan de la rutina; el `exercise_id` del log se conserva siempre.
 
-Restricciones a tener en cuenta para esa correccion: `UNIQUE (routine_id, day_index)` en `routine_days` y `UNIQUE (routine_day_id, position)` en `routine_exercises`.
+Las restricciones `UNIQUE (routine_id, day_index)` y `UNIQUE (routine_day_id, position)` son diferidas (V8): se validan al commit, lo que permite intercambiar dias o posiciones. No se pueden usar como arbitro de `ON CONFLICT`.
 
 ### `workout_sessions`
 

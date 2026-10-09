@@ -55,7 +55,7 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `GET`    | `/routines?categoryId=`             | Rutinas del usuario (filtro opcional por categoria)             |
 | `GET`    | `/routines/{id}`                    | Rutina del usuario                                              |
 | `POST`   | `/routines`                         | Crea rutina (multi-dia)                                         |
-| `PUT`    | `/routines/{id}`                    | Actualiza rutina (reemplaza dias y ejercicios)                  |
+| `PUT`    | `/routines/{id}`                    | Actualiza rutina (sincroniza dias y ejercicios por id)          |
 | `DELETE` | `/routines/{id}`                    | Soft delete (`is_active = false`)                               |
 | `GET`    | `/routine-categories`               | Categorias (Fuerza, Hipertrofia, Cardio, Movilidad, Recovery)   |
 | `GET`    | `/routines/templates?goal=`         | Plantillas globales                                             |
@@ -140,7 +140,7 @@ Reglas (`RoutineService`):
 - Se requiere al menos un dia con al menos un ejercicio. Si no se envia `days`, se acepta `exercises` (formato legado) y se crea un unico "Dia 1".
 - Cada ejercicio: `name` obligatorio, `sets >= 1`, `restSeconds >= 0`, al menos uno de `reps`/`repsMin`/`repsMax`, y `repsMin <= repsMax`.
 - Si `exerciseId` existe se usa; si no, se busca por nombre y, si no hay coincidencia, **se crea un ejercicio global** (ver H10 en `SYSTEM_OVERVIEW.md`).
-- `PUT` borra y recrea todos los dias y ejercicios: los `id` de dia y ejercicio que vengan en el payload hoy se ignoran (ver H4).
+- `PUT` sincroniza por `id`: un dia o ejercicio con `id` existente de esta rutina se actualiza (conserva la fila y su historial); sin `id`, con un `id` ajeno o repetido, se crea uno nuevo; lo que no viene en el payload se borra. Un ejercicio puede cambiar de dia conservando su `id`. `target_weight_kg` y `tempo` no viajan en el request y se conservan.
 - Las plantillas globales no se pueden editar (400).
 
 ### Respuesta de rutina

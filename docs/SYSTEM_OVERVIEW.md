@@ -26,7 +26,7 @@ El sistema tiene **mucha superficie y poca profundidad**: casi todos los módulo
 | 2. Rutinas y entrenamientos   | ⚠️ ~60 %        | CRUD, catálogo (109 ejercicios) y 7 plantillas listos. Wizard de un solo día. Registro superficial. |
 | 3. Progreso y perfil          | ⚠️ Parcial      | Onboarding, perfil, métricas, actividad reciente. Sin PRs, volumen ni racha real.                   |
 | 4. IA y nutrición             | 🟡 Simulado     | Coach y generador de rutinas son reglas por palabras clave, sin modelo real.                        |
-| 5. Escalabilidad y calidad    | ❌ Mínimo       | 10 tests backend, 0 tests frontend, sin CI ni OpenAPI.                                               |
+| 5. Escalabilidad y calidad    | ❌ Mínimo       | 14 tests backend, 0 tests frontend, sin CI ni OpenAPI.                                               |
 
 Además hay un **rediseño visual en curso** (handoff en `locomotora-backend/docs/design_handoff_locomotora_redesign/` y wizard en `locomotora-backend/docs/design_routine_wizard_redesign/`). El wizard nuevo está implementado (un solo día por rutina).
 
@@ -60,7 +60,7 @@ Los identificadores (H1, H2…) se usan en el roadmap.
 - **H3 — No se registran las series.**
   En `WorkoutScreen` el estado de peso/reps es por ejercicio, no por serie: escribir en la fila de la serie 2 cambia todas las filas. El backend guarda una sola fila con `set_number = 1`. No se puede calcular volumen ni récords.
 
-- **H4 — Editar una rutina desvincula el historial.**
+- **H4 — Editar una rutina desvincula el historial.** ✅ Resuelto en 1.B1.
   `RoutineService.replaceDays` borra y recrea todos los días y ejercicios. Por las FK `ON DELETE SET NULL`, los registros previos pierden `routine_day_id` y `routine_exercise_id` (se conserva `exercise_id`). Los DTOs ya traen `id` de día y de ejercicio, pero se ignoran.
 
 - **H5 — Trabajo sin versionar.**

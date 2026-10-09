@@ -46,10 +46,10 @@ El código vive en WSL (`/home/romero/my-stuff/locomotora-app`). Ejecutar las he
 | Java           | 21                                                                     |
 | Spring Boot    | 3.5.0 (web, security, validation, jdbc, data-jpa, actuator)            |
 | Acceso a datos | `JdbcTemplate` con SQL explícito. Sin entidades JPA.                   |
-| Migraciones    | Flyway, V1–V7. `ddl-auto=validate`.                                    |
+| Migraciones    | Flyway, V1–V8. `ddl-auto=validate`.                                    |
 | Base de datos  | PostgreSQL 17 (Docker, puerto local `5433`)                            |
 | Seguridad      | Spring Security + JWT HS256 propio (`JwtService`), BCrypt              |
-| Tests          | JUnit 5 + Mockito. 10 tests (contexto, `RoutineService`, `WorkoutLogService`). |
+| Tests          | JUnit 5 + Mockito. 14 tests (contexto, `RoutineService`, `WorkoutLogService`). |
 
 Variables relevantes (`application.properties`): `SPRING_DATASOURCE_URL`, `LOCOMOTORA_JWT_SECRET` (por defecto inseguro), `LOCOMOTORA_JWT_EXPIRATION_MINUTES` (1440), `LOCOMOTORA_CORS_ALLOWED_ORIGIN_PATTERNS`.
 
@@ -87,7 +87,7 @@ com.locomotora.demo
 
 ### 3.4 Flujo de rutinas (lo más relevante hoy)
 
-- **Crear/editar** (`RoutineService`): normaliza y valida días y ejercicios, inserta la rutina con `source = 'MANUAL'`, y luego `replaceDays` **borra todos los días y los recrea**. Cada ejercicio se resuelve con `findOrCreateExercise` (por `exerciseId`, después por nombre, y si no existe crea uno global).
+- **Crear/editar** (`RoutineService`): normaliza y valida días y ejercicios, inserta la rutina con `source = 'MANUAL'`, y luego `syncDays` deja días y ejercicios iguales al request **conservando los ids existentes** (actualiza, inserta lo nuevo y borra lo ausente). Cada ejercicio se resuelve con `findOrCreateExercise` (por `exerciseId`, después por nombre, y si no existe crea uno global).
 - **Leer** (`RoutineReadService`): arma `RoutineResponse` con `days[]` y `exercises` (primer día, legado). Consultas N+1.
 - **Plantillas**: rutinas con `user_id IS NULL` y `source = 'TEMPLATE'`. "Usar" clona rutina, días y ejercicios al usuario.
 - **Registrar** (`WorkoutLogService`): crea una sesión `COMPLETED` asociada al primer día y una fila de log por ejercicio.

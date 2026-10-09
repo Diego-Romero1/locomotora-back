@@ -162,6 +162,13 @@ interface DraftExercise {
 | 1.B5 | Unificar el vocabulario de objetivo (`BUILD_MUSCLE`, `LOSE_WEIGHT`, `GENERAL_FITNESS`, `IMPROVE_ENDURANCE`) y mapear `HYPERTROPHY` en un solo lugar, o migrar las plantillas.                                                                                                                                 | H9       | S      |
 | 1.B6 | Tests de integración de `RoutineService`: crear multi-día, editar preservando ids, repetir ejercicio en dos días.                                                                                                                                                                                            | H15      | M      |
 
+**Avance (2026-10-09)**, rama `fase-1-update-preserva-ids`:
+
+- **1.B1 ✅** `RoutineService.syncDays` reemplaza a `replaceDays`; migración V8 con restricciones diferidas. 4 tests unitarios nuevos y prueba contra Postgres: intercambiar días, reordenar, mover un ejercicio de un día borrado a otro y quitar un día. El historial conserva día y ejercicio.
+- **Adelanto de 1.F2:** el wizard actual envía los `id` de día y ejercicio al editar una rutina de un día, y conserva el título y el foco del día.
+- **1.B6 parcial:** cubierto con tests unitarios (Mockito); los de integración con Testcontainers quedan para 4.1.
+- Pendiente conocido: el wizard guarda reps como valor único, así que al editar se pierden los rangos (`repsMin`/`repsMax`). Se resuelve con el modelo de borrador del Wizard v2 (1.F2).
+
 **Hecho cuando:** se crea una rutina de 4 días desde cero; se edita una plantilla clonada de 6 días sin perder días; después de editar, el historial sigue mostrando el día entrenado; el borrador sobrevive a cerrar la app.
 
 ---
