@@ -7,6 +7,7 @@ import java.util.List;
 
 public record WorkoutLogRequest(
         @NotBlank String routineId,
+        String routineDayId,
         List<String> completedExerciseIds,
         List<@Valid WorkoutExerciseLogRequest> completedExercises,
         String completedAt

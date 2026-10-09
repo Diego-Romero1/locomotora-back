@@ -33,6 +33,16 @@ public class WorkoutSessionRepository {
         ).stream().findFirst().orElse(null);
     }
 
+    public boolean routineDayBelongsToRoutine(UUID routineDayId, UUID routineId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM routine_days WHERE id = ? AND routine_id = ?",
+                Integer.class,
+                routineDayId,
+                routineId
+        );
+        return count != null && count > 0;
+    }
+
     public UUID createCompletedSession(UUID userId, UUID routineId, UUID routineDayId, Timestamp completedAt) {
         return jdbcTemplate.queryForObject(
                 """

@@ -30,7 +30,7 @@ public class WorkoutLogService {
             throw new ApiException(HttpStatus.NOT_FOUND, "Routine not found");
         }
 
-        UUID dayId = workoutSessionRepository.findFirstRoutineDayId(routineId);
+        UUID dayId = resolveRoutineDayId(routineId, request.routineDayId());
         Instant completedAt = request.completedAt() == null ? Instant.now() : Instant.parse(request.completedAt());
         UUID sessionId = workoutSessionRepository.createCompletedSession(
                 userId,
@@ -72,5 +72,22 @@ public class WorkoutLogService {
         }
 
         return new WorkoutLogResponse(sessionId.toString(), completedCount, completedAt.toString());
+    }
+
+    private UUID resolveRoutineDayId(UUID routineId, String requestedDayId) {
+        if (requestedDayId == null || requestedDayId.isBlank()) {
+            // Clientes que no envian el dia: se mantiene el comportamiento anterior.
+            return workoutSessionRepository.findFirstRoutineDayId(routineId);
+        }
+        UUID dayId;
+        try {
+            dayId = UUID.fromString(requestedDayId);
+        } catch (IllegalArgumentException ignored) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Routine day id is invalid");
+        }
+        if (!workoutSessionRepository.routineDayBelongsToRoutine(dayId, routineId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Routine day does not belong to the routine");
+        }
+        return dayId;
     }
 }
