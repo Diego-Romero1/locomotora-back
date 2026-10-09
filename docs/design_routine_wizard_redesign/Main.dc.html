@@ -1,0 +1,824 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;-webkit-font-smoothing:antialiased;}
+  *{box-sizing:border-box;font-family:'Manrope',sans-serif;}
+  ::-webkit-scrollbar{display:none;}
+  input::placeholder{opacity:0.7;}
+  a{color:#22C55E;text-decoration:none;}
+  a:hover{color:#4ADE80;}
+</style>
+</helmet>
+
+<div style="{{ styles.canvasWrap }}">
+  <div style="{{ styles.previewBar }}">
+    <div style="{{ styles.previewLabel }}">VISTA PREVIA — {{ previewModeLabel }}</div>
+    <div style="{{ styles.previewGroup }}">
+      <button onClick="{{ setPreviewCreate }}" style="{{ previewCreateBtnStyle }}">Crear (vacío)</button>
+      <button onClick="{{ setPreviewEdit }}" style="{{ previewEditBtnStyle }}">Editar (prellenado)</button>
+    </div>
+    <div style="{{ styles.previewGroup }}">
+      <button onClick="{{ setThemeDark }}" style="{{ themeDarkBtnStyle }}">Oscuro</button>
+      <button onClick="{{ setThemeLight }}" style="{{ themeLightBtnStyle }}">Claro</button>
+    </div>
+  </div>
+
+  <div style="{{ styles.screen }}">
+    <div style="{{ styles.topBar }}">
+      <sc-if value="{{ showBack }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ goBack }}" style="{{ styles.iconBtn }}">‹</button>
+      </sc-if>
+      <sc-if value="{{ showBackPlaceholder }}" hint-placeholder-val="{{ true }}">
+        <div style="{{ styles.iconBtnPlaceholder }}"></div>
+      </sc-if>
+
+      <div style="{{ styles.stepperWrap }}">
+        <div style="{{ styles.stepperTopRow }}">
+          <div style="{{ styles.stepperCaption }}">{{ stepCaption }}</div>
+          <div style="{{ styles.stepperCounter }}">{{ stepCounterLabel }}</div>
+        </div>
+        <div style="{{ styles.stepDotsRow }}">
+          <sc-for list="{{ stepDots }}" as="d" hint-placeholder-count="3">
+            <button onClick="{{ d.onSelect }}" style="{{ d.dotStyle }}"></button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="{{ styles.scrollArea }}">
+
+      <sc-if value="{{ isSuccess }}" hint-placeholder-val="{{ false }}">
+        <div style="{{ styles.successWrap }}">
+          <div style="{{ styles.successIcon }}">✓</div>
+          <div style="{{ styles.h1 }};text-align:center;margin-top:20px;">¡Rutina guardada!</div>
+          <div style="{{ styles.sub }};text-align:center;">{{ successSubtitle }}</div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isNotSuccess }}" hint-placeholder-val="{{ true }}">
+
+        <sc-if value="{{ isStep1 }}" hint-placeholder-val="{{ true }}">
+          <div style="{{ styles.stepPad }}">
+            <div style="{{ styles.h1 }}">Contanos sobre tu rutina</div>
+            <div style="{{ styles.sub }}">Elegí un nombre y el enfoque principal. Podés ajustar todo después.</div>
+
+            <div style="{{ styles.fieldBlock }}">
+              <div style="{{ styles.fieldLabel }}">NOMBRE DE LA RUTINA</div>
+              <input value="{{ name }}" onChange="{{ setName }}" style="{{ styles.input }}" placeholder="Ej. Tren superior potencia"/>
+            </div>
+
+            <div style="{{ styles.fieldBlock }}">
+              <div style="{{ styles.fieldLabel }}">SEGÚN TU PERFIL — PODÉS CAMBIARLO PARA ESTA RUTINA</div>
+              <div style="{{ styles.profileCard }}">
+                <div style="{{ styles.profileFieldWrap }}">
+                  <button onClick="{{ toggleCategoryDropdown }}" style="{{ styles.profileRow }}">
+                    <div style="{{ styles.profileRowLabel }}">Categoría</div>
+                    <div style="{{ styles.profileValueWrap }}">
+                      <div style="{{ styles.profileValueText }}">{{ categoryDisplayLabel }}</div>
+                      <div style="{{ categoryChevronStyle }}">▾</div>
+                    </div>
+                  </button>
+                  <sc-if value="{{ isCategoryOpen }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ styles.dropdownPanel }}">
+                      <sc-for list="{{ categorySelectOptions }}" as="opt" hint-placeholder-count="5">
+                        <button onClick="{{ opt.onSelect }}" style="{{ opt.optionStyle }}">{{ opt.label }}</button>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+
+                <div style="{{ styles.profileRowDivider }}"></div>
+
+                <div style="{{ styles.profileFieldWrap }}">
+                  <button onClick="{{ toggleObjectiveDropdown }}" style="{{ styles.profileRow }}">
+                    <div style="{{ styles.profileRowLabel }}">Objetivo</div>
+                    <div style="{{ styles.profileValueWrap }}">
+                      <div style="{{ styles.profileValueText }}">{{ objectiveDisplayLabel }}</div>
+                      <div style="{{ objectiveChevronStyle }}">▾</div>
+                    </div>
+                  </button>
+                  <sc-if value="{{ isObjectiveOpen }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ styles.dropdownPanel }}">
+                      <sc-for list="{{ objectiveSelectOptions }}" as="opt" hint-placeholder-count="4">
+                        <button onClick="{{ opt.onSelect }}" style="{{ opt.optionStyle }}">{{ opt.label }}</button>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+
+                <div style="{{ styles.profileRowDivider }}"></div>
+
+                <div style="{{ styles.profileFieldWrap }}">
+                  <button onClick="{{ toggleDifficultyDropdown }}" style="{{ styles.profileRow }}">
+                    <div style="{{ styles.profileRowLabel }}">Dificultad</div>
+                    <div style="{{ styles.profileValueWrap }}">
+                      <div style="{{ styles.profileValueText }}">{{ difficultyDisplayLabel }}</div>
+                      <div style="{{ difficultyChevronStyle }}">▾</div>
+                    </div>
+                  </button>
+                  <sc-if value="{{ isDifficultyOpen }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ styles.dropdownPanel }}">
+                      <sc-for list="{{ difficultySelectOptions }}" as="opt" hint-placeholder-count="3">
+                        <button onClick="{{ opt.onSelect }}" style="{{ opt.optionStyle }}">{{ opt.label }}</button>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </div>
+
+            <div style="{{ styles.rowSplit }}">
+              <div style="{{ styles.fieldBlockHalf }}">
+                <div style="{{ styles.fieldLabel }}">DÍAS / SEMANA</div>
+                <div style="{{ styles.stepperRow }}">
+                  <button onClick="{{ decDays }}" disabled="{{ daysDecDisabled }}" style="{{ decDaysBtnStyle }}">−</button>
+                  <div style="{{ styles.stepperValue }}">{{ daysPerWeek }}</div>
+                  <button onClick="{{ incDays }}" disabled="{{ daysIncDisabled }}" style="{{ incDaysBtnStyle }}">+</button>
+                </div>
+              </div>
+              <div style="{{ styles.fieldBlockHalf }}">
+                <div style="{{ styles.fieldLabel }}">DURACIÓN (MIN)</div>
+                <div style="{{ styles.stepperRow }}">
+                  <button onClick="{{ decDuration }}" disabled="{{ durationDecDisabled }}" style="{{ decDurationBtnStyle }}">−</button>
+                  <div style="{{ styles.stepperValue }}">{{ durationMinutes }}</div>
+                  <button onClick="{{ incDuration }}" disabled="{{ durationIncDisabled }}" style="{{ incDurationBtnStyle }}">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isStep2 }}" hint-placeholder-val="{{ false }}">
+          <div style="{{ styles.stepPad }}">
+            <div style="{{ styles.h1 }}">Elegí los ejercicios</div>
+            <div style="{{ styles.sub }}">Filtrá por grupo muscular o buscá por nombre. Tocá para agregarlos.</div>
+
+            <div style="{{ styles.searchWrap }}">
+              <span style="{{ styles.searchIcon }}">🔍</span>
+              <input value="{{ search }}" onChange="{{ setSearch }}" style="{{ styles.searchInput }}" placeholder="Busca por nombre, músculo o equipamiento"/>
+            </div>
+
+            <div style="{{ styles.muscleScroller }}">
+              <sc-for list="{{ muscleChips }}" as="m" hint-placeholder-count="11">
+                <button onClick="{{ m.onSelect }}" style="{{ m.chipStyle }}">{{ m.label }}</button>
+              </sc-for>
+            </div>
+
+            <sc-if value="{{ hasNoResults }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ styles.emptyState }}">No encontramos ejercicios para esa búsqueda.</div>
+            </sc-if>
+
+            <sc-if value="{{ showGrouped }}" hint-placeholder-val="{{ true }}">
+              <div style="{{ styles.catalogWrap }}">
+                <sc-for list="{{ groupedCatalog }}" as="grp" hint-placeholder-count="10">
+                  <div style="{{ styles.catalogGroupBlock }}">
+                    <div style="{{ styles.fieldLabel }}">{{ grp.name }}</div>
+                    <div style="{{ styles.catalogRowsWrap }}">
+                      <sc-for list="{{ grp.items }}" as="ex" hint-placeholder-count="4">
+                        <button onClick="{{ ex.onToggle }}" style="{{ ex.rowStyle }}">
+                          <div style="{{ styles.catalogThumb }}">🏋️</div>
+                          <div style="{{ styles.catalogTextWrap }}">
+                            <div style="{{ styles.optTitleSm }}">{{ ex.name }}</div>
+                            <div style="{{ styles.tinyMeta }}">{{ ex.metaLabel }}</div>
+                          </div>
+                          <div style="{{ ex.checkStyle }}">+</div>
+                        </button>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ showFlat }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ styles.catalogRowsWrap }}">
+                <sc-for list="{{ flatCatalog }}" as="ex" hint-placeholder-count="6">
+                  <button onClick="{{ ex.onToggle }}" style="{{ ex.rowStyle }}">
+                    <div style="{{ styles.catalogThumb }}">🏋️</div>
+                    <div style="{{ styles.catalogTextWrap }}">
+                      <div style="{{ styles.optTitleSm }}">{{ ex.name }}</div>
+                      <div style="{{ styles.tinyMeta }}">{{ ex.metaLabel }}</div>
+                    </div>
+                    <div style="{{ ex.checkStyle }}">+</div>
+                  </button>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isStep3 }}" hint-placeholder-val="{{ false }}">
+          <div style="{{ styles.stepPad }}">
+            <div style="{{ styles.h1 }}">Configurá cada ejercicio</div>
+            <div style="{{ styles.sub }}">Ajustá series, repeticiones y descanso. Podés reordenarlos o sacarlos.</div>
+
+            <sc-if value="{{ hasNoSelection }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ styles.emptyState }}">Todavía no agregaste ejercicios. Volvé al paso anterior para elegir algunos.</div>
+            </sc-if>
+
+            <div style="{{ styles.exerciseConfigList }}">
+              <sc-for list="{{ configuredExercises }}" as="ex" hint-placeholder-count="5">
+                <div style="{{ styles.configCard }}">
+                  <div style="{{ styles.configHeaderRow }}">
+                    <div style="{{ styles.reorderCol }}">
+                      <button onClick="{{ ex.onMoveUp }}" disabled="{{ ex.moveUpDisabled }}" style="{{ ex.moveUpStyle }}">▲</button>
+                      <button onClick="{{ ex.onMoveDown }}" disabled="{{ ex.moveDownDisabled }}" style="{{ ex.moveDownStyle }}">▼</button>
+                    </div>
+                    <div style="{{ styles.configTextWrap }}">
+                      <div style="{{ styles.optTitleSm }}">{{ ex.name }}</div>
+                      <div style="{{ styles.tinyMeta }}">{{ ex.metaLabel }}</div>
+                    </div>
+                    <button onClick="{{ ex.onRemove }}" style="{{ styles.removeBtn }}">✕</button>
+                  </div>
+                  <div style="{{ styles.metricsRow3 }}">
+                    <div style="{{ styles.metricBlock }}">
+                      <div style="{{ styles.metricLabel }}">SERIES</div>
+                      <div style="{{ styles.stepperRowSm }}">
+                        <button onClick="{{ ex.onDecSets }}" disabled="{{ ex.setsDecDisabled }}" style="{{ ex.decSetsStyle }}">−</button>
+                        <div style="{{ styles.stepperValueSm }}">{{ ex.sets }}</div>
+                        <button onClick="{{ ex.onIncSets }}" disabled="{{ ex.setsIncDisabled }}" style="{{ ex.incSetsStyle }}">+</button>
+                      </div>
+                    </div>
+                    <div style="{{ styles.metricBlock }}">
+                      <div style="{{ styles.metricLabel }}">REPS</div>
+                      <div style="{{ styles.stepperRowSm }}">
+                        <button onClick="{{ ex.onDecReps }}" disabled="{{ ex.repsDecDisabled }}" style="{{ ex.decRepsStyle }}">−</button>
+                        <div style="{{ styles.stepperValueSm }}">{{ ex.reps }}</div>
+                        <button onClick="{{ ex.onIncReps }}" disabled="{{ ex.repsIncDisabled }}" style="{{ ex.incRepsStyle }}">+</button>
+                      </div>
+                    </div>
+                    <div style="{{ styles.metricBlock }}">
+                      <div style="{{ styles.metricLabel }}">DESCANSO (S)</div>
+                      <div style="{{ styles.stepperRowSm }}">
+                        <button onClick="{{ ex.onDecRest }}" disabled="{{ ex.restDecDisabled }}" style="{{ ex.decRestStyle }}">−</button>
+                        <div style="{{ styles.stepperValueSm }}">{{ ex.restSeconds }}</div>
+                        <button onClick="{{ ex.onIncRest }}" disabled="{{ ex.restIncDisabled }}" style="{{ ex.incRestStyle }}">+</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <button onClick="{{ goAddMore }}" style="{{ styles.addMoreBtn }}">+ Agregar otro ejercicio</button>
+
+            <div style="{{ styles.summaryCard }}">
+              <div style="{{ styles.optTitle }}">{{ summaryTitleLabel }}</div>
+              <div style="{{ styles.sub2 }}">{{ summarySubtitleLabel }}</div>
+              <div style="{{ styles.routineMetaRow }}">
+                <div style="{{ styles.metaChip }}">📅 {{ daysPerWeekLabel }}</div>
+                <div style="{{ styles.metaChip }}">⏱️ {{ durationLabel }}</div>
+                <div style="{{ styles.metaChip }}">🏋️ {{ exerciseCountLabel }}</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ isNotSuccess }}" hint-placeholder-val="{{ true }}">
+      <div style="{{ styles.footer }}">
+        <sc-if value="{{ showSelectionHint }}" hint-placeholder-val="{{ false }}">
+          <div style="{{ styles.footerHint }}">{{ selectionHintLabel }}</div>
+        </sc-if>
+        <button onClick="{{ primaryAction }}" disabled="{{ isPrimaryDisabled }}" style="{{ primaryButtonStyle }}">{{ primaryButtonLabel }}</button>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isSuccess }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ styles.footer }}">
+        <div style="{{ styles.successActionsRow }}">
+          <button onClick="{{ backToReview }}" style="{{ styles.secondaryBtn }}">Volver a revisar</button>
+          <button onClick="{{ resetToCreate }}" style="{{ styles.primaryBtnFlex }}">Crear otra rutina</button>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":520,"height":1040}}'>
+
+var MUSCLES = ['Pecho','Espalda','Hombros','Bíceps','Tríceps','Cuádriceps','Isquiotibiales','Glúteos','Pantorrillas','Abdomen'];
+
+var CATALOG = [
+  { id: 'e1', name: 'Press banca con barra', muscle: 'Pecho', equipment: 'BARBELL' },
+  { id: 'e2', name: 'Press inclinado con mancuernas', muscle: 'Pecho', equipment: 'DUMBBELL' },
+  { id: 'e3', name: 'Aperturas en polea', muscle: 'Pecho', equipment: 'CABLE' },
+  { id: 'e4', name: 'Fondos en paralelas', muscle: 'Pecho', equipment: 'BODYWEIGHT' },
+  { id: 'e5', name: 'Peso muerto', muscle: 'Espalda', equipment: 'BARBELL' },
+  { id: 'e6', name: 'Remo con barra', muscle: 'Espalda', equipment: 'BARBELL' },
+  { id: 'e7', name: 'Jalón al pecho', muscle: 'Espalda', equipment: 'MACHINE' },
+  { id: 'e8', name: 'Remo en polea baja', muscle: 'Espalda', equipment: 'CABLE' },
+  { id: 'e9', name: 'Press militar', muscle: 'Hombros', equipment: 'BARBELL' },
+  { id: 'e10', name: 'Elevaciones laterales', muscle: 'Hombros', equipment: 'DUMBBELL' },
+  { id: 'e11', name: 'Pájaros con mancuernas', muscle: 'Hombros', equipment: 'DUMBBELL' },
+  { id: 'e12', name: 'Press Arnold', muscle: 'Hombros', equipment: 'DUMBBELL' },
+  { id: 'e13', name: 'Curl de bíceps con barra', muscle: 'Bíceps', equipment: 'BARBELL' },
+  { id: 'e14', name: 'Curl martillo', muscle: 'Bíceps', equipment: 'DUMBBELL' },
+  { id: 'e15', name: 'Curl concentrado', muscle: 'Bíceps', equipment: 'DUMBBELL' },
+  { id: 'e16', name: 'Curl en banco Scott', muscle: 'Bíceps', equipment: 'BARBELL' },
+  { id: 'e17', name: 'Press francés', muscle: 'Tríceps', equipment: 'BARBELL' },
+  { id: 'e18', name: 'Extensión de tríceps en polea', muscle: 'Tríceps', equipment: 'CABLE' },
+  { id: 'e19', name: 'Fondos en banco', muscle: 'Tríceps', equipment: 'BODYWEIGHT' },
+  { id: 'e20', name: 'Patada de tríceps', muscle: 'Tríceps', equipment: 'DUMBBELL' },
+  { id: 'e21', name: 'Sentadilla libre', muscle: 'Cuádriceps', equipment: 'BARBELL' },
+  { id: 'e22', name: 'Prensa de piernas', muscle: 'Cuádriceps', equipment: 'MACHINE' },
+  { id: 'e23', name: 'Extensión de cuádriceps', muscle: 'Cuádriceps', equipment: 'MACHINE' },
+  { id: 'e24', name: 'Zancadas con mancuernas', muscle: 'Cuádriceps', equipment: 'DUMBBELL' },
+  { id: 'e25', name: 'Peso muerto rumano', muscle: 'Isquiotibiales', equipment: 'BARBELL' },
+  { id: 'e26', name: 'Curl femoral tumbado', muscle: 'Isquiotibiales', equipment: 'MACHINE' },
+  { id: 'e27', name: 'Buenos días', muscle: 'Isquiotibiales', equipment: 'BARBELL' },
+  { id: 'e28', name: 'Curl femoral sentado', muscle: 'Isquiotibiales', equipment: 'MACHINE' },
+  { id: 'e29', name: 'Hip thrust con barra', muscle: 'Glúteos', equipment: 'BARBELL' },
+  { id: 'e30', name: 'Puente de glúteos', muscle: 'Glúteos', equipment: 'BODYWEIGHT' },
+  { id: 'e31', name: 'Patada de glúteo en polea', muscle: 'Glúteos', equipment: 'CABLE' },
+  { id: 'e32', name: 'Sentadilla sumo', muscle: 'Glúteos', equipment: 'FREE_WEIGHT' },
+  { id: 'e33', name: 'Elevación de talones de pie', muscle: 'Pantorrillas', equipment: 'MACHINE' },
+  { id: 'e34', name: 'Elevación de talones sentado', muscle: 'Pantorrillas', equipment: 'MACHINE' },
+  { id: 'e35', name: 'Elevación de talones en prensa', muscle: 'Pantorrillas', equipment: 'MACHINE' },
+  { id: 'e36', name: 'Plancha', muscle: 'Abdomen', equipment: 'BODYWEIGHT' },
+  { id: 'e37', name: 'Crunch en polea', muscle: 'Abdomen', equipment: 'CABLE' },
+  { id: 'e38', name: 'Elevación de piernas colgado', muscle: 'Abdomen', equipment: 'BODYWEIGHT' },
+  { id: 'e39', name: 'Rueda abdominal', muscle: 'Abdomen', equipment: 'FREE_WEIGHT' },
+];
+
+var EQUIPMENT_LABELS = {
+  BARBELL: 'Barra', DUMBBELL: 'Mancuernas', MACHINE: 'Máquina',
+  CABLE: 'Polea', BODYWEIGHT: 'Peso corporal', FREE_WEIGHT: 'Peso libre',
+};
+
+var CATEGORY_OPTIONS = ['Fuerza', 'Hipertrofia', 'Cardio', 'Movilidad', 'Recovery'];
+var OBJECTIVE_OPTIONS = [
+  { v: 'BUILD_MUSCLE', label: 'Ganar músculo' },
+  { v: 'LOSE_WEIGHT', label: 'Perder grasa' },
+  { v: 'GENERAL_FITNESS', label: 'Estado físico general' },
+  { v: 'IMPROVE_ENDURANCE', label: 'Mejorar resistencia' },
+];
+var DIFFICULTY_OPTIONS = [
+  { v: 'BEGINNER', label: 'Principiante' },
+  { v: 'INTERMEDIATE', label: 'Intermedio' },
+  { v: 'ADVANCED', label: 'Avanzado' },
+];
+
+function findExercise(id) {
+  for (var i = 0; i < CATALOG.length; i++) {
+    if (CATALOG[i].id === id) return CATALOG[i];
+  }
+  return null;
+}
+
+function equipmentLabel(code) {
+  return EQUIPMENT_LABELS[code] || code;
+}
+
+function stepperBtnStyle(base, disabled) {
+  return Object.assign({}, base, { opacity: disabled ? 0.35 : 1, cursor: disabled ? 'default' : 'pointer' });
+}
+
+function dropdownOptionStyle(c, selected, isLast) {
+  return {
+    display: 'block', width: '100%', textAlign: 'left', padding: '12px 16px', border: 'none',
+    borderBottom: isLast ? 'none' : `1px solid ${c.border}`,
+    background: selected ? c.primarySoft : 'transparent', color: selected ? c.primary : c.text,
+    fontFamily: 'Manrope,sans-serif', fontSize: '13.5px', fontWeight: selected ? 700 : 500, cursor: 'pointer',
+  };
+}
+
+function themeColors(mode) {
+  if (mode === 'light') {
+    return {
+      bg: '#EEF2F0', phoneBg: '#F8FAFC', surface: '#FFFFFF', card: '#FFFFFF', cardAlt: '#F1F5F4',
+      border: '#E2E8E4', text: '#0F172A', textSecondary: '#5B6B66', primary: '#16A34A',
+      primarySoft: 'rgba(22,163,74,0.10)', primaryContrastText: '#052e13',
+      accent: '#EA580C', accentSoft: 'rgba(234,88,12,0.10)', danger: '#DC2626',
+    };
+  }
+  return {
+    bg: '#03060B', phoneBg: '#070B14', surface: '#111A2B', card: '#131C30', cardAlt: '#182036',
+    border: 'rgba(255,255,255,0.07)', text: '#F8FAFC', textSecondary: '#8B98AC', primary: '#22C55E',
+    primarySoft: 'rgba(34,197,94,0.14)', primaryContrastText: '#03150A',
+    accent: '#F97316', accentSoft: 'rgba(249,115,22,0.14)', danger: '#EF4444',
+  };
+}
+
+var ONBOARDING_DEFAULTS = {
+  category: 'Hipertrofia',
+  objective: 'BUILD_MUSCLE',
+  difficulty: 'INTERMEDIATE',
+};
+
+var EDIT_PREFILL = {
+  name: 'Fuerza Full Body',
+  category: 'Fuerza',
+  objective: 'BUILD_MUSCLE',
+  difficulty: 'INTERMEDIATE',
+  daysPerWeek: 3,
+  durationMinutes: 50,
+  selectedIds: ['e21', 'e1', 'e6', 'e9', 'e37'],
+  configs: {
+    e21: { sets: 4, reps: 8, restSeconds: 90 },
+    e1: { sets: 4, reps: 8, restSeconds: 90 },
+    e6: { sets: 3, reps: 10, restSeconds: 60 },
+    e9: { sets: 3, reps: 10, restSeconds: 60 },
+    e37: { sets: 3, reps: 15, restSeconds: 45 },
+  },
+};
+
+function buildFormState(mode) {
+  if (mode === 'edit') {
+    return {
+      mode: 'edit', step: 1, visitedMax: 3,
+      name: EDIT_PREFILL.name, category: EDIT_PREFILL.category, objective: EDIT_PREFILL.objective,
+      difficulty: EDIT_PREFILL.difficulty, daysPerWeek: EDIT_PREFILL.daysPerWeek, durationMinutes: EDIT_PREFILL.durationMinutes,
+      search: '', muscleFilter: 'Todos', openDropdown: null,
+      selectedIds: EDIT_PREFILL.selectedIds.slice(), configs: JSON.parse(JSON.stringify(EDIT_PREFILL.configs)),
+      saving: false, saved: false,
+    };
+  }
+  return {
+    mode: 'create', step: 1, visitedMax: 1,
+    name: '', category: ONBOARDING_DEFAULTS.category, objective: ONBOARDING_DEFAULTS.objective, difficulty: ONBOARDING_DEFAULTS.difficulty,
+    daysPerWeek: 3, durationMinutes: 45,
+    search: '', muscleFilter: 'Todos', openDropdown: null,
+    selectedIds: [], configs: {},
+    saving: false, saved: false,
+  };
+}
+
+class Component extends DCLogic {
+  state = Object.assign({ theme: 'dark' }, buildFormState('create'));
+
+  setPreviewCreate = () => this.setState((s) => Object.assign({ theme: s.theme }, buildFormState('create')));
+  setPreviewEdit = () => this.setState((s) => Object.assign({ theme: s.theme }, buildFormState('edit')));
+  setThemeDark = () => this.setState({ theme: 'dark' });
+  setThemeLight = () => this.setState({ theme: 'light' });
+
+  canJump = (target) => this.state.mode === 'edit' || target <= this.state.visitedMax;
+  goStep = (target) => {
+    if (!this.canJump(target)) return;
+    this.setState({ step: target, saved: false });
+  };
+  goBack = () => {
+    if (this.state.step > 1) this.setState((s) => ({ step: s.step - 1, saved: false }));
+  };
+  goAddMore = () => this.setState({ step: 2, saved: false });
+  backToReview = () => this.setState({ saved: false });
+  resetToCreate = () => this.setState((s) => Object.assign({ theme: s.theme }, buildFormState('create')));
+
+  setName = (e) => this.setState({ name: e.target.value });
+  toggleDropdown = (key) => this.setState((s) => ({ openDropdown: s.openDropdown === key ? null : key }));
+  pickCategory = (v) => this.setState({ category: v, openDropdown: null });
+  pickObjective = (v) => this.setState({ objective: v, openDropdown: null });
+  pickDifficulty = (v) => this.setState({ difficulty: v, openDropdown: null });
+  decDays = () => this.setState((s) => ({ daysPerWeek: Math.max(1, s.daysPerWeek - 1) }));
+  incDays = () => this.setState((s) => ({ daysPerWeek: Math.min(7, s.daysPerWeek + 1) }));
+  decDuration = () => this.setState((s) => ({ durationMinutes: Math.max(15, s.durationMinutes - 5) }));
+  incDuration = () => this.setState((s) => ({ durationMinutes: Math.min(120, s.durationMinutes + 5) }));
+
+  setSearch = (e) => this.setState({ search: e.target.value });
+  selectMuscle = (v) => this.setState({ muscleFilter: v });
+
+  toggleExercise = (id) => this.setState((s) => {
+    var isSel = s.selectedIds.indexOf(id) !== -1;
+    var selectedIds = isSel ? s.selectedIds.filter((x) => x !== id) : s.selectedIds.concat([id]);
+    var configs = Object.assign({}, s.configs);
+    if (!isSel && !configs[id]) configs[id] = { sets: 3, reps: 10, restSeconds: 60 };
+    return { selectedIds: selectedIds, configs: configs };
+  });
+  removeExercise = (id) => this.setState((s) => ({ selectedIds: s.selectedIds.filter((x) => x !== id) }));
+  moveExercise = (id, dir) => this.setState((s) => {
+    var idx = s.selectedIds.indexOf(id);
+    var next = idx + dir;
+    if (next < 0 || next >= s.selectedIds.length) return {};
+    var arr = s.selectedIds.slice();
+    var tmp = arr[idx]; arr[idx] = arr[next]; arr[next] = tmp;
+    return { selectedIds: arr };
+  });
+  adjustConfig = (id, field, delta, min, max) => this.setState((s) => {
+    var current = s.configs[id] || { sets: 3, reps: 10, restSeconds: 60 };
+    var nextVal = Math.min(max, Math.max(min, (current[field] || 0) + delta));
+    var nextConfig = Object.assign({}, current);
+    nextConfig[field] = nextVal;
+    var configs = Object.assign({}, s.configs);
+    configs[id] = nextConfig;
+    return { configs: configs };
+  });
+
+  primaryAction = () => {
+    var s = this.state;
+    if (s.step === 1) {
+      if (!s.name.trim() || !s.category || !s.objective || !s.difficulty) return;
+      this.setState((s2) => ({ step: 2, visitedMax: Math.max(s2.visitedMax, 2) }));
+      return;
+    }
+    if (s.step === 2) {
+      if (s.selectedIds.length === 0) return;
+      this.setState((s2) => ({ step: 3, visitedMax: Math.max(s2.visitedMax, 3) }));
+      return;
+    }
+    if (s.step === 3) {
+      if (s.saving || s.selectedIds.length === 0) return;
+      this.setState({ saving: true });
+      setTimeout(() => this.setState({ saving: false, saved: true }), 900);
+    }
+  };
+
+  renderVals() {
+    var s = this.state;
+    var c = themeColors(s.theme);
+    var self = this;
+
+    var styles = {
+      canvasWrap: { minHeight: '100vh', background: '#12141a', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '32px 16px', fontFamily: 'Manrope,sans-serif' },
+      previewBar: { width: '402px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', padding: '10px 14px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' },
+      previewLabel: { fontSize: '10.5px', fontWeight: 800, letterSpacing: '.6px', color: 'rgba(255,255,255,0.55)' },
+      previewGroup: { display: 'flex', gap: '6px' },
+      screen: { width: '402px', height: '844px', background: c.bg, borderRadius: '28px', overflow: 'hidden', position: 'relative', border: `1px solid ${c.border}`, boxShadow: '0 24px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column' },
+      topBar: { display: 'flex', alignItems: 'center', gap: '16px', paddingLeft: '16px', paddingRight: '16px', paddingTop: '16px' },
+      iconBtn: { width: '36px', height: '36px', borderRadius: '18px', background: c.card, border: `1px solid ${c.border}`, color: c.text, fontSize: '20px', lineHeight: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, padding: 0 },
+      iconBtnPlaceholder: { width: '36px', height: '36px', flexShrink: 0 },
+      stepperWrap: { flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' },
+      stepperTopRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
+      stepperCaption: { fontSize: '11px', fontWeight: 800, letterSpacing: '1.2px', color: c.primary },
+      stepperCounter: { fontSize: '12px', fontWeight: 700, color: c.textSecondary },
+      stepDotsRow: { display: 'flex', gap: '6px' },
+      scrollArea: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 },
+      stepPad: { padding: '16px 20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' },
+      h1: { fontFamily: "'Space Grotesk',sans-serif", fontSize: '24px', fontWeight: 700, color: c.text, lineHeight: '30px' },
+      sub: { fontSize: '14px', color: c.textSecondary, lineHeight: '20px', marginTop: '-8px' },
+      sub2: { fontSize: '13px', color: c.textSecondary, marginTop: '2px', lineHeight: '18px' },
+      fieldBlock: { display: 'flex', flexDirection: 'column', gap: '8px' },
+      fieldBlockHalf: { flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' },
+      rowSplit: { display: 'flex', gap: '12px' },
+      fieldLabel: { fontSize: '12px', fontWeight: 700, color: c.textSecondary, textTransform: 'uppercase', letterSpacing: '.5px' },
+      input: { width: '100%', minHeight: '52px', borderRadius: '14px', border: `1px solid ${c.border}`, background: c.surface, color: c.text, padding: '0 16px', fontSize: '15px', fontFamily: 'Manrope,sans-serif', outline: 'none' },
+      profileCard: { background: c.card, border: `1px solid ${c.border}`, borderRadius: '16px', padding: '0 16px' },
+      profileFieldWrap: { position: 'relative' },
+      profileRow: { display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '12px', paddingTop: '13px', paddingBottom: '13px', border: 'none', background: 'transparent', textAlign: 'left', fontFamily: 'Manrope,sans-serif', cursor: 'pointer' },
+      profileRowLabel: { fontSize: '14px', fontWeight: 600, color: c.text },
+      profileRowDivider: { height: '1px', background: c.border },
+      profileValueWrap: { display: 'flex', alignItems: 'center', gap: '6px' },
+      profileValueText: { fontSize: '13px', fontWeight: 700, color: c.primary },
+      dropdownPanel: { position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '6px', background: c.card, border: `1px solid ${c.border}`, borderRadius: '14px', boxShadow: '0 16px 32px rgba(0,0,0,0.35)', overflow: 'hidden', zIndex: 20 },
+      stepperRow: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: c.card, border: `1px solid ${c.border}`, borderRadius: '14px', padding: '4px' },
+      stepperBtn: { width: '36px', height: '36px', borderRadius: '18px', background: c.cardAlt, border: 'none', color: c.text, fontSize: '18px', fontWeight: 800, cursor: 'pointer', padding: 0 },
+      stepperValue: { flex: 1, textAlign: 'center', fontFamily: "'Space Grotesk',sans-serif", fontSize: '19px', fontWeight: 700, color: c.text },
+      searchWrap: { display: 'flex', alignItems: 'center', gap: '8px', height: '46px', borderRadius: '999px', border: `1px solid ${c.border}`, background: c.surface, padding: '0 16px' },
+      searchIcon: { fontSize: '14px', flexShrink: 0 },
+      searchInput: { flex: 1, border: 'none', background: 'transparent', color: c.text, fontSize: '14px', fontFamily: 'Manrope,sans-serif', outline: 'none', padding: 0 },
+      muscleScroller: { display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '2px' },
+      emptyState: { fontSize: '13px', color: c.textSecondary, textAlign: 'center', padding: '24px 12px' },
+      catalogWrap: { display: 'flex', flexDirection: 'column', gap: '16px' },
+      catalogGroupBlock: { display: 'flex', flexDirection: 'column', gap: '8px' },
+      catalogRowsWrap: { display: 'flex', flexDirection: 'column', gap: '8px' },
+      catalogThumb: { width: '38px', height: '38px', borderRadius: '12px', background: c.primarySoft, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 },
+      catalogTextWrap: { flex: 1, textAlign: 'left' },
+      optTitleSm: { fontSize: '14px', fontWeight: 700, color: c.text },
+      optTitle: { fontSize: '16px', fontWeight: 700, color: c.text },
+      tinyMeta: { fontSize: '11.5px', color: c.textSecondary, fontWeight: 700, marginTop: '2px' },
+      exerciseConfigList: { display: 'flex', flexDirection: 'column', gap: '10px' },
+      configCard: { background: c.card, border: `1px solid ${c.border}`, borderRadius: '20px', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px' },
+      configHeaderRow: { display: 'flex', alignItems: 'center', gap: '10px' },
+      reorderCol: { display: 'flex', flexDirection: 'column', gap: '4px' },
+      configTextWrap: { flex: 1 },
+      removeBtn: { width: '28px', height: '28px', borderRadius: '14px', background: c.cardAlt, border: 'none', color: c.textSecondary, fontSize: '13px', cursor: 'pointer', flexShrink: 0, padding: 0 },
+      metricsRow3: { display: 'flex', gap: '8px' },
+      metricBlock: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' },
+      metricLabel: { fontSize: '10px', fontWeight: 800, letterSpacing: '.5px', color: c.textSecondary, textAlign: 'center' },
+      stepperRowSm: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: c.surface, border: `1px solid ${c.border}`, borderRadius: '12px', width: '100%', height: '38px', padding: '0 2px' },
+      stepperBtnSm: { width: '28px', height: '28px', borderRadius: '14px', background: c.cardAlt, border: 'none', color: c.text, fontSize: '15px', fontWeight: 800, cursor: 'pointer', padding: 0 },
+      stepperValueSm: { flex: 1, textAlign: 'center', fontFamily: "'Space Grotesk',sans-serif", fontSize: '15px', fontWeight: 700, color: c.text },
+      addMoreBtn: { width: '100%', height: '46px', borderRadius: '999px', border: `1.5px solid ${c.primary}`, background: 'transparent', color: c.primary, fontFamily: 'Manrope,sans-serif', fontSize: '14px', fontWeight: 700, cursor: 'pointer' },
+      summaryCard: { background: c.card, border: `1px solid ${c.border}`, borderRadius: '22px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '4px' },
+      routineMetaRow: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '10px' },
+      metaChip: { fontSize: '11.5px', fontWeight: 700, color: c.textSecondary, background: c.cardAlt, borderRadius: '999px', padding: '6px 11px' },
+      footer: { padding: '12px 20px 20px', display: 'flex', flexDirection: 'column', gap: '8px' },
+      footerHint: { fontSize: '11.5px', color: c.textSecondary, fontWeight: 700, textAlign: 'center' },
+      successWrap: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 28px', textAlign: 'center' },
+      successIcon: { width: '84px', height: '84px', borderRadius: '999px', background: c.primarySoft, color: c.primary, fontSize: '32px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+      successActionsRow: { display: 'flex', gap: '10px' },
+      secondaryBtn: { flex: 1, height: '52px', borderRadius: '999px', border: `1.5px solid ${c.border}`, background: 'transparent', color: c.text, fontFamily: 'Manrope,sans-serif', fontSize: '14px', fontWeight: 700, cursor: 'pointer' },
+      primaryBtnFlex: { flex: 1, height: '52px', borderRadius: '999px', border: 'none', background: c.primary, color: c.primaryContrastText, fontFamily: 'Manrope,sans-serif', fontSize: '14px', fontWeight: 700, cursor: 'pointer' },
+    };
+
+    // ---- preview toggle bar ----
+    var previewModeLabel = s.mode === 'edit' ? 'EDITANDO “FUERZA FULL BODY”' : 'CREANDO NUEVA RUTINA';
+    var neutralActive = { border: 'none', background: '#6366F1', color: '#fff' };
+    var neutralInactive = { border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: 'rgba(255,255,255,0.7)' };
+    var toggleBase = { height: '28px', padding: '0 10px', borderRadius: '999px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', fontFamily: 'Manrope,sans-serif' };
+    var previewCreateBtnStyle = Object.assign({}, toggleBase, s.mode === 'create' ? neutralActive : neutralInactive);
+    var previewEditBtnStyle = Object.assign({}, toggleBase, s.mode === 'edit' ? neutralActive : neutralInactive);
+    var themeDarkBtnStyle = Object.assign({}, toggleBase, s.theme === 'dark' ? neutralActive : neutralInactive);
+    var themeLightBtnStyle = Object.assign({}, toggleBase, s.theme === 'light' ? neutralActive : neutralInactive);
+
+    // ---- top bar / stepper ----
+    var showBack = s.step > 1;
+    var stepCaption = s.mode === 'edit' ? 'EDITAR RUTINA' : 'CREAR RUTINA';
+    var stepCounterLabel = 'Paso ' + s.step + ' de 3';
+    var activeIndex = s.step - 1;
+    var stepDots = [0, 1, 2].map(function (i) {
+      var reachable = self.canJump(i + 1);
+      return {
+        onSelect: () => self.goStep(i + 1),
+        dotStyle: {
+          width: i === activeIndex ? '20px' : '7px', height: '7px', borderRadius: '999px',
+          background: i <= activeIndex ? c.primary : c.border, border: 'none', padding: 0,
+          cursor: reachable ? 'pointer' : 'default', transition: 'width .2s ease',
+        },
+      };
+    });
+
+    // ---- step 1 ----
+    var isCategoryOpen = s.openDropdown === 'category';
+    var isObjectiveOpen = s.openDropdown === 'objective';
+    var isDifficultyOpen = s.openDropdown === 'difficulty';
+    var toggleCategoryDropdown = () => self.toggleDropdown('category');
+    var toggleObjectiveDropdown = () => self.toggleDropdown('objective');
+    var toggleDifficultyDropdown = () => self.toggleDropdown('difficulty');
+    var chevronStyle = (open) => ({ fontSize: '11px', color: c.primary, display: 'inline-block', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s ease' });
+    var categoryChevronStyle = chevronStyle(isCategoryOpen);
+    var objectiveChevronStyle = chevronStyle(isObjectiveOpen);
+    var difficultyChevronStyle = chevronStyle(isDifficultyOpen);
+
+    var categorySelectOptions = CATEGORY_OPTIONS.map(function (cat, idx) {
+      return {
+        label: cat, onSelect: () => self.pickCategory(cat),
+        optionStyle: dropdownOptionStyle(c, s.category === cat, idx === CATEGORY_OPTIONS.length - 1),
+      };
+    });
+    var objectiveSelectOptions = OBJECTIVE_OPTIONS.map(function (opt, idx) {
+      return {
+        label: opt.label, onSelect: () => self.pickObjective(opt.v),
+        optionStyle: dropdownOptionStyle(c, s.objective === opt.v, idx === OBJECTIVE_OPTIONS.length - 1),
+      };
+    });
+    var difficultySelectOptions = DIFFICULTY_OPTIONS.map(function (opt, idx) {
+      return {
+        label: opt.label, onSelect: () => self.pickDifficulty(opt.v),
+        optionStyle: dropdownOptionStyle(c, s.difficulty === opt.v, idx === DIFFICULTY_OPTIONS.length - 1),
+      };
+    });
+    var daysDecDisabled = s.daysPerWeek <= 1;
+    var daysIncDisabled = s.daysPerWeek >= 7;
+    var durationDecDisabled = s.durationMinutes <= 15;
+    var durationIncDisabled = s.durationMinutes >= 120;
+    var decDaysBtnStyle = stepperBtnStyle(styles.stepperBtn, daysDecDisabled);
+    var incDaysBtnStyle = stepperBtnStyle(styles.stepperBtn, daysIncDisabled);
+    var decDurationBtnStyle = stepperBtnStyle(styles.stepperBtn, durationDecDisabled);
+    var incDurationBtnStyle = stepperBtnStyle(styles.stepperBtn, durationIncDisabled);
+
+    // ---- step 2 ----
+    var muscleFilterList = ['Todos'].concat(MUSCLES);
+    var muscleChips = muscleFilterList.map(function (m) {
+      var selected = s.muscleFilter === m;
+      return {
+        label: m, onSelect: () => self.selectMuscle(m),
+        chipStyle: { flexShrink: 0, height: '32px', padding: '0 14px', borderRadius: '999px', border: `1px solid ${selected ? c.primary : c.border}`, background: selected ? c.primarySoft : 'transparent', color: selected ? c.primary : c.textSecondary, fontFamily: 'Manrope,sans-serif', fontSize: '12px', fontWeight: 700, cursor: 'pointer' },
+      };
+    });
+
+    var searchTerm = s.search.trim().toLowerCase();
+    var showGrouped = s.muscleFilter === 'Todos' && searchTerm === '';
+
+    function buildRowVM(ex) {
+      var selected = s.selectedIds.indexOf(ex.id) !== -1;
+      return {
+        id: ex.id, name: ex.name, metaLabel: ex.muscle + ' · ' + equipmentLabel(ex.equipment),
+        onToggle: () => self.toggleExercise(ex.id),
+        rowStyle: { display: 'flex', alignItems: 'center', gap: '12px', width: '100%', background: selected ? c.primarySoft : c.card, border: `1px solid ${selected ? c.primary : c.border}`, borderRadius: '16px', padding: '10px 12px', cursor: 'pointer' },
+        checkStyle: { width: '26px', height: '26px', borderRadius: '13px', background: selected ? c.primary : c.cardAlt, color: selected ? c.primaryContrastText : c.textSecondary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 900, flexShrink: 0, transform: selected ? 'rotate(45deg)' : 'none', transition: 'transform .15s ease' },
+      };
+    }
+
+    var filtered = CATALOG.filter(function (ex) {
+      var matchesMuscle = s.muscleFilter === 'Todos' || ex.muscle === s.muscleFilter;
+      var haystack = (ex.name + ' ' + ex.muscle + ' ' + equipmentLabel(ex.equipment)).toLowerCase();
+      var matchesSearch = searchTerm === '' || haystack.indexOf(searchTerm) !== -1;
+      return matchesMuscle && matchesSearch;
+    });
+    var flatCatalog = filtered.map(buildRowVM);
+    var hasNoResults = !showGrouped && filtered.length === 0;
+    var groupedCatalog = MUSCLES.map(function (muscleName) {
+      return {
+        name: muscleName,
+        items: CATALOG.filter(function (ex) { return ex.muscle === muscleName; }).map(buildRowVM),
+      };
+    });
+
+    // ---- step 3 ----
+    var configuredExercises = s.selectedIds.map(function (id, idx) {
+      var ex = findExercise(id);
+      var cfg = s.configs[id] || { sets: 3, reps: 10, restSeconds: 60 };
+      var moveUpDisabled = idx === 0;
+      var moveDownDisabled = idx === s.selectedIds.length - 1;
+      var setsDecDisabled = cfg.sets <= 1;
+      var setsIncDisabled = cfg.sets >= 8;
+      var repsDecDisabled = cfg.reps <= 1;
+      var repsIncDisabled = cfg.reps >= 30;
+      var restDecDisabled = cfg.restSeconds <= 0;
+      var restIncDisabled = cfg.restSeconds >= 240;
+      return {
+        id: id, name: ex ? ex.name : id, metaLabel: ex ? (ex.muscle + ' · ' + equipmentLabel(ex.equipment)) : '',
+        sets: cfg.sets, reps: cfg.reps, restSeconds: cfg.restSeconds,
+        onMoveUp: () => self.moveExercise(id, -1), moveUpDisabled: moveUpDisabled,
+        onMoveDown: () => self.moveExercise(id, 1), moveDownDisabled: moveDownDisabled,
+        onRemove: () => self.removeExercise(id),
+        onIncSets: () => self.adjustConfig(id, 'sets', 1, 1, 8), onDecSets: () => self.adjustConfig(id, 'sets', -1, 1, 8),
+        onIncReps: () => self.adjustConfig(id, 'reps', 1, 1, 30), onDecReps: () => self.adjustConfig(id, 'reps', -1, 1, 30),
+        onIncRest: () => self.adjustConfig(id, 'restSeconds', 15, 0, 240), onDecRest: () => self.adjustConfig(id, 'restSeconds', -15, 0, 240),
+        setsDecDisabled: setsDecDisabled, setsIncDisabled: setsIncDisabled,
+        repsDecDisabled: repsDecDisabled, repsIncDisabled: repsIncDisabled,
+        restDecDisabled: restDecDisabled, restIncDisabled: restIncDisabled,
+        decSetsStyle: stepperBtnStyle(styles.stepperBtnSm, setsDecDisabled),
+        incSetsStyle: stepperBtnStyle(styles.stepperBtnSm, setsIncDisabled),
+        decRepsStyle: stepperBtnStyle(styles.stepperBtnSm, repsDecDisabled),
+        incRepsStyle: stepperBtnStyle(styles.stepperBtnSm, repsIncDisabled),
+        decRestStyle: stepperBtnStyle(styles.stepperBtnSm, restDecDisabled),
+        incRestStyle: stepperBtnStyle(styles.stepperBtnSm, restIncDisabled),
+        moveUpStyle: { width: '24px', height: '24px', borderRadius: '8px', background: c.cardAlt, border: 'none', color: c.text, fontSize: '10px', cursor: moveUpDisabled ? 'default' : 'pointer', opacity: moveUpDisabled ? 0.35 : 1, padding: 0 },
+        moveDownStyle: { width: '24px', height: '24px', borderRadius: '8px', background: c.cardAlt, border: 'none', color: c.text, fontSize: '10px', cursor: moveDownDisabled ? 'default' : 'pointer', opacity: moveDownDisabled ? 0.35 : 1, padding: 0 },
+      };
+    });
+    var hasNoSelection = s.selectedIds.length === 0;
+    var exerciseCountLabel = s.selectedIds.length + (s.selectedIds.length === 1 ? ' ejercicio' : ' ejercicios');
+    var daysPerWeekLabel = s.daysPerWeek + 'd/sem';
+    var durationLabel = s.durationMinutes + ' min';
+
+    var categoryLabelLookup = s.category || 'Sin categoría';
+    var objectiveLabelLookup = 'Sin objetivo';
+    OBJECTIVE_OPTIONS.forEach(function (opt) { if (opt.v === s.objective) objectiveLabelLookup = opt.label; });
+    var difficultyLabelLookup = 'Sin dificultad';
+    DIFFICULTY_OPTIONS.forEach(function (opt) { if (opt.v === s.difficulty) difficultyLabelLookup = opt.label; });
+
+    var summaryTitleLabel = s.name.trim() || (s.mode === 'edit' ? 'Rutina sin nombre' : 'Mi nueva rutina');
+    var summarySubtitleLabel = categoryLabelLookup + ' · ' + objectiveLabelLookup + ' · ' + difficultyLabelLookup;
+
+    // ---- footer ----
+    var isStep1 = s.step === 1, isStep2 = s.step === 2, isStep3 = s.step === 3;
+    var isSuccess = s.saved === true;
+    var isNotSuccess = !isSuccess;
+    var showBackPlaceholder = !showBack;
+    var showFlat = !showGrouped;
+    var showSelectionHint = isStep2 && isNotSuccess;
+    var selectionHintLabel = s.selectedIds.length + (s.selectedIds.length === 1 ? ' ejercicio seleccionado' : ' ejercicios seleccionados');
+
+    var isPrimaryDisabled = false;
+    if (isStep1) isPrimaryDisabled = !s.name.trim();
+    if (isStep2) isPrimaryDisabled = s.selectedIds.length === 0;
+    if (isStep3) isPrimaryDisabled = s.saving || s.selectedIds.length === 0;
+
+    var primaryButtonLabel = 'Continuar';
+    if (isStep3) primaryButtonLabel = s.saving ? 'Guardando…' : (s.mode === 'edit' ? 'Guardar cambios' : 'Guardar rutina');
+
+    var primaryButtonStyle = { width: '100%', height: '52px', borderRadius: '999px', border: 'none', background: c.primary, color: c.primaryContrastText, fontFamily: 'Manrope,sans-serif', fontSize: '15px', fontWeight: 800, cursor: 'pointer', opacity: isPrimaryDisabled ? 0.5 : 1 };
+
+    var successSubtitle = s.mode === 'edit' ? 'Los cambios se guardaron correctamente.' : 'Tu nueva rutina ya está lista para entrenar.';
+
+    return {
+      styles: styles,
+      previewModeLabel: previewModeLabel,
+      setPreviewCreate: this.setPreviewCreate, setPreviewEdit: this.setPreviewEdit,
+      setThemeDark: this.setThemeDark, setThemeLight: this.setThemeLight,
+      previewCreateBtnStyle: previewCreateBtnStyle, previewEditBtnStyle: previewEditBtnStyle,
+      themeDarkBtnStyle: themeDarkBtnStyle, themeLightBtnStyle: themeLightBtnStyle,
+      showBack: showBack, showBackPlaceholder: showBackPlaceholder, isNotSuccess: isNotSuccess, goBack: this.goBack,
+      stepCaption: stepCaption, stepCounterLabel: stepCounterLabel, stepDots: stepDots,
+      isStep1: isStep1, isStep2: isStep2, isStep3: isStep3, isSuccess: isSuccess,
+      successSubtitle: successSubtitle, backToReview: this.backToReview, resetToCreate: this.resetToCreate,
+      name: s.name, setName: this.setName,
+      categoryDisplayLabel: categoryLabelLookup, objectiveDisplayLabel: objectiveLabelLookup, difficultyDisplayLabel: difficultyLabelLookup,
+      isCategoryOpen: isCategoryOpen, isObjectiveOpen: isObjectiveOpen, isDifficultyOpen: isDifficultyOpen,
+      toggleCategoryDropdown: toggleCategoryDropdown, toggleObjectiveDropdown: toggleObjectiveDropdown, toggleDifficultyDropdown: toggleDifficultyDropdown,
+      categoryChevronStyle: categoryChevronStyle, objectiveChevronStyle: objectiveChevronStyle, difficultyChevronStyle: difficultyChevronStyle,
+      categorySelectOptions: categorySelectOptions, objectiveSelectOptions: objectiveSelectOptions, difficultySelectOptions: difficultySelectOptions,
+      daysPerWeek: s.daysPerWeek, durationMinutes: s.durationMinutes,
+      decDays: this.decDays, incDays: this.incDays, decDuration: this.decDuration, incDuration: this.incDuration,
+      daysDecDisabled: daysDecDisabled, daysIncDisabled: daysIncDisabled,
+      durationDecDisabled: durationDecDisabled, durationIncDisabled: durationIncDisabled,
+      decDaysBtnStyle: decDaysBtnStyle, incDaysBtnStyle: incDaysBtnStyle,
+      decDurationBtnStyle: decDurationBtnStyle, incDurationBtnStyle: incDurationBtnStyle,
+      search: s.search, setSearch: this.setSearch, muscleChips: muscleChips,
+      hasNoResults: hasNoResults, showGrouped: showGrouped, showFlat: showFlat, groupedCatalog: groupedCatalog, flatCatalog: flatCatalog,
+      hasNoSelection: hasNoSelection, configuredExercises: configuredExercises, goAddMore: this.goAddMore,
+      summaryTitleLabel: summaryTitleLabel, summarySubtitleLabel: summarySubtitleLabel,
+      daysPerWeekLabel: daysPerWeekLabel, durationLabel: durationLabel, exerciseCountLabel: exerciseCountLabel,
+      showSelectionHint: showSelectionHint, selectionHintLabel: selectionHintLabel,
+      primaryAction: this.primaryAction, isPrimaryDisabled: isPrimaryDisabled,
+      primaryButtonLabel: primaryButtonLabel, primaryButtonStyle: primaryButtonStyle,
+    };
+  }
+}
+</script>
+</body>
+</html>

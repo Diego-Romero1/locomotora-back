@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#05070d;-webkit-font-smoothing:antialiased;}
+  *{box-sizing:border-box;font-family:'Manrope',sans-serif;}
+  ::-webkit-scrollbar{display:none;}
+  @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.55;}}
+  @keyframes floatUp{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+  a{color:#22C55E;text-decoration:none;}
+  a:hover{color:#4ADE80;}
+</style>
+</helmet>
+
+<div style="{{ styles.backdrop }}">
+  <div style="{{ styles.phone }}">
+
+    <div style="{{ styles.statusBar }}">
+      <span>9:41</span>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <span>{{ icons.signal }}</span>
+        <span>{{ icons.wifi }}</span>
+        <span>{{ icons.battery }}</span>
+      </div>
+    </div>
+
+    <sc-if value="{{ isOnboarding }}" hint-placeholder-val="{{ true }}">
+      <div style="{{ styles.scrollArea }}">
+        <div style="padding:8px 24px 4px;display:flex;align-items:center;justify-content:space-between;">
+          <sc-if value="{{ ob.step }}" hint-placeholder-val="{{ 0 }}">
+            <button onClick="{{ obBack }}" style="{{ styles.iconBtn }}">{{ icons.back }}</button>
+          </sc-if>
+          <sc-if value="{{ obStepIsZero }}" hint-placeholder-val="{{ true }}"><div></div></sc-if>
+          <div style="{{ styles.stepDots }}">
+            <sc-for list="{{ obStepsArr }}" as="s" hint-placeholder-count="5">
+              <div style="{{ s.dotStyle }}"></div>
+            </sc-for>
+          </div>
+          <div style="width:36px;"></div>
+        </div>
+
+        <sc-if value="{{ obShowGoal }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:20px 24px 100px;animation:floatUp .4s ease;">
+            <div style="{{ styles.eyebrow }}">PASO 1 DE 5</div>
+            <div style="{{ styles.h1 }}">¿Cuál es tu objetivo principal?</div>
+            <div style="{{ styles.sub }}">Personalizamos cada rutina según esto.</div>
+            <div style="display:flex;flex-direction:column;gap:12px;margin-top:24px;">
+              <sc-for list="{{ goalOptions }}" as="opt" hint-placeholder-count="4">
+                <button onClick="{{ opt.onSelect }}" style="{{ opt.cardStyle }}">
+                  <div style="{{ opt.iconWrap }}">{{ opt.icon }}</div>
+                  <div style="flex:1;text-align:left;">
+                    <div style="{{ styles.optTitle }}">{{ opt.label }}</div>
+                    <div style="{{ styles.optDesc }}">{{ opt.desc }}</div>
+                  </div>
+                  <sc-if value="{{ opt.selected }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ styles.checkDot }}">{{ icons.check }}</div>
+                  </sc-if>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ obShowExperience }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:20px 24px 100px;animation:floatUp .4s ease;">
+            <div style="{{ styles.eyebrow }}">PASO 2 DE 5</div>
+            <div style="{{ styles.h1 }}">Tu nivel y frecuencia</div>
+            <div style="{{ styles.sub }}">Así ajustamos la intensidad y el volumen.</div>
+            <div style="{{ styles.fieldLabel }}">Nivel de experiencia</div>
+            <div style="display:flex;gap:10px;margin-top:10px;">
+              <sc-for list="{{ experienceOptions }}" as="opt" hint-placeholder-count="3">
+                <button onClick="{{ opt.onSelect }}" style="{{ opt.chipStyle }}">{{ opt.label }}</button>
+              </sc-for>
+            </div>
+            <div style="{{ styles.fieldLabel }}">Días por semana</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;">
+              <sc-for list="{{ dayOptions }}" as="opt" hint-placeholder-count="5">
+                <button onClick="{{ opt.onSelect }}" style="{{ opt.dayStyle }}">{{ opt.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ obShowEquipment }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:20px 24px 100px;animation:floatUp .4s ease;">
+            <div style="{{ styles.eyebrow }}">PASO 3 DE 5</div>
+            <div style="{{ styles.h1 }}">¿Con qué equipo contás?</div>
+            <div style="{{ styles.sub }}">Elegí todas las que apliquen.</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px;">
+              <sc-for list="{{ equipmentOptions }}" as="opt" hint-placeholder-count="6">
+                <button onClick="{{ opt.onToggle }}" style="{{ opt.cardStyle }}">
+                  <div style="{{ opt.iconWrap }}">{{ opt.icon }}</div>
+                  <div style="{{ styles.optTitleSm }}">{{ opt.label }}</div>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ obShowStats }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:20px 24px 100px;animation:floatUp .4s ease;">
+            <div style="{{ styles.eyebrow }}">PASO 4 DE 5</div>
+            <div style="{{ styles.h1 }}">Tus datos físicos</div>
+            <div style="{{ styles.sub }}">Para calcular volumen e intensidad ideal.</div>
+            <div style="display:flex;gap:12px;margin-top:20px;">
+              <div style="flex:1;">
+                <div style="{{ styles.fieldLabel }}">Altura (cm)</div>
+                <input value="{{ ob.height }}" onChange="{{ setHeight }}" style="{{ styles.input }}" placeholder="170"/>
+              </div>
+              <div style="flex:1;">
+                <div style="{{ styles.fieldLabel }}">Peso (kg)</div>
+                <input value="{{ ob.weight }}" onChange="{{ setWeight }}" style="{{ styles.input }}" placeholder="70"/>
+              </div>
+            </div>
+            <div style="{{ styles.fieldLabel }}">Alguna molestia o lesión (opcional)</div>
+            <input value="{{ ob.limitation }}" onChange="{{ setLimitation }}" style="{{ styles.input }}" placeholder="Ej: dolor lumbar"/>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ obShowGenerating }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:60px 24px;display:flex;flex-direction:column;align-items:center;text-align:center;">
+            <div style="{{ styles.spinnerRing }}">{{ icons.sparkle }}</div>
+            <div style="{{ styles.h1 }};margin-top:24px;">Armando tu plan ideal…</div>
+            <div style="{{ styles.sub }}">Analizando objetivo, nivel y equipo disponible</div>
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:28px;width:100%;">
+              <sc-for list="{{ generatingSteps }}" as="gs" hint-placeholder-count="3">
+                <div style="{{ gs.rowStyle }}">
+                  <div style="{{ gs.dotStyle }}">{{ gs.icon }}</div>
+                  <div style="{{ gs.textStyle }}">{{ gs.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <div style="{{ styles.obFooter }}">
+          <button onClick="{{ obNext }}" disabled="{{ obNextDisabled }}" style="{{ styles.primaryBtnFull }}">{{ obNextLabel }}</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isWorkoutActive }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ styles.scrollArea }}">
+        <div style="padding:12px 20px;display:flex;align-items:center;gap:12px;">
+          <button onClick="{{ endWorkout }}" style="{{ styles.iconBtn }}">{{ icons.close }}</button>
+          <div style="{{ styles.progressTrack }}"><div style="{{ workoutProgressStyle }}"></div></div>
+          <div style="{{ styles.tinyMeta }}">{{ workoutCounterLabel }}</div>
+        </div>
+
+        <div style="padding:8px 20px 120px;">
+          <div style="{{ styles.eyebrow }}">EJERCICIO ACTUAL</div>
+          <div style="{{ styles.h1 }}">{{ currentExercise.name }}</div>
+          <div style="{{ styles.sub }}">{{ currentExercise.muscle }} · {{ currentExercise.equipment }}</div>
+
+          <div style="{{ styles.workoutHero }}">{{ icons.dumbbellBig }}</div>
+
+          <div style="{{ styles.setsHeaderRow }}">
+            <div style="{{ styles.setsHeaderCell }}">SET</div>
+            <div style="{{ styles.setsHeaderCell }}">KG</div>
+            <div style="{{ styles.setsHeaderCell }}">REPS</div>
+            <div style="{{ styles.setsHeaderCell }}"></div>
+          </div>
+          <sc-for list="{{ currentExercise.setsView }}" as="st" hint-placeholder-count="4">
+            <div style="{{ st.rowStyle }}">
+              <div style="{{ styles.setNumCell }}">{{ st.n }}</div>
+              <div style="{{ styles.setValCell }}">{{ st.weight }}</div>
+              <div style="{{ styles.setValCell }}">{{ st.reps }}</div>
+              <button onClick="{{ st.onToggle }}" style="{{ st.checkStyle }}">{{ icons.check }}</button>
+            </div>
+          </sc-for>
+
+          <div style="{{ styles.restCard }}">
+            <div>{{ icons.clock }}</div>
+            <div style="flex:1;">
+              <div style="{{ styles.optTitleSm }}">Descanso sugerido</div>
+              <div style="{{ styles.sub2 }}">{{ currentExercise.rest }} entre series</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="{{ styles.workoutFooter }}">
+          <button onClick="{{ prevExercise }}" style="{{ styles.secondaryBtnSq }}">{{ icons.back }}</button>
+          <button onClick="{{ nextExercise }}" style="{{ styles.primaryBtnFull }}">{{ nextExerciseLabel }}</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isMainApp }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ styles.scrollArea }}">
+
+        <sc-if value="{{ showHome }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:12px 20px 110px;">
+            <div style="{{ styles.homeHeaderRow }}">
+              <div>
+                <div style="{{ styles.greeting }}">Hola, {{ userName }} 👋</div>
+                <div style="{{ styles.sub2 }}">Vamos con todo hoy</div>
+              </div>
+              <button onClick="{{ goProfile }}" style="{{ styles.avatarBtn }}">{{ userInitial }}</button>
+            </div>
+
+            <div style="{{ styles.streakBanner }}">
+              <div style="flex:1;">
+                <div style="{{ styles.streakLabel }}">RACHA ACTUAL</div>
+                <div style="{{ styles.streakValue }}">{{ streakDays }} días seguidos</div>
+<div style="{{ styles.streakSub }}">¡Tu mejor racha! Seguí así 🔥</div>
+              </div>
+              <div style="{{ styles.streakFlame }}">{{ icons.flameBig }}</div>
+            </div>
+
+            <div style="{{ styles.statsRow }}">
+              <sc-for list="{{ quickStats }}" as="qs" hint-placeholder-count="3">
+                <div style="{{ styles.statCard }}">
+                  <div style="{{ styles.statIcon }}">{{ qs.icon }}</div>
+                  <div style="{{ styles.statValue }}">{{ qs.value }}</div>
+                  <div style="{{ styles.statLabel }}">{{ qs.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="{{ styles.sectionTitleRow }}">
+              <div style="{{ styles.sectionTitle }}">Tu rutina de hoy</div>
+            </div>
+
+            <div style="{{ styles.todayCard }}">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+                <div>
+                  <div style="{{ styles.todayTitle }}">{{ todayRoutine.title }}</div>
+                  <div style="{{ styles.sub2 }}">{{ todayRoutine.exerciseCount }} ejercicios · {{ todayRoutine.duration }} min</div>
+                </div>
+                <div style="{{ styles.badgeAccent }}">{{ todayRoutine.split }}</div>
+              </div>
+              <div style="{{ styles.exerciseChipsRow }}">
+                <sc-for list="{{ todayRoutine.preview }}" as="ex" hint-placeholder-count="4">
+                  <div style="{{ styles.exerciseDotRow }}">
+                    <div style="{{ styles.exerciseDot }}"></div>
+                    <div style="{{ styles.exerciseChipText }}">{{ ex.name }}</div>
+                    <div style="{{ styles.exerciseChipMeta }}">{{ ex.sets }}×{{ ex.reps }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <button onClick="{{ startTodayWorkout }}" style="{{ styles.primaryBtnFull }}">Empezar entrenamiento</button>
+            </div>
+
+            <div style="{{ styles.aiTipCard }}">
+              <div style="{{ styles.aiTipIcon }}">{{ icons.sparkle }}</div>
+              <div style="flex:1;">
+                <div style="{{ styles.optTitleSm }}">Tip de tu coach IA</div>
+                <div style="{{ styles.sub2 }}">Aumentá 2.5kg en press banca — llevás 3 semanas estancado.</div>
+              </div>
+              <button onClick="{{ goCoach }}" style="{{ styles.iconBtn }}">{{ icons.chevronRight }}</button>
+            </div>
+
+            <div style="{{ styles.sectionTitleRow }}">
+              <div style="{{ styles.sectionTitle }}">Explorar ejercicios</div>
+            </div>
+            <div style="{{ styles.groupScroller }}">
+              <sc-for list="{{ muscleGroups }}" as="g" hint-placeholder-count="5">
+                <div style="{{ styles.groupCard }}">
+                  <div style="{{ styles.groupIcon }}">{{ g.icon }}</div>
+                  <div style="{{ styles.optTitleSm }}">{{ g.name }}</div>
+                  <div style="{{ styles.tinyMeta }}">{{ g.count }} ejercicios</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showRoutinesList }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:12px 20px 110px;">
+            <div style="{{ styles.homeHeaderRow }}">
+              <div style="{{ styles.pageTitle }}">Rutinas</div>
+              <button onClick="{{ openCreateRoutine }}" style="{{ styles.fabInline }}">{{ icons.plus }} Nueva</button>
+            </div>
+
+            <div style="{{ styles.segmentRow }}">
+              <sc-for list="{{ routineTabs }}" as="rt" hint-placeholder-count="3">
+                <button onClick="{{ rt.onSelect }}" style="{{ rt.segStyle }}">{{ rt.label }}</button>
+              </sc-for>
+            </div>
+
+            <div style="{{ styles.chipsScroller }}">
+              <sc-for list="{{ categoryChips }}" as="c" hint-placeholder-count="4">
+                <button onClick="{{ c.onSelect }}" style="{{ c.chipStyle }}">{{ c.label }}</button>
+              </sc-for>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:14px;margin-top:16px;">
+              <sc-for list="{{ visibleRoutines }}" as="r" hint-placeholder-count="3">
+                <button onClick="{{ r.onOpen }}" style="{{ styles.routineCard }}">
+                  <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+                    <div style="flex:1;text-align:left;">
+                      <div style="{{ styles.optTitle }}">{{ r.title }}</div>
+                      <div style="{{ styles.sub2 }}">{{ r.description }}</div>
+                    </div>
+                    <div style="{{ r.badgeStyle }}">{{ r.badgeLabel }}</div>
+                  </div>
+                  <div style="{{ styles.routineMetaRow }}">
+                    <div style="{{ styles.metaChip }}">{{ icons.calendar }} {{ r.days }}d/sem</div>
+                    <div style="{{ styles.metaChip }}">{{ icons.clock }} {{ r.duration }} min</div>
+                    <div style="{{ styles.metaChip }}">{{ icons.dumbbell }} {{ r.exerciseCount }} ejerc.</div>
+                  </div>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showRoutineDetail }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:12px 20px 110px;">
+            <button onClick="{{ backToList }}" style="{{ styles.iconBtn }}">{{ icons.back }}</button>
+            <div style="{{ styles.pageTitle }};margin-top:8px;">{{ selectedRoutine.title }}</div>
+            <div style="{{ styles.sub2 }}">{{ selectedRoutine.description }}</div>
+
+            <div style="{{ styles.routineMetaRow }};margin-top:14px;">
+              <div style="{{ styles.metaChip }}">{{ icons.calendar }} {{ selectedRoutine.days }}d/sem</div>
+              <div style="{{ styles.metaChip }}">{{ icons.clock }} {{ selectedRoutine.duration }} min</div>
+              <div style="{{ styles.metaChip }}">{{ selectedRoutine.badgeLabel }}</div>
+            </div>
+
+            <div style="{{ styles.dayTabsRow }}">
+              <sc-for list="{{ selectedRoutine.dayTabs }}" as="d" hint-placeholder-count="3">
+                <button onClick="{{ d.onSelect }}" style="{{ d.tabStyle }}">{{ d.label }}</button>
+              </sc-for>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px;">
+              <sc-for list="{{ selectedRoutine.exercisesView }}" as="ex" hint-placeholder-count="5">
+                <div style="{{ styles.exerciseListRow }}">
+                  <div style="{{ styles.exerciseThumb }}">{{ icons.dumbbell }}</div>
+                  <div style="flex:1;">
+                    <div style="{{ styles.optTitleSm }}">{{ ex.name }}</div>
+                    <div style="{{ styles.tinyMeta }}">{{ ex.sets }} series × {{ ex.reps }} reps</div>
+                  </div>
+                  <div style="{{ styles.tinyMeta }}">{{ ex.rest }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <button onClick="{{ startSelectedWorkout }}" style="{{ styles.primaryBtnFull }};margin-top:20px;">Iniciar entrenamiento</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showRoutineCreate }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:12px 20px 110px;">
+            <button onClick="{{ backToList }}" style="{{ styles.iconBtn }}">{{ icons.back }}</button>
+            <div style="{{ styles.pageTitle }};margin-top:8px;">Crear rutina</div>
+
+            <div style="{{ styles.segmentRow }}">
+              <button onClick="{{ setModeAI }}" style="{{ modeAIStyle }}">{{ icons.sparkle }} Generar con IA</button>
+              <button onClick="{{ setModeManual }}" style="{{ modeManualStyle }}">Armar manual</button>
+            </div>
+
+            <sc-if value="{{ isCreateModeAI }}" hint-placeholder-val="{{ true }}">
+              <sc-if value="{{ !aiGenerating }}" hint-placeholder-val="{{ true }}">
+                <sc-if value="{{ !aiResult }}" hint-placeholder-val="{{ true }}">
+                  <div style="margin-top:16px;">
+                    <div style="{{ styles.sub }}">Contale a la IA qué buscás y arma una rutina en segundos.</div>
+                    <div style="{{ styles.chipsScroller }}">
+                      <sc-for list="{{ aiPromptChips }}" as="pc" hint-placeholder-count="3">
+                        <button onClick="{{ pc.onSelect }}" style="{{ styles.suggestionChip }}">{{ pc.label }}</button>
+                      </sc-for>
+                    </div>
+                    <textarea value="{{ aiPrompt }}" onChange="{{ setAiPrompt }}" style="{{ styles.textarea }}" placeholder="Ej: rutina full body de 3 días, sin equipo, 40 minutos"></textarea>
+                    <button onClick="{{ generateAiRoutine }}" style="{{ styles.primaryBtnFull }}">Generar rutina</button>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ aiResult }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top:16px;animation:floatUp .35s ease;">
+                    <div style="{{ styles.aiResultBanner }}">{{ icons.sparkle }} Rutina generada para vos</div>
+                    <div style="{{ styles.todayCard }}">
+                      <div style="{{ styles.optTitle }}">{{ aiResult.title }}</div>
+                      <div style="{{ styles.sub2 }}">{{ aiResult.description }}</div>
+                      <div style="{{ styles.routineMetaRow }}">
+                        <div style="{{ styles.metaChip }}">{{ icons.calendar }} {{ aiResult.days }}d/sem</div>
+                        <div style="{{ styles.metaChip }}">{{ icons.clock }} {{ aiResult.duration }} min</div>
+                        <div style="{{ styles.metaChip }}">{{ aiResult.split }}</div>
+                      </div>
+                      <div style="{{ styles.exerciseChipsRow }}">
+                        <sc-for list="{{ aiResult.preview }}" as="ex" hint-placeholder-count="4">
+                          <div style="{{ styles.exerciseDotRow }}">
+                            <div style="{{ styles.exerciseDot }}"></div>
+                            <div style="{{ styles.exerciseChipText }}">{{ ex.name }}</div>
+                            <div style="{{ styles.exerciseChipMeta }}">{{ ex.sets }}×{{ ex.reps }}</div>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </div>
+                    <div style="display:flex;gap:10px;margin-top:14px;">
+                      <button onClick="{{ regenerateAi }}" style="{{ styles.secondaryBtn }}">Regenerar</button>
+                      <button onClick="{{ useAiResult }}" style="{{ styles.primaryBtn }}">Usar esta rutina</button>
+                    </div>
+                  </div>
+                </sc-if>
+              </sc-if>
+              <sc-if value="{{ aiGenerating }}" hint-placeholder-val="{{ false }}">
+                <div style="padding:50px 0;display:flex;flex-direction:column;align-items:center;text-align:center;">
+                  <div style="{{ styles.spinnerRing }}">{{ icons.sparkle }}</div>
+                  <div style="{{ styles.optTitle }};margin-top:20px;">Generando tu rutina…</div>
+                  <div style="{{ styles.sub2 }}">Combinando tus objetivos con el catálogo de ejercicios</div>
+                </div>
+              </sc-if>
+            </sc-if>
+
+            <sc-if value="{{ !isCreateModeAI }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top:16px;">
+                <div style="{{ styles.fieldLabel }}">Nombre de la rutina</div>
+                <input value="{{ manualTitle }}" onChange="{{ setManualTitle }}" style="{{ styles.input }}" placeholder="Ej: Mi rutina push/pull/legs"/>
+                <div style="{{ styles.sectionTitleRow }}">
+                  <div style="{{ styles.sectionTitle }}">Agregar ejercicios</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  <sc-for list="{{ manualCatalog }}" as="ex" hint-placeholder-count="6">
+                    <button onClick="{{ ex.onToggle }}" style="{{ ex.rowStyle }}">
+                      <div style="{{ styles.exerciseThumb }}">{{ icons.dumbbell }}</div>
+                      <div style="flex:1;text-align:left;">
+                        <div style="{{ styles.optTitleSm }}">{{ ex.name }}</div>
+                        <div style="{{ styles.tinyMeta }}">{{ ex.muscle }}</div>
+                      </div>
+                      <div style="{{ ex.checkStyle }}">{{ icons.plus }}</div>
+                    </button>
+                  </sc-for>
+                </div>
+                <div style="{{ styles.tinyMeta }};margin-top:10px;">{{ manualSelectedCount }} ejercicios seleccionados</div>
+                <button onClick="{{ saveManualRoutine }}" style="{{ styles.primaryBtnFull }};margin-top:16px;">Guardar rutina</button>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showCoach }}" hint-placeholder-val="{{ false }}">
+          <div style="{{ styles.coachWrap }}">
+            <div style="padding:12px 20px 6px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div style="{{ styles.aiTipIcon }}">{{ icons.sparkle }}</div>
+                <div>
+                  <div style="{{ styles.optTitle }}">Coach IA</div>
+                  <div style="{{ styles.tinyMeta }}">Puede crear y ajustar rutinas por vos</div>
+                </div>
+              </div>
+            </div>
+            <div style="{{ styles.chatArea }}">
+              <sc-for list="{{ coachMessages }}" as="m" hint-placeholder-count="3">
+                <sc-if value="{{ m.isRoutineCard }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ styles.coachRoutineCard }}">
+                    <div style="{{ styles.optTitleSm }}">{{ m.routine.title }}</div>
+                    <div style="{{ styles.tinyMeta }}">{{ m.routine.description }}</div>
+                    <div style="{{ styles.routineMetaRow }}">
+                      <div style="{{ styles.metaChip }}">{{ icons.calendar }} {{ m.routine.days }}d/sem</div>
+                      <div style="{{ styles.metaChip }}">{{ icons.clock }} {{ m.routine.duration }} min</div>
+                    </div>
+                    <button onClick="{{ m.onUse }}" style="{{ styles.primaryBtn }};margin-top:10px;width:100%;">Usar esta rutina</button>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ !m.isRoutineCard }}" hint-placeholder-val="{{ true }}">
+                  <div style="{{ m.bubbleStyle }}">{{ m.text }}</div>
+                </sc-if>
+              </sc-for>
+              <sc-if value="{{ coachTyping }}" hint-placeholder-val="{{ false }}">
+                <div style="{{ styles.coachBubble }}">{{ icons.typingDots }}</div>
+              </sc-if>
+            </div>
+            <div style="{{ styles.chipsScroller }}">
+              <sc-for list="{{ coachQuickReplies }}" as="qr" hint-placeholder-count="3">
+                <button onClick="{{ qr.onSelect }}" style="{{ styles.suggestionChip }}">{{ qr.label }}</button>
+              </sc-for>
+            </div>
+            <div style="{{ styles.chatInputRow }}">
+              <input value="{{ coachInput }}" onChange="{{ setCoachInput }}" style="{{ styles.chatInput }}" placeholder="Escribile a tu coach…"/>
+              <button onClick="{{ sendCoachMessage }}" style="{{ styles.sendBtn }}">{{ icons.send }}</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showProgress }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:12px 20px 110px;">
+            <div style="{{ styles.pageTitle }}">Progreso</div>
+
+            <div style="{{ styles.statsRow }}">
+              <sc-for list="{{ progressStats }}" as="ps" hint-placeholder-count="3">
+                <div style="{{ styles.statCard }}">
+                  <div style="{{ styles.statIcon }}">{{ ps.icon }}</div>
+                  <div style="{{ styles.statValue }}">{{ ps.value }}</div>
+                  <div style="{{ styles.statLabel }}">{{ ps.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="{{ styles.sectionTitleRow }}">
+              <div style="{{ styles.sectionTitle }}">Esta semana</div>
+            </div>
+            <div style="{{ styles.weekRow }}">
+              <sc-for list="{{ weekDays }}" as="wd" hint-placeholder-count="7">
+                <div style="{{ styles.weekDay }}">
+                  <div style="{{ styles.tinyMeta }}">{{ wd.label }}</div>
+                  <div style="{{ wd.dotStyle }}"></div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="{{ styles.sectionTitleRow }}">
+              <div style="{{ styles.sectionTitle }}">Volumen levantado</div>
+            </div>
+            <div style="{{ styles.chartRow }}">
+              <sc-for list="{{ chartBars }}" as="b" hint-placeholder-count="6">
+                <div style="{{ styles.barCol }}">
+                  <div style="{{ b.barStyle }}"></div>
+                  <div style="{{ styles.tinyMeta }}">{{ b.label }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="{{ styles.sectionTitleRow }}">
+              <div style="{{ styles.sectionTitle }}">Récords personales</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <sc-for list="{{ personalRecords }}" as="pr" hint-placeholder-count="3">
+                <div style="{{ styles.exerciseListRow }}">
+                  <div style="{{ styles.exerciseThumb }}">{{ icons.trophy }}</div>
+                  <div style="flex:1;">
+                    <div style="{{ styles.optTitleSm }}">{{ pr.name }}</div>
+                    <div style="{{ styles.tinyMeta }}">{{ pr.date }}</div>
+                  </div>
+                  <div style="{{ styles.prValue }}">{{ pr.value }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ showProfile }}" hint-placeholder-val="{{ false }}">
+          <div style="padding:12px 20px 110px;">
+            <div style="{{ styles.pageTitle }}">Perfil</div>
+            <div style="{{ styles.profileHeader }}">
+              <div style="{{ styles.avatarBig }}">{{ userInitial }}</div>
+              <div>
+                <div style="{{ styles.optTitle }}">{{ userName }}</div>
+                <div style="{{ styles.tinyMeta }}">Miembro desde marzo 2025</div>
+              </div>
+            </div>
+
+            <div style="{{ styles.goalChipsRow }}">
+              <div style="{{ styles.metaChipIcon }}">🎯 {{ profileGoalLabel }}</div>
+              <div style="{{ styles.metaChipIcon }}">📅 {{ profileDaysLabel }}</div>
+              <div style="{{ styles.metaChipIcon }}">💪 {{ profileExperienceLabel }}</div>
+            </div>
+
+            <div style="{{ styles.sectionTitleRow }}">
+              <div style="{{ styles.sectionTitle }}">Apariencia</div>
+            </div>
+            <div style="{{ styles.settingsRow }}">
+              <div style="flex:1;">
+                <div style="{{ styles.optTitleSm }}">Modo oscuro</div>
+                <div style="{{ styles.tinyMeta }}">Cambiá el tema de toda la app</div>
+              </div>
+              <button onClick="{{ toggleTheme }}" style="{{ styles.switchTrack }}">
+                <div style="{{ styles.switchThumb }}"></div>
+              </button>
+            </div>
+
+            <div style="{{ styles.sectionTitleRow }}">
+              <div style="{{ styles.sectionTitle }}">Cuenta</div>
+            </div>
+            <sc-for list="{{ profileMenuItems }}" as="pi" hint-placeholder-count="4">
+              <button style="{{ styles.settingsRowBtn }}">
+                <div style="{{ styles.exerciseThumb }}">{{ pi.icon }}</div>
+                <div style="flex:1;text-align:left;">{{ pi.label }}</div>
+                {{ icons.chevronRight }}
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="{{ styles.navBar }}">
+        <sc-for list="{{ navItems }}" as="n" hint-placeholder-count="5">
+          <button onClick="{{ n.onSelect }}" style="{{ n.wrapStyle }}">
+            <div style="{{ n.iconStyle }}">{{ n.icon }}</div>
+            <div style="{{ n.labelStyle }}">{{ n.label }}</div>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:450,&quot;height&quot;:900}}">
+const ICONS = {
+  back: '\u2190', close: '\u2715', check: '\u2713', plus: '+', chevronRight: '\u203A',
+  sparkle: '\u2728', flameBig: '\uD83D\uDD25', clock: '\u23F1\uFE0F', calendar: '\uD83D\uDCC5',
+  dumbbell: '\uD83C\uDFCB\uFE0F', dumbbellBig: '\uD83C\uDFCB\uFE0F', trophy: '\uD83C\uDFC6',
+  send: '\uD83D\uDCE4', signal: '\uD83D\uDCF6', wifi: '\uD83D\uDCF6', battery: '\uD83D\uDD0B',
+  typingDots: '\uD83D\uDCAC',
+};
+
+const MUSCLE_GROUPS = [
+  { name: 'Pecho', count: 8, icon: '\uD83D\uDCAA' },
+  { name: 'Espalda', count: 10, icon: '\uD83E\uDD73' },
+  { name: 'Piernas', count: 12, icon: '\uD83E\uDDB5' },
+  { name: 'Hombros', count: 6, icon: '\uD83C\uDFD0' },
+  { name: 'Core', count: 7, icon: '\u2B50' },
+];
+
+const EXERCISE_CATALOG = [
+  { name: 'Press banca', muscle: 'Pecho' }, { name: 'Sentadilla', muscle: 'Piernas' },
+  { name: 'Peso muerto', muscle: 'Espalda' }, { name: 'Press militar', muscle: 'Hombros' },
+  { name: 'Remo con barra', muscle: 'Espalda' }, { name: 'Plancha', muscle: 'Core' },
+  { name: 'Zancadas', muscle: 'Piernas' }, { name: 'Curl de bíceps', muscle: 'Brazos' },
+];
+
+const ROUTINES = [
+  { id: 'r1', title: 'Fuerza Full Body', description: 'Enfocada en levantamientos compuestos', days: 3, duration: 50, exerciseCount: 15, split: 'Full Body', mine: true,
+    exercises: [{name:'Sentadilla',sets:4,reps:8,rest:'90s'},{name:'Press banca',sets:4,reps:8,rest:'90s'},{name:'Remo con barra',sets:3,reps:10,rest:'60s'},{name:'Press militar',sets:3,reps:10,rest:'60s'},{name:'Plancha',sets:3,reps:'40s',rest:'30s'}] },
+  { id: 'r2', title: 'Hipertrofia Push/Pull/Legs', description: 'Volumen alto dividido en 6 días', days: 6, duration: 65, exerciseCount: 24, split: 'PPL', mine: true,
+    exercises: [{name:'Press inclinado',sets:4,reps:10,rest:'75s'},{name:'Curl de bíceps',sets:3,reps:12,rest:'45s'},{name:'Peso muerto',sets:4,reps:6,rest:'120s'},{name:'Zancadas',sets:3,reps:12,rest:'60s'}] },
+  { id: 'r3', title: 'Resistencia Metabólica', description: 'Circuitos cortos, poco descanso', days: 4, duration: 35, exerciseCount: 18, split: 'Circuito', mine: false,
+    exercises: [{name:'Burpees',sets:3,reps:15,rest:'30s'},{name:'Zancadas',sets:3,reps:20,rest:'30s'},{name:'Plancha',sets:3,reps:'45s',rest:'20s'}] },
+  { id: 'r4', title: 'Definición Total', description: 'Combinación de fuerza y cardio', days: 5, duration: 45, exerciseCount: 20, split: 'Full Body', mine: false,
+    exercises: [{name:'Sentadilla',sets:3,reps:15,rest:'45s'},{name:'Remo con barra',sets:3,reps:12,rest:'45s'},{name:'Curl de bíceps',sets:3,reps:15,rest:'30s'}] },
+];
+
+const CATEGORY_CHIPS = ['Todas', 'Fuerza', 'Hipertrofia', 'Resistencia'];
+const AI_PROMPT_CHIPS = ['Ganar músculo, 4 días', 'Bajar de peso, sin equipo', '30 min, en casa'];
+
+const COACH_INTRO = [
+  { from: 'coach', text: '¡Hola! Soy tu coach IA 💚 Contame tu objetivo y te armo una rutina, o pedime ajustar la actual.' },
+];
+
+const COACH_QUICK_REPLIES = [
+  { label: 'Armame una rutina de fuerza' },
+  { label: 'Quiero bajar de peso' },
+  { label: 'Ajustá mi rutina actual' },
+];
+
+function themeColors(mode) {
+  if (mode === 'light') {
+    return {
+      bg: '#EEF2F0', phoneBg: '#F8FAFC', surface: '#FFFFFF', card: '#FFFFFF', cardAlt: '#F1F5F4',
+      border: '#E2E8E4', text: '#0F172A', textSecondary: '#5B6B66', primary: '#16A34A',
+      primarySoft: 'rgba(22,163,74,0.10)', accent: '#EA580C', accentSoft: 'rgba(234,88,12,0.10)',
+      danger: '#DC2626', lime: '#65A30D', navBg: 'rgba(255,255,255,0.92)',
+    };
+  }
+  return {
+    bg: '#03060B', phoneBg: '#070B14', surface: '#111A2B', card: '#131C30', cardAlt: '#182036',
+    border: 'rgba(255,255,255,0.07)', text: '#F8FAFC', textSecondary: '#8B98AC', primary: '#22C55E',
+    primarySoft: 'rgba(34,197,94,0.14)', accent: '#F97316', accentSoft: 'rgba(249,115,22,0.14)',
+    danger: '#EF4444', lime: '#A3E635', navBg: 'rgba(10,14,24,0.85)',
+  };
+}
+
+class Component extends DCLogic {
+  state = {
+    theme: 'dark',
+    isOnboarding: true,
+    ob: { step: 0, goal: null, experience: null, days: null, equipment: [], height: '', weight: '', limitation: '' },
+    obGenerating: false,
+    activeTab: 'home',
+    routinesView: 'list',
+    routinesTab: 'mine',
+    selectedCategory: 'Todas',
+    selectedRoutineId: null,
+    selectedDayIdx: 0,
+    createMode: 'ai',
+    aiPrompt: '',
+    aiGenerating: false,
+    aiResult: null,
+    manualTitle: '',
+    manualSelected: [],
+    coachMessages: COACH_INTRO,
+    coachInput: '',
+    coachTyping: false,
+    workout: { active: false, routine: null, exIdx: 0, checkedSets: {} },
+    userRoutines: [ROUTINES[0], ROUTINES[1]],
+  };
+
+  toggleTheme = () => this.setState(s => ({ theme: s.theme === 'dark' ? 'light' : 'dark' }));
+
+  // ---- onboarding ----
+  obSelectGoal = (v) => this.setState(s => ({ ob: { ...s.ob, goal: v } }));
+  obSelectExperience = (v) => this.setState(s => ({ ob: { ...s.ob, experience: v } }));
+  obSelectDays = (v) => this.setState(s => ({ ob: { ...s.ob, days: v } }));
+  obToggleEquip = (v) => this.setState(s => ({ ob: { ...s.ob, equipment: s.ob.equipment.includes(v) ? s.ob.equipment.filter(e => e !== v) : [...s.ob.equipment, v] } }));
+  setHeight = (e) => this.setState(s => ({ ob: { ...s.ob, height: e.target.value } }));
+  setWeight = (e) => this.setState(s => ({ ob: { ...s.ob, weight: e.target.value } }));
+  setLimitation = (e) => this.setState(s => ({ ob: { ...s.ob, limitation: e.target.value } }));
+  obBack = () => this.setState(s => ({ ob: { ...s.ob, step: Math.max(0, s.ob.step - 1) } }));
+  obNext = () => {
+    const step = this.state.ob.step;
+    if (step < 3) { this.setState(s => ({ ob: { ...s.ob, step: s.ob.step + 1 } })); return; }
+    if (step === 3) {
+      this.setState(s => ({ ob: { ...s.ob, step: 4 } }));
+      setTimeout(() => this.setState({ isOnboarding: false }), 2200);
+      return;
+    }
+  };
+
+  // ---- navigation ----
+  setTab = (tab) => this.setState({ activeTab: tab, routinesView: 'list' });
+  goProfile = () => this.setState({ activeTab: 'profile' });
+  goCoach = () => this.setState({ activeTab: 'coach' });
+  openCreateRoutine = () => this.setState({ routinesView: 'create', createMode: 'ai', aiResult: null, aiPrompt: '' });
+  backToList = () => this.setState({ routinesView: 'list' });
+  openRoutineDetail = (id) => this.setState({ routinesView: 'detail', selectedRoutineId: id, selectedDayIdx: 0 });
+  setRoutinesTab = (tab) => this.setState({ routinesTab: tab });
+  setCategory = (c) => this.setState({ selectedCategory: c });
+
+  // ---- create routine ----
+  setModeAI = () => this.setState({ createMode: 'ai' });
+  setModeManual = () => this.setState({ createMode: 'manual' });
+  setAiPrompt = (e) => this.setState({ aiPrompt: e.target.value });
+  pickAiPrompt = (label) => this.setState({ aiPrompt: label });
+  generateAiRoutine = () => {
+    this.setState({ aiGenerating: true });
+    setTimeout(() => {
+      this.setState({
+        aiGenerating: false,
+        aiResult: {
+          title: 'Rutina IA · Full Body Adaptada', description: 'Generada según tu objetivo, nivel y equipo disponible',
+          days: 4, duration: 40, split: 'Full Body',
+          preview: [{ name: 'Sentadilla goblet', sets: 3, reps: 12 }, { name: 'Press banca mancuernas', sets: 3, reps: 10 }, { name: 'Remo con banda', sets: 3, reps: 12 }, { name: 'Plancha', sets: 3, reps: '30s' }],
+        },
+      });
+    }, 1600);
+  };
+  regenerateAi = () => { this.setState({ aiResult: null }); this.generateAiRoutine(); };
+  useAiResult = () => {
+    const r = this.state.aiResult;
+    const newRoutine = { id: 'ai-' + Date.now(), title: r.title, description: r.description, days: r.days, duration: r.duration, exerciseCount: r.preview.length, split: r.split, mine: true, exercises: r.preview.map(e => ({ ...e, rest: '60s' })) };
+    this.setState(s => ({ userRoutines: [newRoutine, ...s.userRoutines], routinesView: 'list', routinesTab: 'mine' }));
+  };
+  toggleManualExercise = (name) => this.setState(s => ({ manualSelected: s.manualSelected.includes(name) ? s.manualSelected.filter(n => n !== name) : [...s.manualSelected, name] }));
+  setManualTitle = (e) => this.setState({ manualTitle: e.target.value });
+  saveManualRoutine = () => {
+    const s = this.state;
+    const title = s.manualTitle.trim() || 'Mi rutina personalizada';
+    const exercises = EXERCISE_CATALOG.filter(e => s.manualSelected.includes(e.name)).map(e => ({ name: e.name, sets: 3, reps: 10, rest: '60s' }));
+    const newRoutine = { id: 'manual-' + Date.now(), title, description: 'Rutina creada manualmente', days: 3, duration: 45, exerciseCount: exercises.length || 1, split: 'Personalizada', mine: true, exercises: exercises.length ? exercises : [{ name: 'Sentadilla', sets: 3, reps: 10, rest: '60s' }] };
+    this.setState({ userRoutines: [newRoutine, ...s.userRoutines], routinesView: 'list', manualTitle: '', manualSelected: [] });
+  };
+
+  // ---- coach ----
+  setCoachInput = (e) => this.setState({ coachInput: e.target.value });
+  pushCoachReply = (userText) => {
+    this.setState(s => ({ coachMessages: [...s.coachMessages, { from: 'user', text: userText }], coachTyping: true }));
+    setTimeout(() => {
+      const wantsRoutine = /rutina|fuerza|bajar|peso|entrenar/i.test(userText);
+      this.setState(s => {
+        const msgs = [...s.coachMessages, { from: 'coach', text: wantsRoutine ? 'Buenísimo, arme algo pensado para eso. Mirá esta propuesta:' : 'Anotado, voy a tenerlo en cuenta para tu próxima rutina.' }];
+        if (wantsRoutine) {
+          msgs.push({ from: 'coach', isRoutineCard: true, routine: { title: 'Plan IA Personalizado', description: 'Basado en tu conversación con el coach', days: 4, duration: 45 } });
+        }
+        return { coachMessages: msgs, coachTyping: false };
+      });
+    }, 1300);
+  };
+  sendCoachMessage = () => {
+    const text = this.state.coachInput.trim();
+    if (!text) return;
+    this.setState({ coachInput: '' });
+    this.pushCoachReply(text);
+  };
+  pickCoachQuickReply = (label) => this.pushCoachReply(label);
+  useCoachRoutine = () => {
+    const newRoutine = { id: 'coach-' + Date.now(), title: 'Plan IA Personalizado', description: 'Basado en tu conversación con el coach', days: 4, duration: 45, exerciseCount: 12, split: 'Full Body', mine: true, exercises: [{ name: 'Sentadilla', sets: 3, reps: 12, rest: '60s' }, { name: 'Press banca', sets: 3, reps: 10, rest: '60s' }, { name: 'Remo con barra', sets: 3, reps: 12, rest: '60s' }] };
+    this.setState(s => ({ userRoutines: [newRoutine, ...s.userRoutines], activeTab: 'routines', routinesView: 'list', routinesTab: 'mine' }));
+  };
+
+  // ---- workout ----
+  startWorkout = (routine) => this.setState({ workout: { active: true, routine, exIdx: 0, checkedSets: {} } });
+  startTodayWorkout = () => this.startWorkout(this.state.userRoutines[0] || ROUTINES[0]);
+  startSelectedWorkout = () => {
+    const r = this.getSelectedRoutine();
+    this.startWorkout(r);
+  };
+  endWorkout = () => this.setState({ workout: { active: false, routine: null, exIdx: 0, checkedSets: {} } });
+  toggleSet = (exIdx, setIdx) => {
+    const key = exIdx + '-' + setIdx;
+    this.setState(s => ({ workout: { ...s.workout, checkedSets: { ...s.workout.checkedSets, [key]: !s.workout.checkedSets[key] } } }));
+  };
+  nextExercise = () => {
+    const w = this.state.workout;
+    const total = (w.routine?.exercises || []).length;
+    if (w.exIdx < total - 1) this.setState({ workout: { ...w, exIdx: w.exIdx + 1 } });
+    else this.endWorkout();
+  };
+  prevExercise = () => {
+    const w = this.state.workout;
+    if (w.exIdx > 0) this.setState({ workout: { ...w, exIdx: w.exIdx - 1 } });
+  };
+
+  getSelectedRoutine = () => {
+    const all = [...this.state.userRoutines, ...ROUTINES];
+    return all.find(r => r.id === this.state.selectedRoutineId) || all[0];
+  };
+
+  renderVals() {
+    const s = this.state;
+    const c = themeColors(s.theme);
+
+    const styles = {
+      backdrop: { minHeight: '100vh', background: c.bg, display: 'flex', justifyContent: 'center', padding: '24px 0', fontFamily: 'Manrope,sans-serif' },
+      phone: { width: '402px', minHeight: '860px', background: c.phoneBg, borderRadius: '36px', overflow: 'hidden', position: 'relative', boxShadow: '0 30px 80px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', border: s.theme === 'dark' ? '1px solid rgba(255,255,255,0.06)' : '1px solid #E2E8E4' },
+      statusBar: { display: 'flex', justifyContent: 'space-between', padding: '14px 24px 0', fontSize: '13px', fontWeight: 700, color: c.text, letterSpacing: '.3px' },
+      scrollArea: { flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' },
+      iconBtn: { width: '36px', height: '36px', borderRadius: '50%', background: c.card, border: `1px solid ${c.border}`, color: c.text, fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
+      stepDots: { display: 'flex', gap: '6px' },
+      eyebrow: { fontSize: '11px', fontWeight: 800, letterSpacing: '1.2px', color: c.primary, marginBottom: '8px' },
+      h1: { fontFamily: "'Space Grotesk',sans-serif", fontSize: '26px', fontWeight: 700, color: c.text, lineHeight: '32px' },
+      sub: { fontSize: '14px', color: c.textSecondary, marginTop: '6px', lineHeight: '20px' },
+      sub2: { fontSize: '13px', color: c.textSecondary, marginTop: '2px', lineHeight: '18px' },
+      fieldLabel: { fontSize: '12px', fontWeight: 700, color: c.textSecondary, marginTop: '18px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '.5px' },
+      optTitle: { fontSize: '16px', fontWeight: 700, color: c.text },
+      optTitleSm: { fontSize: '14px', fontWeight: 700, color: c.text },
+      optDesc: { fontSize: '12.5px', color: c.textSecondary, marginTop: '2px' },
+      checkDot: { width: '24px', height: '24px', borderRadius: '50%', background: c.primary, color: s.theme === 'dark' ? '#03150A' : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 900 },
+      input: { width: '100%', height: '48px', borderRadius: '14px', border: `1px solid ${c.border}`, background: c.card, color: c.text, padding: '0 14px', fontSize: '15px', outline: 'none' },
+      textarea: { width: '100%', minHeight: '90px', borderRadius: '14px', border: `1px solid ${c.border}`, background: c.card, color: c.text, padding: '12px 14px', fontSize: '14px', outline: 'none', marginTop: '10px', resize: 'none', fontFamily: 'Manrope,sans-serif' },
+      obFooter: { padding: '14px 24px 22px', marginTop: 'auto' },
+      primaryBtnFull: { width: '100%', height: '52px', borderRadius: '999px', border: 'none', background: c.primary, color: s.theme === 'dark' ? '#03150A' : '#052e13', fontSize: '15px', fontWeight: 800, cursor: 'pointer', marginTop: '18px' },
+      primaryBtn: { flex: 1, height: '46px', borderRadius: '999px', border: 'none', background: c.primary, color: s.theme === 'dark' ? '#03150A' : '#052e13', fontSize: '14px', fontWeight: 800, cursor: 'pointer' },
+      secondaryBtn: { flex: 1, height: '46px', borderRadius: '999px', border: `1.5px solid ${c.border}`, background: 'transparent', color: c.text, fontSize: '14px', fontWeight: 700, cursor: 'pointer' },
+      secondaryBtnSq: { width: '52px', height: '52px', borderRadius: '999px', border: `1.5px solid ${c.border}`, background: c.card, color: c.text, fontSize: '16px', cursor: 'pointer' },
+      spinnerRing: { width: '84px', height: '84px', borderRadius: '50%', border: `3px solid ${c.primarySoft}`, borderTopColor: c.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px', color: c.primary, animation: 'spin 1.1s linear infinite' },
+      homeHeaderRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' },
+      greeting: { fontFamily: "'Space Grotesk',sans-serif", fontSize: '21px', fontWeight: 700, color: c.text },
+      pageTitle: { fontFamily: "'Space Grotesk',sans-serif", fontSize: '24px', fontWeight: 700, color: c.text },
+      avatarBtn: { width: '42px', height: '42px', borderRadius: '50%', background: c.primarySoft, color: c.primary, border: `1.5px solid ${c.primary}`, fontWeight: 800, fontSize: '15px', cursor: 'pointer' },
+      streakBanner: { display: 'flex', alignItems: 'center', gap: '12px', background: c.primarySoft, border: `1px solid ${c.primary}33`, borderRadius: '22px', padding: '18px', marginBottom: '16px' },
+      streakLabel: { fontSize: '10.5px', fontWeight: 800, letterSpacing: '.8px', color: c.textSecondary },
+      streakValue: { fontFamily: "'Space Grotesk',sans-serif", fontSize: '19px', fontWeight: 700, color: c.text, marginTop: '4px' },
+      streakSub: { fontSize: '12.5px', color: c.textSecondary, marginTop: '4px' },
+      streakFlame: { fontSize: '38px' },
+      statsRow: { display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '10px', marginBottom: '18px' },
+      statCard: { background: c.card, border: `1px solid ${c.border}`, borderRadius: '16px', padding: '12px 10px', textAlign: 'center' },
+      statIcon: { fontSize: '18px', marginBottom: '4px' },
+      statValue: { fontSize: '16px', fontWeight: 800, color: c.text },
+      statLabel: { fontSize: '10.5px', color: c.textSecondary, marginTop: '2px' },
+      sectionTitleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0 10px' },
+      sectionTitle: { fontSize: '16px', fontWeight: 700, color: c.text },
+      todayCard: { background: c.card, border: `1px solid ${c.border}`, borderRadius: '22px', padding: '18px', marginBottom: '16px' },
+      todayTitle: { fontSize: '17px', fontWeight: 800, color: c.text },
+      badgeAccent: { background: c.accentSoft, color: c.accent, fontSize: '11px', fontWeight: 800, padding: '5px 10px', borderRadius: '999px', whiteSpace: 'nowrap' },
+      exerciseChipsRow: { display: 'flex', flexDirection: 'column', gap: '8px', margin: '14px 0' },
+      exerciseDotRow: { display: 'flex', alignItems: 'center', gap: '10px' },
+      exerciseDot: { width: '7px', height: '7px', borderRadius: '50%', background: c.primary, flexShrink: 0 },
+      exerciseChipText: { flex: 1, fontSize: '13.5px', color: c.text },
+      exerciseChipMeta: { fontSize: '12px', color: c.textSecondary },
+      aiTipCard: { display: 'flex', alignItems: 'center', gap: '12px', background: c.cardAlt, border: `1px solid ${c.border}`, borderRadius: '18px', padding: '14px', marginBottom: '18px' },
+      aiTipIcon: { width: '38px', height: '38px', borderRadius: '12px', background: c.primarySoft, color: c.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '17px', flexShrink: 0 },
+      groupScroller: { display: 'flex', gap: '10px', overflowX: 'auto', paddingBottom: '4px' },
+      groupCard: { minWidth: '96px', background: c.card, border: `1px solid ${c.border}`, borderRadius: '16px', padding: '14px 10px', textAlign: 'center', flexShrink: 0 },
+      groupIcon: { fontSize: '20px', marginBottom: '6px' },
+      fabInline: { display: 'flex', alignItems: 'center', gap: '4px', height: '38px', padding: '0 16px', borderRadius: '999px', border: 'none', background: c.primary, color: s.theme === 'dark' ? '#03150A' : '#052e13', fontWeight: 800, fontSize: '13px', cursor: 'pointer' },
+      segmentRow: { display: 'flex', gap: '8px', marginBottom: '14px', flexWrap: 'wrap' },
+      chipsScroller: { display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', marginBottom: '6px' },
+      routineCard: { display: 'block', width: '100%', textAlign: 'left', background: c.card, border: `1px solid ${c.border}`, borderRadius: '20px', padding: '16px', cursor: 'pointer' },
+      routineMetaRow: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' },
+      metaChip: { display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11.5px', fontWeight: 700, color: c.textSecondary, background: c.cardAlt, borderRadius: '999px', padding: '6px 11px' },
+      metaChipIcon: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11.5px', fontWeight: 700, color: c.textSecondary, background: c.cardAlt, borderRadius: '999px', padding: '6px 12px' },
+      dayTabsRow: { display: 'flex', gap: '8px', marginTop: '16px', flexWrap: 'wrap' },
+      exerciseListRow: { display: 'flex', alignItems: 'center', gap: '12px', background: c.card, border: `1px solid ${c.border}`, borderRadius: '16px', padding: '12px' },
+      exerciseThumb: { width: '38px', height: '38px', borderRadius: '12px', background: c.primarySoft, color: c.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 },
+      suggestionChip: { flexShrink: 0, fontSize: '12.5px', fontWeight: 700, color: c.primary, background: c.primarySoft, border: `1px solid ${c.primary}33`, borderRadius: '999px', padding: '8px 14px', cursor: 'pointer', whiteSpace: 'nowrap' },
+      aiResultBanner: { fontSize: '13px', fontWeight: 800, color: c.primary, marginBottom: '10px' },
+      coachWrap: { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 },
+      chatArea: { flex: 1, overflowY: 'auto', padding: '10px 20px', display: 'flex', flexDirection: 'column', gap: '10px' },
+      coachBubble: { alignSelf: 'flex-start', background: c.cardAlt, color: c.text, borderRadius: '16px 16px 16px 4px', padding: '10px 14px', fontSize: '13.5px', maxWidth: '80%' },
+      coachRoutineCard: { background: c.card, border: `1px solid ${c.primary}55`, borderRadius: '18px', padding: '14px', maxWidth: '88%' },
+      chatInputRow: { display: 'flex', gap: '8px', padding: '10px 20px 18px', alignItems: 'center' },
+      chatInput: { flex: 1, height: '46px', borderRadius: '999px', border: `1px solid ${c.border}`, background: c.card, color: c.text, padding: '0 16px', fontSize: '14px', outline: 'none' },
+      sendBtn: { width: '46px', height: '46px', borderRadius: '50%', border: 'none', background: c.primary, color: s.theme === 'dark' ? '#03150A' : '#052e13', fontSize: '16px', cursor: 'pointer' },
+      weekRow: { display: 'flex', justifyContent: 'space-between', background: c.card, border: `1px solid ${c.border}`, borderRadius: '18px', padding: '14px 10px', marginBottom: '18px' },
+      weekDay: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' },
+      chartRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '120px', background: c.card, border: `1px solid ${c.border}`, borderRadius: '18px', padding: '16px 14px', marginBottom: '18px' },
+      barCol: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flex: 1 },
+      prValue: { fontSize: '13px', fontWeight: 800, color: c.primary },
+      profileHeader: { display: 'flex', alignItems: 'center', gap: '14px', margin: '16px 0' },
+      avatarBig: { width: '58px', height: '58px', borderRadius: '50%', background: c.primarySoft, color: c.primary, border: `2px solid ${c.primary}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '20px' },
+      goalChipsRow: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '18px' },
+      settingsRow: { display: 'flex', alignItems: 'center', gap: '12px', background: c.card, border: `1px solid ${c.border}`, borderRadius: '16px', padding: '14px', marginBottom: '18px' },
+      settingsRowBtn: { display: 'flex', alignItems: 'center', gap: '12px', width: '100%', background: c.card, border: `1px solid ${c.border}`, borderRadius: '16px', padding: '12px', marginBottom: '8px', color: c.text, cursor: 'pointer', fontSize: '14px' },
+      switchTrack: { width: '48px', height: '28px', borderRadius: '999px', background: s.theme === 'dark' ? c.primary : c.border, border: 'none', position: 'relative', cursor: 'pointer', flexShrink: 0 },
+      switchThumb: { width: '22px', height: '22px', borderRadius: '50%', background: '#fff', position: 'absolute', top: '3px', left: s.theme === 'dark' ? '23px' : '3px', transition: 'left .2s ease' },
+      navBar: { display: 'flex', justifyContent: 'space-around', alignItems: 'center', padding: '10px 8px 16px', background: c.navBg, backdropFilter: 'blur(12px)', borderTop: `1px solid ${c.border}` },
+      progressTrack: { flex: 1, height: '6px', borderRadius: '999px', background: c.cardAlt, overflow: 'hidden' },
+      tinyMeta: { fontSize: '11.5px', color: c.textSecondary, fontWeight: 700, whiteSpace: 'nowrap' },
+      workoutHero: { height: '150px', borderRadius: '22px', background: c.primarySoft, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '52px', margin: '16px 0' },
+      setsHeaderRow: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 40px', padding: '0 4px', marginBottom: '8px' },
+      setsHeaderCell: { fontSize: '10.5px', fontWeight: 800, color: c.textSecondary, letterSpacing: '.5px' },
+      setNumCell: { fontSize: '14px', fontWeight: 800, color: c.text },
+      setValCell: { fontSize: '14px', color: c.text },
+      restCard: { display: 'flex', alignItems: 'center', gap: '12px', background: c.cardAlt, borderRadius: '16px', padding: '14px', marginTop: '18px' },
+      workoutFooter: { display: 'flex', gap: '10px', padding: '14px 20px 22px', marginTop: 'auto' },
+    };
+
+    // ---- onboarding data ----
+    const goalDefs = [
+      { v: 'BUILD_MUSCLE', label: 'Ganar músculo', desc: 'Hipertrofia y fuerza progresiva', icon: '\uD83D\uDCAA' },
+      { v: 'LOSE_WEIGHT', label: 'Bajar de peso', desc: 'Déficit calórico + entrenamiento', icon: '\uD83D\uDD25' },
+      { v: 'GENERAL_FITNESS', label: 'Estar en forma', desc: 'Equilibrio entre fuerza y salud', icon: '\u2728' },
+      { v: 'IMPROVE_ENDURANCE', label: 'Mejorar resistencia', desc: 'Capacidad cardiovascular', icon: '\uD83C\uDFC3' },
+    ];
+    const goalOptions = goalDefs.map(g => ({
+      label: g.label, desc: g.desc, icon: g.icon, selected: s.ob.goal === g.v,
+      onSelect: () => this.obSelectGoal(g.v),
+      cardStyle: { display: 'flex', alignItems: 'center', gap: '14px', textAlign: 'left', width: '100%', background: s.ob.goal === g.v ? c.primarySoft : c.card, border: `1.5px solid ${s.ob.goal === g.v ? c.primary : c.border}`, borderRadius: '18px', padding: '16px', cursor: 'pointer' },
+      iconWrap: { width: '42px', height: '42px', borderRadius: '13px', background: c.cardAlt, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '19px', flexShrink: 0 },
+    }));
+
+    const expDefs = [{ v: 'BEGINNER', label: 'Principiante' }, { v: 'INTERMEDIATE', label: 'Intermedio' }, { v: 'ADVANCED', label: 'Avanzado' }];
+    const experienceOptions = expDefs.map(e => ({
+      label: e.label, onSelect: () => this.obSelectExperience(e.v),
+      chipStyle: { flex: 1, height: '44px', borderRadius: '14px', border: `1.5px solid ${s.ob.experience === e.v ? c.primary : c.border}`, background: s.ob.experience === e.v ? c.primarySoft : c.card, color: c.text, fontWeight: 700, fontSize: '13px', cursor: 'pointer' },
+    }));
+    const dayDefs = [2, 3, 4, 5, 6];
+    const dayOptions = dayDefs.map(d => ({
+      label: d + ' días', onSelect: () => this.obSelectDays(d),
+      dayStyle: { height: '40px', padding: '0 14px', borderRadius: '999px', border: `1.5px solid ${s.ob.days === d ? c.primary : c.border}`, background: s.ob.days === d ? c.primarySoft : c.card, color: c.text, fontWeight: 700, fontSize: '13px', cursor: 'pointer' },
+    }));
+    const equipDefs = [
+      { v: 'BODYWEIGHT', label: 'Peso corporal', icon: '\uD83E\uDDCD' }, { v: 'DUMBBELLS', label: 'Mancuernas', icon: '\uD83C\uDFCB\uFE0F' },
+      { v: 'BARBELL', label: 'Barra', icon: '\uD83E\uDD1B' }, { v: 'BANDS', label: 'Bandas', icon: '\uD83D\uDD34' },
+      { v: 'KETTLEBELLS', label: 'Kettlebells', icon: '\uD83D\uDD14' }, { v: 'MACHINES', label: 'Máquinas', icon: '\u2699\uFE0F' },
+    ];
+    const equipmentOptions = equipDefs.map(eq => ({
+      label: eq.label, icon: eq.icon, onToggle: () => this.obToggleEquip(eq.v),
+      cardStyle: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', background: s.ob.equipment.includes(eq.v) ? c.primarySoft : c.card, border: `1.5px solid ${s.ob.equipment.includes(eq.v) ? c.primary : c.border}`, borderRadius: '16px', padding: '16px 8px', cursor: 'pointer' },
+      iconWrap: { fontSize: '22px' },
+    }));
+
+    const obStepIsZero = s.ob.step === 0;
+    const obStepsArr = [0, 1, 2, 3, 4].map(i => ({ dotStyle: { width: i === s.ob.step ? '20px' : '7px', height: '7px', borderRadius: '999px', background: i <= s.ob.step ? c.primary : c.border, transition: 'all .2s' } }));
+
+    const generatingSteps = ['Analizando tu objetivo', 'Ajustando volumen a tu nivel', 'Seleccionando ejercicios ideales'].map((label, i) => ({
+      label, icon: '\u2713', rowStyle: { display: 'flex', alignItems: 'center', gap: '10px', animation: `pulse 1.4s ease ${i * 0.3}s infinite` },
+      dotStyle: { width: '22px', height: '22px', borderRadius: '50%', background: c.primarySoft, color: c.primary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px' },
+      textStyle: { fontSize: '13px', color: c.textSecondary },
+    }));
+
+    const obNextDisabled = (s.ob.step === 0 && !s.ob.goal) || (s.ob.step === 1 && (!s.ob.experience || !s.ob.days)) || (s.ob.step === 3 && (!s.ob.height || !s.ob.weight));
+    const obNextLabel = s.ob.step === 3 ? 'Generar mi plan' : s.ob.step === 4 ? 'Preparando…' : 'Continuar';
+
+    // ---- home ----
+    const mine = s.userRoutines[0] || ROUTINES[0];
+    const todayRoutine = { title: mine.title, exerciseCount: mine.exerciseCount, duration: mine.duration, split: mine.split, preview: mine.exercises.slice(0, 4) };
+    const quickStats = [
+      { icon: '\uD83D\uDD25', value: '7', label: 'Racha (días)' },
+      { icon: '\u23F1\uFE0F', value: '186', label: 'Min. semana' },
+      { icon: '\uD83D\uDCAA', value: '12', label: 'Entrenos/mes' },
+    ];
+
+    // ---- routines ----
+    const routineTabs = [{ k: 'mine', label: 'Mis rutinas' }, { k: 'ai', label: 'Sugeridas IA' }, { k: 'templates', label: 'Plantillas' }].map(t => ({
+      label: t.label, onSelect: () => this.setRoutinesTab(t.k),
+      segStyle: { flex: 1, minWidth: '96px', height: '38px', borderRadius: '999px', border: 'none', background: s.routinesTab === t.k ? c.primary : c.card, color: s.routinesTab === t.k ? (s.theme === 'dark' ? '#03150A' : '#052e13') : c.textSecondary, fontWeight: 800, fontSize: '12.5px', cursor: 'pointer' },
+    }));
+    const categoryChips = CATEGORY_CHIPS.map(cat => ({
+      label: cat, onSelect: () => this.setCategory(cat),
+      chipStyle: { flexShrink: 0, height: '32px', padding: '0 14px', borderRadius: '999px', border: `1px solid ${s.selectedCategory === cat ? c.primary : c.border}`, background: s.selectedCategory === cat ? c.primarySoft : 'transparent', color: s.selectedCategory === cat ? c.primary : c.textSecondary, fontSize: '12px', fontWeight: 700, cursor: 'pointer' },
+    }));
+    const pool = s.routinesTab === 'mine' ? s.userRoutines : s.routinesTab === 'ai' ? ROUTINES.filter(r => !r.mine) : ROUTINES;
+    const visibleRoutines = pool.map(r => ({
+      title: r.title, description: r.description, days: r.days, duration: r.duration, exerciseCount: r.exerciseCount,
+      badgeLabel: r.mine ? 'Mía' : 'IA', badgeStyle: { fontSize: '11px', fontWeight: 800, color: r.mine ? c.primary : c.accent, background: r.mine ? c.primarySoft : c.accentSoft, borderRadius: '999px', padding: '5px 10px', whiteSpace: 'nowrap' },
+      onOpen: () => this.openRoutineDetail(r.id),
+    }));
+
+    // ---- routine detail ----
+    const selRoutine = this.getSelectedRoutine();
+    const selectedRoutine = {
+      title: selRoutine.title, description: selRoutine.description, days: selRoutine.days, duration: selRoutine.duration, badgeLabel: selRoutine.split,
+      dayTabs: Array.from({ length: Math.min(selRoutine.days, 3) }).map((_, i) => ({ label: 'Día ' + (i + 1), onSelect: () => this.setState({ selectedDayIdx: i }), tabStyle: { height: '34px', padding: '0 16px', borderRadius: '999px', border: `1px solid ${s.selectedDayIdx === i ? c.primary : c.border}`, background: s.selectedDayIdx === i ? c.primarySoft : 'transparent', color: s.selectedDayIdx === i ? c.primary : c.textSecondary, fontWeight: 700, fontSize: '12.5px', cursor: 'pointer' } })),
+      exercisesView: selRoutine.exercises,
+    };
+
+    // ---- create ----
+    const isCreateModeAI = s.createMode === 'ai';
+    const modeAIStyle = { flex: 1, height: '40px', borderRadius: '999px', border: 'none', background: isCreateModeAI ? c.primary : c.card, color: isCreateModeAI ? (s.theme === 'dark' ? '#03150A' : '#052e13') : c.textSecondary, fontWeight: 800, fontSize: '13px', cursor: 'pointer' };
+    const modeManualStyle = { flex: 1, height: '40px', borderRadius: '999px', border: 'none', background: !isCreateModeAI ? c.primary : c.card, color: !isCreateModeAI ? (s.theme === 'dark' ? '#03150A' : '#052e13') : c.textSecondary, fontWeight: 800, fontSize: '13px', cursor: 'pointer' };
+    const aiPromptChips = AI_PROMPT_CHIPS.map(label => ({ label, onSelect: () => this.pickAiPrompt(label) }));
+    const manualCatalog = EXERCISE_CATALOG.map(ex => ({
+      name: ex.name, muscle: ex.muscle, onToggle: () => this.toggleManualExercise(ex.name),
+      rowStyle: { display: 'flex', alignItems: 'center', gap: '12px', width: '100%', background: s.manualSelected.includes(ex.name) ? c.primarySoft : c.card, border: `1px solid ${s.manualSelected.includes(ex.name) ? c.primary : c.border}`, borderRadius: '16px', padding: '10px 12px', cursor: 'pointer' },
+      checkStyle: { width: '26px', height: '26px', borderRadius: '50%', background: s.manualSelected.includes(ex.name) ? c.primary : c.cardAlt, color: s.manualSelected.includes(ex.name) ? (s.theme === 'dark' ? '#03150A' : '#052e13') : c.textSecondary, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 900, transform: s.manualSelected.includes(ex.name) ? 'rotate(45deg)' : 'none' },
+    }));
+
+    // ---- coach ----
+    const coachMessages = s.coachMessages.map(m => ({
+      isRoutineCard: !!m.isRoutineCard, text: m.text,
+      bubbleStyle: m.from === 'user' ? { alignSelf: 'flex-end', background: c.primary, color: s.theme === 'dark' ? '#03150A' : '#052e13', borderRadius: '16px 16px 4px 16px', padding: '10px 14px', fontSize: '13.5px', maxWidth: '80%', fontWeight: 600 } : styles.coachBubble,
+      routine: m.routine, onUse: this.useCoachRoutine,
+    }));
+    const coachQuickReplies = COACH_QUICK_REPLIES.map(qr => ({ label: qr.label, onSelect: () => this.pickCoachQuickReply(qr.label) }));
+
+    // ---- progress ----
+    const progressStats = [{ icon: '\uD83D\uDD25', value: '7', label: 'Racha' }, { icon: '\uD83C\uDFCB\uFE0F', value: '48', label: 'Entrenos' }, { icon: '\u2696\uFE0F', value: '-3.2kg', label: 'Desde inicio' }];
+    const weekDays = ['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => ({ label: d, dotStyle: { width: '9px', height: '9px', borderRadius: '50%', background: [0, 1, 3, 4].includes(i) ? c.primary : c.border } }));
+    const chartBars = [40, 65, 50, 80, 60, 95].map((h, i) => ({ label: 'S' + (i + 1), barStyle: { width: '16px', height: h + 'px', borderRadius: '6px', background: c.primary } }));
+    const personalRecords = [{ name: 'Sentadilla', date: '12 jul', value: '100kg' }, { name: 'Press banca', date: '5 jul', value: '75kg' }, { name: 'Peso muerto', date: '28 jun', value: '130kg' }];
+
+    // ---- profile ----
+    const goalLabelMap = { BUILD_MUSCLE: 'Ganar músculo', LOSE_WEIGHT: 'Bajar de peso', GENERAL_FITNESS: 'Estar en forma', IMPROVE_ENDURANCE: 'Resistencia' };
+    const profileMenuItems = [{ icon: '\uD83D\uDCCB', label: 'Editar datos de onboarding' }, { icon: '\uD83D\uDD14', label: 'Notificaciones' }, { icon: '\uD83D\uDD12', label: 'Privacidad' }, { icon: '\u2753', label: 'Ayuda y soporte' }];
+
+    // ---- workout ----
+    const w = s.workout;
+    const wRoutine = w.routine || (s.userRoutines[0] || ROUTINES[0]);
+    const exercises = wRoutine.exercises || [];
+    const exIdx = Math.min(w.exIdx, Math.max(0, exercises.length - 1));
+    const exRaw = exercises[exIdx] || { name: '—', sets: 3, reps: 10, rest: '60s' };
+    const setsCount = typeof exRaw.sets === 'number' ? exRaw.sets : 3;
+    const currentExercise = {
+      name: exRaw.name, muscle: 'Grupo objetivo', equipment: 'Peso libre', rest: exRaw.rest || '60s',
+      setsView: Array.from({ length: setsCount }).map((_, i) => {
+        const key = exIdx + '-' + i; const checked = !!w.checkedSets[key];
+        return {
+          n: i + 1, weight: '20', reps: exRaw.reps,
+          rowStyle: { display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 40px', alignItems: 'center', padding: '10px 4px', borderBottom: i < setsCount - 1 ? `1px solid ${c.border}` : 'none' },
+          checkStyle: { width: '28px', height: '28px', borderRadius: '50%', border: `1.5px solid ${checked ? c.primary : c.border}`, background: checked ? c.primary : 'transparent', color: checked ? (s.theme === 'dark' ? '#03150A' : '#052e13') : 'transparent', cursor: 'pointer', fontSize: '12px' },
+          onToggle: () => this.toggleSet(exIdx, i),
+        };
+      }),
+    };
+    const workoutProgressStyle = { width: (((exIdx + 1) / Math.max(1, exercises.length)) * 100) + '%', height: '100%', background: c.primary };
+    const workoutCounterLabel = (exIdx + 1) + ' / ' + exercises.length;
+    const nextExerciseLabel = exIdx < exercises.length - 1 ? 'Siguiente ejercicio' : 'Finalizar entrenamiento';
+
+    // ---- nav ----
+    const tabsDef = [
+      { k: 'home', label: 'Inicio', icon: '\u2302' }, { k: 'routines', label: 'Rutinas', icon: '\uD83D\uDCCB' },
+      { k: 'coach', label: 'Coach IA', icon: '\u2726' }, { k: 'progress', label: 'Progreso', icon: '\uD83D\uDCC8' },
+      { k: 'profile', label: 'Perfil', icon: '\uD83D\uDC64' },
+    ];
+    const navItems = tabsDef.map(tb => {
+      const active = s.activeTab === tb.k;
+      return {
+        label: tb.label, icon: tb.icon, onSelect: () => this.setTab(tb.k),
+        wrapStyle: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', flex: 1 },
+        iconStyle: { fontSize: '18px', color: active ? c.primary : c.textSecondary },
+        labelStyle: { fontSize: '10px', fontWeight: 700, color: active ? c.primary : c.textSecondary },
+      };
+    });
+
+    return {
+      styles, icons: ICONS, isOnboarding: s.isOnboarding, isWorkoutActive: s.workout.active, isMainApp: !s.isOnboarding && !s.workout.active,
+      ob: s.ob, obStepIsZero, obStepsArr,
+      obShowGoal: s.ob.step === 0, obShowExperience: s.ob.step === 1, obShowEquipment: s.ob.step === 2, obShowStats: s.ob.step === 3, obShowGenerating: s.ob.step === 4,
+      goalOptions, experienceOptions, dayOptions, equipmentOptions, generatingSteps,
+      obBack: this.obBack, obNext: this.obNext, obNextDisabled, obNextLabel,
+      setHeight: this.setHeight, setWeight: this.setWeight, setLimitation: this.setLimitation,
+      userName: 'Marina', userInitial: 'M', streakDays: 7, quickStats, todayRoutine,
+      goProfile: this.goProfile, goCoach: this.goCoach, startTodayWorkout: this.startTodayWorkout,
+      muscleGroups: MUSCLE_GROUPS,
+      showHome: s.activeTab === 'home', showRoutinesList: s.activeTab === 'routines' && s.routinesView === 'list',
+      showRoutineDetail: s.activeTab === 'routines' && s.routinesView === 'detail', showRoutineCreate: s.activeTab === 'routines' && s.routinesView === 'create',
+      showCoach: s.activeTab === 'coach', showProgress: s.activeTab === 'progress', showProfile: s.activeTab === 'profile',
+      openCreateRoutine: this.openCreateRoutine, routineTabs, categoryChips, visibleRoutines, backToList: this.backToList,
+      selectedRoutine, startSelectedWorkout: this.startSelectedWorkout,
+      isCreateModeAI, modeAIStyle, modeManualStyle, setModeAI: this.setModeAI, setModeManual: this.setModeManual,
+      aiPromptChips, aiPrompt: s.aiPrompt, setAiPrompt: this.setAiPrompt, generateAiRoutine: this.generateAiRoutine,
+      aiGenerating: s.aiGenerating, aiResult: s.aiResult, regenerateAi: this.regenerateAi, useAiResult: this.useAiResult,
+      manualTitle: s.manualTitle, setManualTitle: this.setManualTitle, manualCatalog, manualSelectedCount: s.manualSelected.length, saveManualRoutine: this.saveManualRoutine,
+      coachMessages, coachTyping: s.coachTyping, coachQuickReplies, coachInput: s.coachInput, setCoachInput: this.setCoachInput, sendCoachMessage: this.sendCoachMessage,
+      progressStats, weekDays, chartBars, personalRecords,
+      profileGoalLabel: goalLabelMap[s.ob.goal] || 'Sin definir', profileDaysLabel: (s.ob.days || 3) + ' días/sem', profileExperienceLabel: s.ob.experience === 'ADVANCED' ? 'Avanzado' : s.ob.experience === 'INTERMEDIATE' ? 'Intermedio' : 'Principiante',
+      toggleTheme: this.toggleTheme, profileMenuItems,
+      navItems,
+      currentExercise, workoutProgressStyle, workoutCounterLabel, nextExerciseLabel, endWorkout: this.endWorkout, nextExercise: this.nextExercise, prevExercise: this.prevExercise,
+    };
+  }
+}
+
+</script>
+</body>
+</html>
