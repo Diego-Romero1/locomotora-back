@@ -1,2 +1,14 @@
+# Normaliza los saltos de linea a LF en el repo y en la copia de trabajo,
+# sin importar si se edita desde Windows (GitHub Desktop) o desde WSL.
+* text=auto eol=lf
+
 /mvnw text eol=lf
 *.cmd text eol=crlf
+
+# Binarios: nunca tocar
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
