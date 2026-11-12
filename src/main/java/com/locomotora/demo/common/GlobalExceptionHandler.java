@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -51,6 +53,15 @@ public class GlobalExceptionHandler {
                 request.getRequestURI(),
                 exception.getMostSpecificCause().getMessage());
         return error(HttpStatus.BAD_REQUEST, "Malformed request body");
+    }
+
+    @ExceptionHandler({MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class})
+    public ResponseEntity<Map<String, Object>> handleBadParameter(Exception exception, HttpServletRequest request) {
+        String name = exception instanceof MethodArgumentTypeMismatchException mismatch
+                ? mismatch.getName()
+                : ((MissingServletRequestParameterException) exception).getParameterName();
+        log.warn("Bad parameter on {} {} -> {}", request.getMethod(), request.getRequestURI(), name);
+        return error(HttpStatus.BAD_REQUEST, "Invalid parameter: " + name);
     }
 
     @ExceptionHandler(Exception.class)

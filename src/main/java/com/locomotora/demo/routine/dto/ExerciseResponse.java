@@ -10,6 +10,7 @@ public record ExerciseResponse(
         Integer repsMax,
         int restSeconds,
         String primaryMuscleGroup,
-        String notes
+        String notes,
+        String equipment
 ) {
 }

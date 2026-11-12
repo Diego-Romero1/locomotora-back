@@ -1,6 +1,6 @@
 # Plan de implementación — Rutinas: crear, entrenar y registrar
 
-Actualizado: 2026-11-11
+Actualizado: 2026-11-12
 
 > Prerrequisito: leer [`SYSTEM_OVERVIEW.md`](SYSTEM_OVERVIEW.md). Los códigos H1, H2… refieren a los hallazgos de ese documento.
 > Tamaños: **S** = menos de 1 día, **M** = 1 a 3 días, **L** = más de 3 días (una persona).
@@ -12,7 +12,7 @@ El 2026-11-11 se aprobo reordenar las fases para registrar bien antes de crear m
 | Fase nueva                    | Contenido                                                                                       | Tareas originales                    | Estado        |
 | ----------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------ | ------------- |
 | 1. Registro fiel              | V9, `POST /workout-sessions` idempotente, estado por serie guardado en el telefono, pausar/retomar/descartar, cierre con RPE y notas, cola de envio, tests | 2.B1, 2.B2, 2.B5, 2.F1, 2.F6, 2.F7, 4.2 (reducer) | ✅ 2026-11-11 |
-| 2. Entrenar sin friccion      | "La vez pasada" y prellenado, botones + y −, timer de descanso, lista del dia, saltar o reemplazar ejercicio, pantalla Hoy con rotacion de dias (`GET /today`) y barra de 4 pestañas | 2.B3, 2.B4, 2.F2, 2.F3, 2.F4, 2.F5, 2.F8 | Pendiente |
+| 2. Entrenar sin friccion      | "La vez pasada" y prellenado, botones + y −, timer de descanso, lista del dia, saltar o reemplazar ejercicio, pantalla Hoy con rotacion de dias (`GET /today`) y barra de 4 pestañas | 2.B3, 2.B4, 2.F2, 2.F3, 2.F4, 2.F5, 2.F8 | ✅ 2026-11-12 |
 | 3. Medir el rendimiento       | Historial paginado, detalle, editar y borrar sesiones, progreso por ejercicio, records, racha semanal | 3.1–3.5                              | Pendiente     |
 | 4. Crear facil                | Wizard v2 multi-dia, punto de partida, duplicar, ejercicios propios, i18n del wizard            | Fase 1 original (1.F1–1.F8, 1.B2–1.B5) | Pendiente   |
 | 5. Base tecnica e IA real     | Testcontainers, refactor de plantillas, N+1, JWT/refresh, OpenAPI, restos del starter, IA real  | Fase 4 y Fase 5 originales           | Pendiente     |
@@ -21,8 +21,8 @@ Decisiones aprobadas junto con el plan:
 
 - **Sin señal primero:** la sesion vive en el telefono (AsyncStorage) y se envia una sola vez al final, con un `clientSessionId` para reintentar sin duplicar.
 - **Plan del momento en cada serie:** el log copia reps objetivo, peso objetivo y descanso; la sesion copia los titulos de rutina y dia.
-- **Cuatro pestañas** (Hoy, Rutinas, Progreso, Perfil); el coach IA pasa a "Crear con IA" y a una tarjeta en Hoy. Se implementa en la Fase 2.
-- **Racha semanal** (semanas seguidas cumpliendo los dias objetivo). Se implementa en la Fase 3.
+- **Cuatro pestañas** (Hoy, Rutinas, Progreso, Perfil); el coach IA pasa a "Crear con IA" y a una tarjeta en Hoy. Hecho en la Fase 2.
+- **Racha semanal** (semanas seguidas cumpliendo los dias objetivo). Se adelanto a la Fase 2 porque la pantalla Hoy la muestra.
 - **Series de calentamiento** (`set_type`): opcional, despues de la Fase 3.
 
 ### Avance de la Fase 1 (2026-11-11, rama `main`)
@@ -45,6 +45,29 @@ Frontend:
 - Probado: el envio que arma la app contra el backend real coincide en series, volumen y duracion.
 
 Pendiente de la Fase 1: probarla en un telefono real (modo avion, matar la app a mitad), porque hasta ahora se verifico con tests y contra la API.
+
+### Avance de la Fase 2 (2026-11-12, rama `main`)
+
+Backend:
+
+- `GET /today?tz=` (`TrainingController`, `TrainingService`, `TrainingStatsRepository`): rutina actual (la mas reciente entre la ultima entrenada y la ultima editada), dia que toca con rotacion por `day_index`, semana en la zona horaria del telefono, racha semanal y ultimo entrenamiento. Reglas puras en `TrainingCalendar`.
+- `GET /exercises/last-performance?ids=`: series de la ultima vez y mejor serie historica (Epley) por ejercicio.
+- `equipment` en cada ejercicio de la respuesta de rutina, para el salto de los botones + y −.
+- Parametros mal formados (`ids`, falta de parametros) responden 400 en lugar de 500.
+- 13 tests nuevos (38 en total). Probado contra Postgres: rotacion A → B → C, semana en hora de Buenos Aires, ultima vez y mejor serie correctas, 400 con ids o zona invalidos.
+
+Frontend:
+
+- Pantalla de entrenamiento: la serie activa se muestra grande con botones + y − (2,5 kg; 1 kg con mancuernas; el peso nuevo se arrastra a las pendientes) y un boton "Registrar serie". Linea "La vez pasada" y aviso cuando los valores serian record. Al abrir la sesion se prellenan peso y reps con la vez pasada.
+- Timer de descanso: arranca al registrar una serie con el descanso del ejercicio, +15 s y saltar. Se guarda como hora de fin, asi que sigue bien con la pantalla bloqueada. Al terminar vibra en pantalla y, fuera de la app, avisa con una notificacion local (`expo-notifications`).
+- Lista de los ejercicios del dia para saltar a cualquiera y reemplazar uno sin series hechas, con buscador filtrado por el mismo grupo muscular.
+- Cierre con los records de la sesion.
+- Pantalla Hoy (`TodayCard`, `useToday`): semana con los dias entrenados, racha semanal, dia que toca con sus ejercicios y "Empezar", "Elegir otro dia", ultimo entrenamiento. Se quito `MOCK_STREAK` y el hook `useRoutine`.
+- Barra de 4 pestañas: Hoy, Rutinas, Progreso, Perfil. El coach sigue en la tarjeta de Hoy.
+- El estado guardado paso a la version 2; una sesion de la Fase 1 se migra al abrirla.
+- 16 tests nuevos de reducer (49 en total).
+
+Pendiente de la Fase 2: probar en un telefono el timer con la pantalla bloqueada y la notificacion. En Expo Go las notificaciones locales funcionan; las remotas no hacen falta.
 
 ---
 

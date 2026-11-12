@@ -1,6 +1,6 @@
 # Locomotora — Contexto técnico para agentes
 
-Actualizado: 2026-11-11
+Actualizado: 2026-11-12
 
 Este es el punto de entrada para cualquier persona o agente que trabaje en el repositorio.
 
@@ -49,7 +49,7 @@ El código vive en WSL (`/home/romero/my-stuff/locomotora-app`). Ejecutar las he
 | Migraciones    | Flyway, V1–V9. `ddl-auto=validate`.                                    |
 | Base de datos  | PostgreSQL 17 (Docker, puerto local `5433`)                            |
 | Seguridad      | Spring Security + JWT HS256 propio (`JwtService`), BCrypt              |
-| Tests          | JUnit 5 + Mockito. 25 tests (contexto, `RoutineService`, `WorkoutLogService`, `WorkoutSessionService`). |
+| Tests          | JUnit 5 + Mockito. 38 tests (contexto, `RoutineService`, `WorkoutLogService`, `WorkoutSessionService`, `TrainingService`, `TrainingCalendar`). |
 
 Variables relevantes (`application.properties`): `SPRING_DATASOURCE_URL`, `LOCOMOTORA_JWT_SECRET` (por defecto inseguro), `LOCOMOTORA_JWT_EXPIRATION_MINUTES` (1440), `LOCOMOTORA_CORS_ALLOWED_ORIGIN_PATTERNS`.
 
@@ -160,7 +160,7 @@ AppNavigator (stack)
 │   │   ├── RoutineForm           entrada: "Generar con IA" o "Armar manual"
 │   │   └── RoutineWizard         { id? } crear/editar manual, 3 pasos
 │   ├── Progress
-│   ├── AI
+│   ├── AI                        oculta en la barra (4 pestañas); se abre desde la tarjeta del coach en Hoy
 │   └── Profile
 ├── Workout                       sin parámetros: lee la sesión del contexto. Se abre con useStartWorkout
 ├── ExerciseGroup                 { groupName, exercises }
@@ -175,12 +175,12 @@ El catálogo de ejercicios se carga una vez en `TabNavigator` y se pasa como pro
 | ----------------- | ------------- | --------------------------------------------------------------------------------------------- |
 | Login             | ✅             | Login y registro                                                                              |
 | Onboarding        | ✅             | Objetivo, nivel, días, equipo, datos físicos, limitaciones → `PUT /profile/onboarding`        |
-| Home              | ⚠️             | Rutina de hoy real (siempre primer día), racha hardcodeada (`MOCK_STREAK = 7`)                |
+| Home ("Hoy")      | ✅ Fase 2      | `GET /today`: día que toca, semana, racha semanal, último entrenamiento, sesión en curso      |
 | Routines (lista)  | ✅             | Mis rutinas, recomendación, plantillas, filtro por categoría                                  |
 | RoutineDetail     | ✅             | Pestañas por día, editar/eliminar, usar plantilla, empezar entrenamiento del día elegido      |
 | RoutineForm (IA)  | 🟡 Simulado    | Generador local por palabras clave + `setTimeout` de 1,6 s, un solo día                       |
 | RoutineWizard     | ⚠️             | 3 pasos, un solo día; aplana rutinas multi-día al editar (H1)                                 |
-| Workout           | ✅ Fase 1      | Estado por serie guardado en el teléfono, pausa/retoma, cierre con RPE. Sin timer (Fase 2)    |
+| Workout           | ✅ Fase 2      | Serie activa con + y −, la vez pasada, timer de descanso, lista del día, reemplazo, récords   |
 | Progress          | ✅             | Resumen, actividad reciente, métricas, nutrición del día                                      |
 | AI                | 🟡 Simulado    | Chat persistido; respuestas por palabras clave en backend                                     |
 | Profile           | ✅             | Datos, objetivo, foto, tema claro/oscuro, idioma, logout                                      |

@@ -51,7 +51,8 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `PUT`    | `/profile/onboarding`               | Guarda onboarding (objetivo, nivel, dias, equipo, limitaciones) |
 | `GET`    | `/goals`                            | Objetivos                                                       |
 | `PUT`    | `/goals`                            | Reemplazo total de objetivos                                    |
-| `GET`    | `/routine`                          | "Rutina de hoy": ultima rutina activa modificada                |
+| `GET`    | `/today?tz=`                        | Pantalla Hoy: rutina actual, dia que toca, semana, racha        |
+| `GET`    | `/routine`                          | Legado: ultima rutina activa modificada. La app usa `/today`    |
 | `GET`    | `/routines?categoryId=`             | Rutinas del usuario (filtro opcional por categoria)             |
 | `GET`    | `/routines/{id}`                    | Rutina del usuario                                              |
 | `POST`   | `/routines`                         | Crea rutina (multi-dia)                                         |
@@ -65,6 +66,7 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `POST`   | `/routines/recommendation/use`      | Clona la plantilla recomendada                                  |
 | `GET`    | `/exercises`                        | Catalogo de ejercicios activos                                  |
 | `POST`   | `/exercises/{id}/logs`              | Registro suelto de un ejercicio (fuera de rutina)               |
+| `GET`    | `/exercises/last-performance?ids=`  | La vez pasada y la mejor serie de cada ejercicio                |
 | `POST`   | `/workout-sessions`                 | Guarda una sesion completa, una fila por serie (idempotente)    |
 | `POST`   | `/workout-log`                      | Legado: un registro por ejercicio. La app ya no lo usa          |
 | `GET`    | `/progress/summary`                 | Resumen de progreso                                             |
@@ -145,6 +147,8 @@ Reglas (`RoutineService`):
 - Las plantillas globales no se pueden editar (400).
 
 ### Respuesta de rutina
+
+Cada ejercicio incluye `equipment` (codigo del catalogo, por ejemplo `BARBELL` o `DUMBBELL`) desde la Fase 2.
 
 ```json
 {
@@ -246,6 +250,46 @@ Comportamiento:
 - 400 tambien si: no hay series con `completed = true`, hay `setNumber` repetido en un ejercicio, `completedAt < startedAt`, la sesion dura mas de 12 h o `completedAt` esta mas de 10 min en el futuro.
 - Guarda `kind` (`ROUTINE` con rutina, `FREE` sin rutina) y copia `routine_title` y `day_title`.
 - La duracion es `completedAt − startedAt`. La app corre `startedAt` para descontar las pausas.
+
+### `GET /today?tz=America/Argentina/Buenos_Aires`
+
+```json
+{
+  "routine": { "...": "RoutineResponse" },
+  "nextDayId": "id de routine_days",
+  "week": { "weekStart": "2026-11-09", "trainedDates": ["2026-11-09", "2026-11-11"], "targetDays": 4 },
+  "weekStreak": 5,
+  "lastSession": { "...": "WorkoutSessionResponse" }
+}
+```
+
+- **Rutina actual:** la mas reciente entre la ultima entrenada (si sigue activa) y la ultima creada o editada. Armar o editar una rutina la vuelve la de Hoy; si no, sigue la que se viene entrenando. `null` si no hay rutinas.
+- **Dia que toca:** el siguiente, por `day_index`, al ultimo dia entrenado de esa rutina. Despues del ultimo vuelve al primero. Si nunca se entreno o el dia se borro, el primero.
+- **Semana:** lunes a domingo en la zona horaria `tz` (IANA; por defecto UTC; desconocida: 400). `trainedDates` son los dias con al menos un entrenamiento; los `QUICK_LOG` no cuentan.
+- **`targetDays`:** `days_per_week` de la rutina; si no tiene, la cantidad de dias; si no hay rutina, `training_days_per_week` del perfil; si no, 3.
+- **`weekStreak`:** semanas seguidas con al menos `targetDays` dias entrenados. La semana actual suma si ya se cumplio y no corta la racha mientras esta en curso. Usa el objetivo actual para todas las semanas.
+- **`lastSession`:** el ultimo entrenamiento (sin `QUICK_LOG`), con el mismo formato que la respuesta de `POST /workout-sessions`.
+
+### `GET /exercises/last-performance?ids=a,b,c`
+
+Hasta 100 ids (si no, 400; id mal formado: 400). Devuelve uno por id, en el orden pedido y sin repetidos:
+
+```json
+[
+  {
+    "exerciseId": "...",
+    "lastSession": {
+      "sessionId": "...", "completedAt": "2026-11-11T19:00:00Z",
+      "sets": [ { "setNumber": 1, "reps": 5, "weightKg": 70.00 } ]
+    },
+    "bestSet": { "reps": 5, "weightKg": 70.00, "estimatedOneRepMaxKg": 81.7, "completedAt": "..." }
+  },
+  { "exerciseId": "...", "lastSession": null, "bestSet": null }
+]
+```
+
+- `lastSession`: las series de la ultima sesion en la que aparece el ejercicio (incluye registros sueltos).
+- `bestSet`: la serie con mayor fuerza estimada de todo el historial. Epley: `peso × (1 + reps / 30)`; con 1 rep, el peso levantado.
 
 ### `POST /workout-log` (legado)
 
