@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class RoutineService {
     private static final Set<String> ALLOWED_DIFFICULTIES = Set.of("BEGINNER", "INTERMEDIATE", "ADVANCED");
+    private static final Set<String> ALLOWED_SOURCES = Set.of("MANUAL", "AI", "TEMPLATE");
+    static final int MAX_TITLE_LENGTH = 180;
 
     private final RoutineReadService routineReadService;
     private final RoutineWriteRepository routineWriteRepository;
@@ -36,9 +38,11 @@ public class RoutineService {
         boolean categoriesAvailable = routineReadService.routineCategoriesAvailable();
         UUID categoryId = validateCategoryId(request.categoryId(), categoriesAvailable);
         String difficulty = normalizeDifficulty(request.difficulty(), "Routine difficulty");
+        String objective = Objectives.requireKnown(request.objective());
+        String source = normalizeSource(request.source());
         List<RoutineDayRequest> days = normalizeDays(request);
-        UUID routineId = routineWriteRepository.createRoutine(userId, request, difficulty, categoryId, categoriesAvailable);
-        syncDays(routineId, days);
+        UUID routineId = routineWriteRepository.createRoutine(userId, request, objective, source, difficulty, categoryId, categoriesAvailable);
+        syncDays(routineId, days, userId);
         return routineReadService.getRoutine(routineId);
     }
 
@@ -48,17 +52,76 @@ public class RoutineService {
         boolean categoriesAvailable = routineReadService.routineCategoriesAvailable();
         UUID categoryId = validateCategoryId(request.categoryId(), categoriesAvailable);
         String difficulty = normalizeDifficulty(request.difficulty(), "Routine difficulty");
+        String objective = Objectives.requireKnown(request.objective());
         List<RoutineDayRequest> days = normalizeDays(request);
 
-        int updated = routineWriteRepository.updateRoutine(routineId, userId, request, difficulty, categoryId, categoriesAvailable);
+        int updated = routineWriteRepository.updateRoutine(routineId, userId, request, objective, difficulty, categoryId, categoriesAvailable);
         if (updated == 0) {
             if (routineWriteRepository.isActiveGlobalTemplate(routineId)) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Global templates cannot be edited");
             }
             throw new ApiException(HttpStatus.NOT_FOUND, "Routine not found");
         }
-        syncDays(routineId, days);
+        syncDays(routineId, days, userId);
         return routineReadService.getRoutine(routineId);
+    }
+
+    /** Copia una rutina propia con sus dias y ejercicios. La copia es independiente: no comparte ids. */
+    @Transactional
+    public RoutineResponse duplicateRoutine(UUID routineId, String copySuffix) {
+        RoutineResponse original = routineReadService.getRoutine(routineId);
+        String suffix = copySuffix == null || copySuffix.isBlank() ? " (copia)" : " " + copySuffix.trim();
+        String base = original.title();
+        if (base.length() + suffix.length() > MAX_TITLE_LENGTH) {
+            base = base.substring(0, MAX_TITLE_LENGTH - suffix.length()).trim();
+        }
+        List<RoutineDayRequest> days = original.days().stream()
+                .map(day -> new RoutineDayRequest(
+                        null,
+                        day.dayIndex(),
+                        day.title(),
+                        day.focus(),
+                        day.exercises().stream().map(RoutineService::copyExercise).toList()))
+                .toList();
+        String source = "AI".equals(original.source()) || "TEMPLATE".equals(original.source()) ? original.source() : "MANUAL";
+        return createRoutine(new RoutineRequest(
+                base + suffix,
+                original.categoryId() == null ? null : UUID.fromString(original.categoryId()),
+                original.description(),
+                original.objective(),
+                original.difficulty(),
+                original.estimatedDurationMinutes(),
+                original.daysPerWeek(),
+                days,
+                null,
+                source));
+    }
+
+    static ExerciseRequest copyExercise(com.locomotora.demo.routine.dto.ExerciseResponse exercise) {
+        boolean hasRange = exercise.repsMin() != null || exercise.repsMax() != null;
+        return new ExerciseRequest(
+                null,
+                exercise.exerciseId(),
+                exercise.name(),
+                exercise.sets(),
+                hasRange || exercise.reps() < 1 ? null : exercise.reps(),
+                exercise.repsMin(),
+                exercise.repsMax(),
+                exercise.restSeconds(),
+                exercise.primaryMuscleGroup(),
+                null,
+                exercise.notes());
+    }
+
+    private String normalizeSource(String source) {
+        if (source == null || source.isBlank()) {
+            return "MANUAL";
+        }
+        String normalized = source.trim().toUpperCase(Locale.ROOT);
+        if (!ALLOWED_SOURCES.contains(normalized)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Routine source must be MANUAL, AI or TEMPLATE");
+        }
+        return normalized;
     }
 
     public void deleteRoutine(UUID routineId) {
@@ -151,7 +214,7 @@ public class RoutineService {
      * ejercicio despues de editar. Un id que no pertenece a la rutina (o repetido)
      * se trata como nuevo. Lo que no aparece en el request se borra.
      */
-    private void syncDays(UUID routineId, List<RoutineDayRequest> days) {
+    private void syncDays(UUID routineId, List<RoutineDayRequest> days, UUID userId) {
         Set<UUID> existingDayIds = routineWriteRepository.findDayIds(routineId);
         Set<UUID> existingExerciseIds = routineWriteRepository.findRoutineExerciseIds(routineId);
         Set<UUID> keptDayIds = new HashSet<>();
@@ -178,7 +241,7 @@ public class RoutineService {
 
             int position = 1;
             for (ExerciseRequest exercise : day.exercises()) {
-                UUID exerciseId = routineWriteRepository.findOrCreateExercise(exercise);
+                UUID exerciseId = routineWriteRepository.findOrCreateExercise(exercise, userId);
                 UUID requestedRowId = parseUuid(exercise.id());
                 if (requestedRowId != null
                         && existingExerciseIds.contains(requestedRowId)

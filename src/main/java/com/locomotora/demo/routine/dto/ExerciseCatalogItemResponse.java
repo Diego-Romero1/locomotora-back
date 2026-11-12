@@ -8,6 +8,7 @@ public record ExerciseCatalogItemResponse(
         String equipment,
         String difficulty,
         String description,
-        String instructions
+        String instructions,
+        boolean custom
 ) {
 }

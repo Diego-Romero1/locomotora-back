@@ -138,7 +138,7 @@ class WorkoutSessionServiceTest {
         when(repository.findOwnedRoutineTitle(routineId, userId)).thenReturn(Optional.of("Upper/Lower"));
         when(repository.findFirstRoutineDay(routineId)).thenReturn(Optional.of(new RoutineDayRef(firstDayId, "Upper A")));
         when(repository.findPlannedExercises(routineId)).thenReturn(Map.of());
-        when(repository.findExistingExerciseIds(any())).thenReturn(Set.of(squatId));
+        when(repository.findExistingExerciseIds(any(), any())).thenReturn(Set.of(squatId));
         when(repository.insertSession(any())).thenReturn(Optional.of(sessionId));
         when(repository.findSessionSummary(sessionId, userId)).thenReturn(Optional.of(summary()));
 
@@ -174,7 +174,7 @@ class WorkoutSessionServiceTest {
     @Test
     void rejectsUnknownExercise() {
         stubRoutine();
-        when(repository.findExistingExerciseIds(any())).thenReturn(Set.of());
+        when(repository.findExistingExerciseIds(any(), any())).thenReturn(Set.of());
 
         ApiException exception = assertThrows(ApiException.class,
                 () -> service.saveSession(request(thirdDayId, List.of(squat(set(1, 10, "80"))))));
@@ -218,7 +218,7 @@ class WorkoutSessionServiceTest {
 
     @Test
     void freeSessionWithoutRoutineIsMarkedFree() {
-        when(repository.findExistingExerciseIds(any())).thenReturn(Set.of(squatId));
+        when(repository.findExistingExerciseIds(any(), any())).thenReturn(Set.of(squatId));
         when(repository.insertSession(any())).thenReturn(Optional.of(sessionId));
         when(repository.findSessionSummary(sessionId, userId)).thenReturn(Optional.of(summary()));
         WorkoutSessionRequest request = new WorkoutSessionRequest(
@@ -242,7 +242,7 @@ class WorkoutSessionServiceTest {
         when(repository.findPlannedExercises(routineId)).thenReturn(Map.of(
                 routineSquatId, new PlannedExercise(routineSquatId, squatId, 8, 10, null, 120)
         ));
-        org.mockito.Mockito.lenient().when(repository.findExistingExerciseIds(any())).thenReturn(Set.of(squatId, pressId));
+        org.mockito.Mockito.lenient().when(repository.findExistingExerciseIds(any(), any())).thenReturn(Set.of(squatId, pressId));
     }
 
     @SuppressWarnings("unchecked")

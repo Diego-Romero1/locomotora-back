@@ -26,7 +26,7 @@ El sistema tiene **mucha superficie y poca profundidad**: casi todos los módulo
 | 2. Rutinas y entrenamientos   | ⚠️ ~60 %        | CRUD, catálogo (109 ejercicios) y 7 plantillas listos. Wizard de un solo día. Registro superficial. |
 | 3. Progreso y perfil          | ⚠️ Parcial      | Onboarding, perfil, métricas, actividad reciente. Sin PRs, volumen ni racha real.                   |
 | 4. IA y nutrición             | 🟡 Simulado     | Coach y generador de rutinas son reglas por palabras clave, sin modelo real.                        |
-| 5. Escalabilidad y calidad    | ⚠️ Bajo         | 52 tests backend, 56 tests frontend (reducers, cola, gráficos), sin CI ni OpenAPI.                           |
+| 5. Escalabilidad y calidad    | ⚠️ Bajo         | 59 tests backend, 73 tests frontend (reducers, cola, gráficos, borrador), sin CI ni OpenAPI.                           |
 
 Además hay un **rediseño visual en curso** (handoff en `locomotora-backend/docs/design_handoff_locomotora_redesign/` y wizard en `locomotora-backend/docs/design_routine_wizard_redesign/`). El wizard nuevo está implementado (un solo día por rutina).
 
@@ -34,9 +34,9 @@ Además hay un **rediseño visual en curso** (handoff en `locomotora-backend/doc
 
 | Paso                 | Qué funciona hoy                                                                                       | Qué falta o falla                                                                                     |
 | -------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| Crear (manual)       | Wizard de 3 pasos: datos → elegir ejercicios → series/reps/descanso. Prellenado desde el onboarding.     | Un solo día por rutina aunque pide "días por semana". Al editar, aplana rutinas multi-día (H1).        |
-| Crear (plantilla)    | 7 plantillas de hipertrofia multi-día, recomendación automática y clonación a "Mis rutinas".            | Para entrenar una plantilla hay que clonarla primero; luego no se puede editar sin romperla (H1).     |
-| Crear (IA)           | Pantalla con prompt y resultado.                                                                       | Generador local por palabras clave con espera simulada. Un solo día. Se guarda como `MANUAL`.          |
+| Crear (manual)       | Wizard v2 de 4 pasos: base → estructura semanal (días propuestos por split) → ejercicios por día → revisar (series por músculo, avisos). Borrador guardado en el teléfono. | Probarlo en un teléfono: medir que una rutina de 4 días se arme en menos de 2 minutos. |
+| Crear (plantilla)    | Pantalla "Nueva rutina": recomendada (usar y empezar, o personalizar), plantillas, duplicar una propia. Plantilla y copia abren el wizard en revisión. | — |
+| Crear (IA)           | El resultado abre el wizard en revisión y se guarda con `source = AI`. | El generador sigue siendo local por palabras clave y de un solo día (Fase 5). |
 | Entrenar             | Serie activa prellenada con la vez pasada, botones + y −, timer de descanso con vibración y aviso, lista del día, reemplazar ejercicio, aviso de récord. Guardado en el teléfono. | Sin calentamiento marcado (opcional, después de la Fase 3).                                          |
 | Registrar            | `POST /workout-sessions`: una fila por serie, día correcto, duración real, RPE y notas, idempotente. Cola de reenvío sin señal. | —                                                                                                     |
 | Consultar historial  | Historial paginado, detalle por serie con el plan y los récords, corregir o borrar una sesión, progreso por ejercicio con gráfico y récords, volumen por semana. | Racha y récords usan el objetivo y la fórmula actuales (Epley) para todo el historial.               |
@@ -45,6 +45,8 @@ Además hay un **rediseño visual en curso** (handoff en `locomotora-backend/doc
 
 Los identificadores (H1, H2…) se usan en el roadmap.
 
+> **Avance Fase 4 · Crear fácil (2026-11-12, `main`):** H1, H9 y H10 resueltos; H11 resuelto en el wizard y la pantalla de IA. Wizard v2 de varios días, punto de partida, duplicar, ejercicios propios por usuario y vocabulario único de objetivo.
+>
 > **Avance Fase 3 · Medir el rendimiento (2026-11-12, `main`):** historial, detalle y corrección de sesiones, progreso por ejercicio y volumen semanal desde el servidor. Progreso deja de calcular racha, volumen y récords en el teléfono con las últimas 10 sesiones.
 >
 > **Avance Fase 2 · Entrenar sin fricción (2026-11-12, `main`):** H7 resuelto. Pantalla Hoy con el día que toca, semana y racha semanal; "la vez pasada", botones + y −, timer de descanso con aviso, lista del día y reemplazo de ejercicio. Barra de 4 pestañas.
@@ -55,7 +57,7 @@ Los identificadores (H1, H2…) se usan en el roadmap.
 
 ### Críticos: pérdida o corrupción de datos
 
-- **H1 — Editar una rutina multi-día la convierte en una rutina de un día.**
+- **H1 — Editar una rutina multi-día la convierte en una rutina de un día.** ✅ Resuelto en la Fase 4 (Wizard v2: edita todos los días y conserva ids y rangos).
   `RoutineWizardScreen` aplana `routine.days` en una sola lista y guarda un único día. Si el usuario edita una plantilla clonada (por ejemplo PPL de 6 días), pierde la estructura sin aviso. Además, si un mismo ejercicio aparece en dos días, se usan claves repetidas (`exerciseId`) y la configuración de uno pisa la del otro.
   Archivo: `locomotora-frontend/src/screens/Routines/RoutineWizardScreen.tsx` (carga en edición, ~línea 157).
 
@@ -77,12 +79,12 @@ Los identificadores (H1, H2…) se usan en el roadmap.
 - **H6 — El entrenamiento en curso no se guarda.** Cerrar con ✕ o matar la app pierde todo, sin confirmación. `started_at` se guarda igual a `completed_at`, así que no hay duración.
 - **H7 — "Rutina de hoy" es la última rutina modificada y siempre su primer día.** ✅ Resuelto en la Fase 2: `GET /today` elige la rutina actual y rota los días. La racha semanal reemplaza a `MOCK_STREAK`.
 - **H8 — Catálogo con grupos musculares duplicados.** V5 usa `Cuádriceps`/`Tríceps` y V6 inserta ejercicios con `Cuadriceps`/`Triceps`: aparecen como filtros distintos en el wizard. `SMITH_MACHINE` no tiene etiqueta en el frontend.
-- **H9 — Vocabulario de objetivo inconsistente.** Onboarding y wizard usan `BUILD_MUSCLE`; las plantillas usan `HYPERTROPHY`. Solo la recomendación normaliza.
-- **H10 — Ejercicios "personalizados" contaminan el catálogo global.** `findOrCreateExercise` crea un ejercicio global si el nombre no existe. Un nombre mal escrito queda visible para todos los usuarios.
+- **H9 — Vocabulario de objetivo inconsistente.** ✅ Resuelto en la Fase 4 (V10 y `Objectives`). Onboarding y wizard usan `BUILD_MUSCLE`; las plantillas usan `HYPERTROPHY`. Solo la recomendación normaliza.
+- **H10 — Ejercicios "personalizados" contaminan el catálogo global.** ✅ Resuelto en la Fase 4 (ejercicios propios por usuario). Los creados antes como globales siguen en el catálogo. `findOrCreateExercise` crea un ejercicio global si el nombre no existe. Un nombre mal escrito queda visible para todos los usuarios.
 - **H18 — Los registros sueltos contaban como entrenamientos.** ✅ Resuelto en la Fase 1 (V9, `kind = 'QUICK_LOG'`).
   `POST /exercises/{id}/logs` creaba una sesion `COMPLETED` por cada registro desde el detalle de un ejercicio, y sumaba en "entrenamientos completados" y "dias activos".
 
-- **H11 — Textos hardcodeados en español** en el wizard y la pantalla de IA (`GOALS`, `LEVEL_LABELS`, `EQUIPMENT_LABELS`, chips de prompt), aunque la app tiene i18n `es`/`en`.
+- **H11 — Textos hardcodeados en español** ✅ Resuelto en el wizard y la pantalla de IA (Fase 4). Puede quedar alguno en otras pantallas. en el wizard y la pantalla de IA (`GOALS`, `LEVEL_LABELS`, `EQUIPMENT_LABELS`, chips de prompt), aunque la app tiene i18n `es`/`en`.
 
 ### Medios: deuda técnica
 

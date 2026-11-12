@@ -152,15 +152,50 @@ public class RoutineRepository {
         );
     }
 
-    public List<ExerciseCatalogItemResponse> findExerciseCatalog() {
+    /** Catalogo global mas los ejercicios propios del usuario. */
+    public List<ExerciseCatalogItemResponse> findExerciseCatalog(UUID userId) {
         return jdbcTemplate.query(
                 """
-                SELECT id, name, category, primary_muscle_group, equipment, difficulty, description, instructions
+                SELECT id, name, category, primary_muscle_group, equipment, difficulty, description, instructions,
+                       created_by_user_id IS NOT NULL AS custom
                 FROM exercises
-                WHERE is_active = true
+                WHERE is_active = true AND (created_by_user_id IS NULL OR created_by_user_id = ?)
                 ORDER BY COALESCE(primary_muscle_group, 'ZZZ'), name
                 """,
-                this::mapExerciseCatalogItem
+                this::mapExerciseCatalogItem,
+                userId
+        );
+    }
+
+    public Optional<ExerciseCatalogItemResponse> findVisibleExerciseByName(String name, UUID userId) {
+        return jdbcTemplate.query(
+                """
+                SELECT id, name, category, primary_muscle_group, equipment, difficulty, description, instructions,
+                       created_by_user_id IS NOT NULL AS custom
+                FROM exercises
+                WHERE lower(name) = lower(?) AND (created_by_user_id IS NULL OR created_by_user_id = ?)
+                ORDER BY created_by_user_id NULLS FIRST
+                LIMIT 1
+                """,
+                this::mapExerciseCatalogItem,
+                name,
+                userId
+        ).stream().findFirst();
+    }
+
+    public ExerciseCatalogItemResponse insertOwnExercise(UUID userId, String name, String primaryMuscleGroup, String equipment) {
+        return jdbcTemplate.queryForObject(
+                """
+                INSERT INTO exercises (name, primary_muscle_group, equipment, created_by_user_id)
+                VALUES (?, ?, ?, ?)
+                RETURNING id, name, category, primary_muscle_group, equipment, difficulty, description, instructions,
+                          true AS custom
+                """,
+                this::mapExerciseCatalogItem,
+                name,
+                primaryMuscleGroup,
+                equipment,
+                userId
         );
     }
 
@@ -247,7 +282,8 @@ public class RoutineRepository {
                 rs.getString("equipment"),
                 rs.getString("difficulty"),
                 rs.getString("description"),
-                rs.getString("instructions")
+                rs.getString("instructions"),
+                rs.getBoolean("custom")
         );
     }
 

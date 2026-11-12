@@ -3,18 +3,22 @@ package com.locomotora.demo.routine;
 import com.locomotora.demo.routine.dto.ExerciseCatalogItemResponse;
 import com.locomotora.demo.routine.dto.ExerciseProgressLogRequest;
 import com.locomotora.demo.routine.dto.ExerciseProgressLogResponse;
+import com.locomotora.demo.routine.dto.OwnExerciseRequest;
 import com.locomotora.demo.routine.dto.RoutineCategoryResponse;
 import com.locomotora.demo.routine.dto.RoutineRequest;
 import com.locomotora.demo.routine.dto.RoutineResponse;
 import com.locomotora.demo.routine.dto.WorkoutLogRequest;
 import com.locomotora.demo.routine.dto.WorkoutLogResponse;
 import com.locomotora.demo.routine.service.ExerciseProgressService;
+import com.locomotora.demo.routine.service.ExerciseService;
 import com.locomotora.demo.routine.service.RoutineReadService;
 import com.locomotora.demo.routine.service.RoutineService;
 import com.locomotora.demo.routine.service.WorkoutLogService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,13 +34,16 @@ public class RoutineController {
     private final RoutineService routineService;
     private final WorkoutLogService workoutLogService;
     private final ExerciseProgressService exerciseProgressService;
+    private final ExerciseService exerciseService;
 
     public RoutineController(
             RoutineReadService routineReadService,
             RoutineService routineService,
             WorkoutLogService workoutLogService,
-            ExerciseProgressService exerciseProgressService
+            ExerciseProgressService exerciseProgressService,
+            ExerciseService exerciseService
     ) {
+        this.exerciseService = exerciseService;
         this.routineReadService = routineReadService;
         this.routineService = routineService;
         this.workoutLogService = workoutLogService;
@@ -63,6 +70,13 @@ public class RoutineController {
         return routineReadService.exerciseCatalog();
     }
 
+    /** Ejercicio propio. 201 si se creo; 200 con el existente si ya habia uno con ese nombre. */
+    @PostMapping("/exercises")
+    public ResponseEntity<ExerciseCatalogItemResponse> createOwnExercise(@Valid @RequestBody OwnExerciseRequest request) {
+        ExerciseService.Result result = exerciseService.createOwn(request);
+        return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK).body(result.exercise());
+    }
+
     @PostMapping("/exercises/{id}/logs")
     public ExerciseProgressLogResponse logExerciseProgress(
             @PathVariable UUID id,
@@ -84,6 +98,14 @@ public class RoutineController {
     @PutMapping("/routines/{id}")
     public RoutineResponse updateRoutine(@PathVariable UUID id, @Valid @RequestBody RoutineRequest request) {
         return routineService.updateRoutine(id, request);
+    }
+
+    @PostMapping("/routines/{id}/duplicate")
+    public ResponseEntity<RoutineResponse> duplicateRoutine(
+            @PathVariable UUID id,
+            @RequestParam(required = false) String suffix
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(routineService.duplicateRoutine(id, suffix));
     }
 
     @DeleteMapping("/routines/{id}")

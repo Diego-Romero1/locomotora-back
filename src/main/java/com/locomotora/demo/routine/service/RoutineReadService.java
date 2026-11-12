@@ -56,7 +56,7 @@ public class RoutineReadService {
     }
 
     public List<ExerciseCatalogItemResponse> exerciseCatalog() {
-        return routineRepository.findExerciseCatalog();
+        return routineRepository.findExerciseCatalog(CurrentUser.id());
     }
 
     public RoutineResponse getRoutine(UUID id) {

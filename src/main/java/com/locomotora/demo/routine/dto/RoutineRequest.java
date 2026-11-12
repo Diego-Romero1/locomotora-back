@@ -14,6 +14,14 @@ public record RoutineRequest(
         Integer estimatedDurationMinutes,
         Integer daysPerWeek,
         List<@Valid RoutineDayRequest> days,
-        List<@Valid ExerciseRequest> exercises
+        List<@Valid ExerciseRequest> exercises,
+        /** Origen al crear: MANUAL (por defecto), AI o TEMPLATE. Al editar se ignora. */
+        String source
 ) {
+    /** Compatibilidad con clientes que no mandan el origen. */
+    public RoutineRequest(String title, UUID categoryId, String description, String objective, String difficulty,
+                          Integer estimatedDurationMinutes, Integer daysPerWeek, List<RoutineDayRequest> days,
+                          List<ExerciseRequest> exercises) {
+        this(title, categoryId, description, objective, difficulty, estimatedDurationMinutes, daysPerWeek, days, exercises, null);
+    }
 }

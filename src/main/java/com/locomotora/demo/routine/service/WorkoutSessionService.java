@@ -76,7 +76,7 @@ public class WorkoutSessionService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "routineDayId requires routineId");
         }
 
-        validateExercisesExist(request.exercises());
+        validateExercisesExist(userId, request.exercises());
         List<SetLog> sets = buildSetLogs(request.exercises(), planned);
         if (sets.stream().noneMatch(SetLog::completed)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "The session has no completed sets");
@@ -116,11 +116,11 @@ public class WorkoutSessionService {
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Routine day does not belong to the routine"));
     }
 
-    private void validateExercisesExist(List<WorkoutSessionExerciseRequest> exercises) {
+    private void validateExercisesExist(UUID userId, List<WorkoutSessionExerciseRequest> exercises) {
         Set<UUID> requested = exercises.stream()
                 .map(WorkoutSessionExerciseRequest::exerciseId)
                 .collect(Collectors.toSet());
-        Set<UUID> found = repository.findExistingExerciseIds(requested);
+        Set<UUID> found = repository.findExistingExerciseIds(userId, requested);
         if (!found.containsAll(requested)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Unknown exercise in session");
         }

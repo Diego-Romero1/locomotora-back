@@ -72,11 +72,11 @@ class RoutineServiceTest {
                 day(1, "Torso", exercise("Press banca"))
         ), null);
         when(routineReadService.routineCategoriesAvailable()).thenReturn(true);
-        when(routineWriteRepository.createRoutine(eq(userId), same(request), eq("INTERMEDIATE"), isNull(), eq(true)))
+        when(routineWriteRepository.createRoutine(eq(userId), same(request), eq("BUILD_MUSCLE"), eq("MANUAL"), eq("INTERMEDIATE"), isNull(), eq(true)))
                 .thenReturn(routineId);
         when(routineWriteRepository.createDay(eq(routineId), eq(1), eq("Torso"), isNull())).thenReturn(dayOneId);
         when(routineWriteRepository.createDay(eq(routineId), eq(2), eq("Piernas"), isNull())).thenReturn(dayTwoId);
-        when(routineWriteRepository.findOrCreateExercise(any(ExerciseRequest.class))).thenReturn(exerciseId);
+        when(routineWriteRepository.findOrCreateExercise(any(ExerciseRequest.class), any())).thenReturn(exerciseId);
         when(routineReadService.getRoutine(routineId)).thenReturn(response());
 
         routineService.createRoutine(request);
@@ -91,10 +91,10 @@ class RoutineServiceTest {
     void createRoutineKeepsLegacyExercisePayloadCompatible() {
         RoutineRequest request = routineRequest(null, List.of(exercise("Remo")));
         when(routineReadService.routineCategoriesAvailable()).thenReturn(false);
-        when(routineWriteRepository.createRoutine(eq(userId), same(request), eq("INTERMEDIATE"), isNull(), eq(false)))
+        when(routineWriteRepository.createRoutine(eq(userId), same(request), eq("BUILD_MUSCLE"), eq("MANUAL"), eq("INTERMEDIATE"), isNull(), eq(false)))
                 .thenReturn(routineId);
         when(routineWriteRepository.createDay(eq(routineId), eq(1), eq("Dia 1"), eq("General"))).thenReturn(dayOneId);
-        when(routineWriteRepository.findOrCreateExercise(any(ExerciseRequest.class))).thenReturn(exerciseId);
+        when(routineWriteRepository.findOrCreateExercise(any(ExerciseRequest.class), any())).thenReturn(exerciseId);
         when(routineReadService.getRoutine(routineId)).thenReturn(response());
 
         routineService.createRoutine(request);
@@ -107,10 +107,10 @@ class RoutineServiceTest {
     void updateRoutineAllowsMultiDayRoutineOwnedByUser() {
         RoutineRequest request = routineRequest(List.of(day(1, "Full body", exercise("Peso muerto"))), null);
         when(routineReadService.routineCategoriesAvailable()).thenReturn(false);
-        when(routineWriteRepository.updateRoutine(eq(routineId), eq(userId), same(request), eq("INTERMEDIATE"), isNull(), eq(false)))
+        when(routineWriteRepository.updateRoutine(eq(routineId), eq(userId), same(request), eq("BUILD_MUSCLE"), eq("INTERMEDIATE"), isNull(), eq(false)))
                 .thenReturn(1);
         when(routineWriteRepository.createDay(eq(routineId), eq(1), eq("Full body"), isNull())).thenReturn(dayOneId);
-        when(routineWriteRepository.findOrCreateExercise(any(ExerciseRequest.class))).thenReturn(exerciseId);
+        when(routineWriteRepository.findOrCreateExercise(any(ExerciseRequest.class), any())).thenReturn(exerciseId);
         when(routineReadService.getRoutine(routineId)).thenReturn(response());
 
         routineService.updateRoutine(routineId, request);
@@ -192,7 +192,7 @@ class RoutineServiceTest {
     void updateRoutineRejectsGlobalTemplate() {
         RoutineRequest request = routineRequest(List.of(day(1, "Full body", exercise("Dominadas"))), null);
         when(routineReadService.routineCategoriesAvailable()).thenReturn(false);
-        when(routineWriteRepository.updateRoutine(eq(routineId), eq(userId), same(request), eq("INTERMEDIATE"), isNull(), eq(false)))
+        when(routineWriteRepository.updateRoutine(eq(routineId), eq(userId), same(request), eq("BUILD_MUSCLE"), eq("INTERMEDIATE"), isNull(), eq(false)))
                 .thenReturn(0);
         when(routineWriteRepository.isActiveGlobalTemplate(routineId)).thenReturn(true);
 
@@ -211,7 +211,7 @@ class RoutineServiceTest {
         ApiException exception = assertThrows(ApiException.class, () -> routineService.createRoutine(request));
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.status());
-        verify(routineWriteRepository, never()).createRoutine(any(UUID.class), any(RoutineRequest.class), any(), any(), anyBoolean());
+        verify(routineWriteRepository, never()).createRoutine(any(UUID.class), any(RoutineRequest.class), any(), any(), any(), any(), anyBoolean());
     }
 
     private RoutineRequest routineRequest(List<RoutineDayRequest> days, List<ExerciseRequest> exercises) {
@@ -230,9 +230,9 @@ class RoutineServiceTest {
 
     private void stubOwnedUpdate(RoutineRequest request) {
         when(routineReadService.routineCategoriesAvailable()).thenReturn(false);
-        when(routineWriteRepository.updateRoutine(eq(routineId), eq(userId), same(request), eq("INTERMEDIATE"), isNull(), eq(false)))
+        when(routineWriteRepository.updateRoutine(eq(routineId), eq(userId), same(request), eq("BUILD_MUSCLE"), eq("INTERMEDIATE"), isNull(), eq(false)))
                 .thenReturn(1);
-        when(routineWriteRepository.findOrCreateExercise(any(ExerciseRequest.class))).thenReturn(exerciseId);
+        when(routineWriteRepository.findOrCreateExercise(any(ExerciseRequest.class), any())).thenReturn(exerciseId);
         when(routineReadService.getRoutine(routineId)).thenReturn(response());
     }
 

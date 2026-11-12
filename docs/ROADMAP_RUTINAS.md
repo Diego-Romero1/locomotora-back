@@ -14,7 +14,7 @@ El 2026-11-11 se aprobo reordenar las fases para registrar bien antes de crear m
 | 1. Registro fiel              | V9, `POST /workout-sessions` idempotente, estado por serie guardado en el telefono, pausar/retomar/descartar, cierre con RPE y notas, cola de envio, tests | 2.B1, 2.B2, 2.B5, 2.F1, 2.F6, 2.F7, 4.2 (reducer) | ✅ 2026-11-11 |
 | 2. Entrenar sin friccion      | "La vez pasada" y prellenado, botones + y −, timer de descanso, lista del dia, saltar o reemplazar ejercicio, pantalla Hoy con rotacion de dias (`GET /today`) y barra de 4 pestañas | 2.B3, 2.B4, 2.F2, 2.F3, 2.F4, 2.F5, 2.F8 | ✅ 2026-11-12 |
 | 3. Medir el rendimiento       | Historial paginado, detalle, editar y borrar sesiones, progreso por ejercicio, records, racha semanal | 3.1–3.5                              | ✅ 2026-11-12 |
-| 4. Crear facil                | Wizard v2 multi-dia, punto de partida, duplicar, ejercicios propios, i18n del wizard            | Fase 1 original (1.F1–1.F8, 1.B2–1.B5) | Pendiente   |
+| 4. Crear facil                | Wizard v2 multi-dia, punto de partida, duplicar, ejercicios propios, i18n del wizard            | Fase 1 original (1.F1–1.F8, 1.B2–1.B5) | ✅ 2026-11-12 |
 | 5. Base tecnica e IA real     | Testcontainers, refactor de plantillas, N+1, JWT/refresh, OpenAPI, restos del starter, IA real  | Fase 4 y Fase 5 originales           | Pendiente     |
 
 Decisiones aprobadas junto con el plan:
@@ -97,6 +97,30 @@ Frontend:
 - 7 tests nuevos de agrupado y escalas de graficos (56 en total). Contrato verificado: los tipos de la app coinciden campo por campo con las respuestas del backend.
 
 Pendiente de la Fase 3: probar las pantallas en un telefono.
+
+### Avance de la Fase 4 (2026-11-12, rama `main`)
+
+Antes de empezar se reviso el estado: las Fases 1 a 3 estan commiteadas y los tests en verde. Sigue sin haber sesiones guardadas desde la app con el formato nuevo (falta la prueba en el telefono).
+
+Backend:
+
+- `V10__own_exercises_and_objectives.sql`: `exercises.created_by_user_id` (ejercicios propios); el nombre es unico entre los globales y, por separado, dentro de los propios de cada usuario. Objetivo `HYPERTROPHY` → `BUILD_MUSCLE` en las rutinas (H9).
+- `V11__deferrable_exercise_references.sql`: las FK hacia `exercises` se verifican al final de la transaccion. Sin esto, borrar un usuario con ejercicios propios en uso fallaba por el orden de la cascada (se encontro en la prueba contra Postgres).
+- `GET /exercises` devuelve globales + propios (`custom`); `POST /exercises` crea uno propio (o devuelve el existente con ese nombre). `findOrCreateExercise` ya no crea ejercicios globales (H10) y solo acepta ejercicios que el usuario ve; `POST /workout-sessions` tambien.
+- `POST /routines/{id}/duplicate`. `source` (MANUAL, AI, TEMPLATE) al crear (1.B4). `Objectives` unifica el vocabulario de objetivo y valida (1.B5).
+- 7 tests nuevos (59 en total).
+
+Frontend:
+
+- `src/features/routineBuilder/routineDraft.ts`: borrador puro con claves locales e ids de servidor, splits y dias propuestos, valores por objetivo, conversion `routineToDraft` / `draftToPayload` que conserva rangos, avisos de revision (1.F1, 1.F2). `draftStorage.ts` guarda el borrador de una rutina nueva en el telefono (1.F5).
+- `RoutineBuilderScreen` (Wizard v2, 4 pasos): base; estructura (dias por semana, split recomendado, renombrar, ordenar, musculos de cada dia, agregar o quitar dias); ejercicios por dia (pestañas, catalogo filtrado por los musculos del dia, varios a la vez, ejercicio propio, rango de reps, copiar de otro dia, quitar con deshacer); revisar (dias con minutos estimados, series por semana por musculo, avisos que no bloquean, "Guardar y empezar el dia 1") (1.F3, 1.F4).
+- `NewRoutineScreen`: recomendada (usar y empezar, o personalizar), plantillas, desde cero, duplicar una propia, con IA. Plantilla, copia e IA abren el wizard en revision (1.F6). El resultado de IA se guarda como `AI`.
+- El detalle de rutina ya edita rutinas de varios dias (se quito la proteccion de la Fase 0, 1.F8) y suma "Duplicar".
+- Textos del wizard y de la pantalla de IA en i18n (1.F7, H11). Se borraron el wizard viejo y `ExerciseConfigCard`.
+- 17 tests nuevos del borrador (73 en total).
+- Probado contra Postgres con el codigo real del borrador: una plantilla de 6 dias se clona y se edita (renombrar, cambiar un rango, repetir un ejercicio, quitar un dia) sin perder dias ni rangos (36 de 36), ningun dia cambia de id y el historial sigue mostrando el dia entrenado.
+
+Pendiente de la Fase 4: probar el wizard en un telefono y medir el criterio de "rutina de 4 dias desde cero en menos de 2 minutos".
 
 ---
 

@@ -49,7 +49,7 @@ El código vive en WSL (`/home/romero/my-stuff/locomotora-app`). Ejecutar las he
 | Migraciones    | Flyway, V1–V9. `ddl-auto=validate`.                                    |
 | Base de datos  | PostgreSQL 17 (Docker, puerto local `5433`)                            |
 | Seguridad      | Spring Security + JWT HS256 propio (`JwtService`), BCrypt              |
-| Tests          | JUnit 5 + Mockito. 52 tests (contexto, `RoutineService`, `WorkoutLogService`, `WorkoutSessionService`, `TrainingService`, `TrainingCalendar`, `WorkoutHistoryService`). |
+| Tests          | JUnit 5 + Mockito. 59 tests (contexto, `RoutineService`, `WorkoutLogService`, `WorkoutSessionService`, `TrainingService`, `TrainingCalendar`, `WorkoutHistoryService`, duplicar/origen/objetivo/ejercicios propios). |
 
 Variables relevantes (`application.properties`): `SPRING_DATASOURCE_URL`, `LOCOMOTORA_JWT_SECRET` (por defecto inseguro), `LOCOMOTORA_JWT_EXPIRATION_MINUTES` (1440), `LOCOMOTORA_CORS_ALLOWED_ORIGIN_PATTERNS`.
 
@@ -140,9 +140,11 @@ src/
 │   ├── ui/                    Screen, Typography, Input, Pill, Badge, SelectCard, MultiSelectCard,
 │   │                          ProgressStepper, StepContainer
 │   ├── common/                Button, Card
-│   ├── routines/wizard/       Stepper, FieldDropdown, ExerciseConfigCard   ← sin commitear (H5)
+│   ├── routines/wizard/       Stepper, FieldDropdown (los usa el Wizard v2)
+│   ├── routineBuilder/        DraftExerciseCard, ExercisePickerSheet (catálogo filtrado por foco, ejercicio propio)
 │   └── workout/               ExerciseCatalogGroupCard
 ├── features/workout/          sesion en curso: reducer puro, cola de envio, AsyncStorage, contexto (ver 3.4)
+├── features/routineBuilder/   borrador del Wizard v2: reducer puro (routineDraft.ts), conversion desde/hacia la API, guardado en el teléfono
 └── utils/                     exerciseCatalog, aiRoutineGenerator (IA simulada), progressInsights
 ```
 
@@ -157,8 +159,9 @@ AppNavigator (stack)
 │   ├── Routines → RoutinesNavigator (stack)
 │   │   ├── RoutinesList          pestañas: Mis rutinas / Sugeridas IA / Plantillas
 │   │   ├── RoutineDetail         { id, mode?: "user" | "template" }
-│   │   ├── RoutineForm           entrada: "Generar con IA" o "Armar manual"
-│   │   └── RoutineWizard         { id? } crear/editar manual, 3 pasos
+│   │   ├── NewRoutine            punto de partida: recomendada, plantilla, desde cero, duplicar, IA
+│   │   ├── RoutineAI             generador (simulado); el resultado abre el wizard en revisión
+│   │   └── RoutineWizard         { id?, draft?, step? } Wizard v2 de 4 pasos, crear y editar
 │   ├── Progress
 │   ├── AI                        oculta en la barra (4 pestañas); se abre desde la tarjeta del coach en Hoy
 │   └── Profile
@@ -180,8 +183,9 @@ El catálogo de ejercicios se carga una vez en `TabNavigator` y se pasa como pro
 | Home ("Hoy")      | ✅ Fase 2      | `GET /today`: día que toca, semana, racha semanal, último entrenamiento, sesión en curso      |
 | Routines (lista)  | ✅             | Mis rutinas, recomendación, plantillas, filtro por categoría                                  |
 | RoutineDetail     | ✅             | Pestañas por día, editar/eliminar, usar plantilla, empezar entrenamiento del día elegido      |
-| RoutineForm (IA)  | 🟡 Simulado    | Generador local por palabras clave + `setTimeout` de 1,6 s, un solo día                       |
-| RoutineWizard     | ⚠️             | 3 pasos, un solo día; aplana rutinas multi-día al editar (H1)                                 |
+| NewRoutine        | ✅ Fase 4      | Recomendada (usar y empezar o personalizar), plantillas, desde cero, duplicar, IA             |
+| RoutineAI         | 🟡 Simulado    | Generador local por palabras clave; el resultado se revisa en el wizard y se guarda como AI   |
+| RoutineWizard     | ✅ Fase 4      | 4 pasos, varios días, conserva ids y rangos al editar, borrador guardado en el teléfono       |
 | Workout           | ✅ Fase 2      | Serie activa con + y −, la vez pasada, timer de descanso, lista del día, reemplazo, récords   |
 | Progress          | ✅ Fase 3      | Resumen, Historial, Ejercicios y Cuerpo; detalle y corrección de sesión; progreso por ejercicio |
 | AI                | 🟡 Simulado    | Chat persistido; respuestas por palabras clave en backend                                     |

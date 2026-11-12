@@ -95,15 +95,18 @@ public class WorkoutSessionWriteRepository {
         return planned;
     }
 
-    public Set<UUID> findExistingExerciseIds(Collection<UUID> exerciseIds) {
+    /** Ejercicios que existen y el usuario puede usar (globales o propios). */
+    public Set<UUID> findExistingExerciseIds(UUID userId, Collection<UUID> exerciseIds) {
         if (exerciseIds.isEmpty()) {
             return Set.of();
         }
         UUID[] ids = exerciseIds.toArray(UUID[]::new);
         return new HashSet<>(jdbcTemplate.query(
                 connection -> {
-                    var statement = connection.prepareStatement("SELECT id FROM exercises WHERE id = ANY (?)");
+                    var statement = connection.prepareStatement(
+                            "SELECT id FROM exercises WHERE id = ANY (?) AND (created_by_user_id IS NULL OR created_by_user_id = ?)");
                     statement.setArray(1, connection.createArrayOf("uuid", ids));
+                    statement.setObject(2, userId);
                     return statement;
                 },
                 (rs, rowNum) -> rs.getObject("id", UUID.class)

@@ -128,6 +128,7 @@ Campos principales:
 - `movement_pattern`
 - `instructions`
 - `is_active`
+- `created_by_user_id` (V10): `NULL` = ejercicio global; con valor = ejercicio propio que solo ve ese usuario. Se borra en cascada con el usuario.
 
 ### `routines`
 
@@ -199,6 +200,8 @@ Campos principales:
 | V7      | `V7__normalize_exercise_catalog.sql`     | Unifica grupos musculares sin tilde (`Cuadriceps`, `Triceps`, `Biceps`, `Gluteos`) con la forma con tilde. |
 | V8      | `V8__deferrable_routine_order_constraints.sql` | `UNIQUE (routine_id, day_index)` y `UNIQUE (routine_day_id, position)` pasan a `DEFERRABLE INITIALLY DEFERRED`, para reordenar dentro de una transaccion. |
 | V9      | `V9__workout_sessions_v2.sql`            | Sesiones v2: `client_session_id` (unico por usuario), `kind`, copia de `routine_title`/`day_title`; en logs, `exercise_position` y el plan del momento. Marca como `QUICK_LOG` los registros sueltos existentes. |
+| V10     | `V10__own_exercises_and_objectives.sql`  | `exercises.created_by_user_id` (NULL = global). El nombre pasa a ser unico entre los globales y, por separado, dentro de los propios de cada usuario. Objetivo `HYPERTROPHY` → `BUILD_MUSCLE` en las rutinas. |
+| V11     | `V11__deferrable_exercise_references.sql` | Las FK `routine_exercises.exercise_id` y `workout_exercise_logs.exercise_id` pasan a `DEFERRABLE INITIALLY DEFERRED`, para que borrar un usuario (con sus ejercicios propios en cascada) no falle por el orden de la cascada. |
 
 ### Tablas agregadas en V2 y V3
 

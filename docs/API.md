@@ -55,7 +55,8 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `GET`    | `/routine`                          | Legado: ultima rutina activa modificada. La app usa `/today`    |
 | `GET`    | `/routines?categoryId=`             | Rutinas del usuario (filtro opcional por categoria)             |
 | `GET`    | `/routines/{id}`                    | Rutina del usuario                                              |
-| `POST`   | `/routines`                         | Crea rutina (multi-dia)                                         |
+| `POST`   | `/routines`                         | Crea rutina (multi-dia). `source`: MANUAL, AI o TEMPLATE        |
+| `POST`   | `/routines/{id}/duplicate?suffix=`  | Copia una rutina propia con todos sus dias                      |
 | `PUT`    | `/routines/{id}`                    | Actualiza rutina (sincroniza dias y ejercicios por id)          |
 | `DELETE` | `/routines/{id}`                    | Soft delete (`is_active = false`)                               |
 | `GET`    | `/routine-categories`               | Categorias (Fuerza, Hipertrofia, Cardio, Movilidad, Recovery)   |
@@ -64,7 +65,8 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `GET`    | `/routines/recommendation`          | Plantilla recomendada segun perfil                              |
 | `POST`   | `/routines/templates/{id}/use`      | Clona una plantilla a la cuenta del usuario                     |
 | `POST`   | `/routines/recommendation/use`      | Clona la plantilla recomendada                                  |
-| `GET`    | `/exercises`                        | Catalogo de ejercicios activos                                  |
+| `GET`    | `/exercises`                        | Catalogo global + ejercicios propios del usuario (`custom`)     |
+| `POST`   | `/exercises`                        | Crea un ejercicio propio (solo lo ve quien lo crea)             |
 | `POST`   | `/exercises/{id}/logs`              | Registro suelto de un ejercicio (fuera de rutina)               |
 | `GET`    | `/exercises/last-performance?ids=`  | La vez pasada y la mejor serie de cada ejercicio                |
 | `POST`   | `/workout-sessions`                 | Guarda una sesion completa, una fila por serie (idempotente)    |
@@ -121,6 +123,7 @@ Respuesta de ambos:
   "difficulty": "INTERMEDIATE",
   "estimatedDurationMinutes": 60,
   "daysPerWeek": 2,
+  "source": "MANUAL",
   "days": [
     {
       "dayIndex": 1,
@@ -147,11 +150,23 @@ Respuesta de ambos:
 Reglas (`RoutineService`):
 
 - `title` obligatorio. `difficulty`: `BEGINNER`, `INTERMEDIATE` o `ADVANCED`.
+- `objective` (Fase 4, H9): `BUILD_MUSCLE`, `IMPROVE_STRENGTH`, `LOSE_WEIGHT`, `IMPROVE_ENDURANCE` o `GENERAL_FITNESS`. Se aceptan los alias viejos (`HYPERTROPHY`, `HIPERTROFIA`, `GAIN_MUSCLE` → `BUILD_MUSCLE`). Cualquier otro valor: 400. Es el mismo vocabulario del onboarding y de `/routines/templates?goal=`.
+- `source` (solo al crear): `MANUAL` (por defecto), `AI` o `TEMPLATE`. Al editar se ignora.
 - Se requiere al menos un dia con al menos un ejercicio. Si no se envia `days`, se acepta `exercises` (formato legado) y se crea un unico "Dia 1".
 - Cada ejercicio: `name` obligatorio, `sets >= 1`, `restSeconds >= 0`, al menos uno de `reps`/`repsMin`/`repsMax`, y `repsMin <= repsMax`.
-- Si `exerciseId` existe se usa; si no, se busca por nombre y, si no hay coincidencia, **se crea un ejercicio global** (ver H10 en `SYSTEM_OVERVIEW.md`).
+- Si `exerciseId` es de un ejercicio que el usuario ve (global o propio) se usa; si no, se busca por nombre entre esos y, si no hay coincidencia, **se crea un ejercicio propio** del usuario (Fase 4, H10). Ya no se crean ejercicios globales desde una rutina.
 - `PUT` sincroniza por `id`: un dia o ejercicio con `id` existente de esta rutina se actualiza (conserva la fila y su historial); sin `id`, con un `id` ajeno o repetido, se crea uno nuevo; lo que no viene en el payload se borra. Un ejercicio puede cambiar de dia conservando su `id`. `target_weight_kg` y `tempo` no viajan en el request y se conservan.
 - Las plantillas globales no se pueden editar (400).
+
+### `POST /routines/{id}/duplicate?suffix=(copia)`
+
+Copia una rutina propia (activa) con sus dias y ejercicios, sin compartir ids. El titulo lleva el sufijo (por defecto ` (copia)`), recortado para no pasar 180 caracteres. Conserva rangos de reps y el origen (`AI` o `TEMPLATE`; si no, `MANUAL`). 201 con la rutina nueva; 404 si no es del usuario.
+
+### Ejercicios propios: `GET /exercises`, `POST /exercises`
+
+- `GET /exercises` devuelve el catalogo global mas los ejercicios propios del usuario. Cada item trae `custom: true|false`.
+- `POST /exercises` con `{ "name": "Remo con banda", "primaryMuscleGroup": "Espalda", "equipment": "BAND" }` crea un ejercicio que solo ve ese usuario. `equipment` opcional: `BARBELL`, `DUMBBELL`, `MACHINE`, `CABLE`, `BODYWEIGHT`, `FREE_WEIGHT`, `SMITH_MACHINE`, `BAND`, `KETTLEBELL` u `OTHER`. Si el usuario ya ve un ejercicio con ese nombre (sin distinguir mayusculas ni espacios repetidos), responde 200 con ese en vez de duplicarlo; si lo crea, 201.
+- Un ejercicio propio de otro usuario no se puede usar en rutinas ni en sesiones: `POST /workout-sessions` responde 400.
 
 ### Respuesta de rutina
 

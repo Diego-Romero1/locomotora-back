@@ -32,7 +32,7 @@ public class RoutineTemplateController {
             "BRO_SPLIT"
     );
     private static final Set<String> ALLOWED_DIFFICULTIES = Set.of("BEGINNER", "INTERMEDIATE", "ADVANCED");
-    private static final String GOAL_HYPERTROPHY = "HYPERTROPHY";
+    private static final String GOAL_HYPERTROPHY = com.locomotora.demo.routine.service.Objectives.BUILD_MUSCLE;
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -488,8 +488,7 @@ public class RoutineTemplateController {
     }
 
     private String normalizeGoal(String goal) {
-        String normalized = nullableTrimmed(goal);
-        return normalized == null ? null : normalized.toUpperCase(Locale.ROOT);
+        return com.locomotora.demo.routine.service.Objectives.canonicalOrRaw(nullableTrimmed(goal));
     }
 
     private String normalizeGoalWithFallback(String goal) {
@@ -498,7 +497,6 @@ public class RoutineTemplateController {
             return GOAL_HYPERTROPHY;
         }
         return switch (normalized) {
-            case GOAL_HYPERTROPHY, "BUILD_MUSCLE", "GAIN_MUSCLE", "HIPERTROFIA" -> GOAL_HYPERTROPHY;
             default -> GOAL_HYPERTROPHY;
         };
     }

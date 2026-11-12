@@ -17,19 +17,20 @@ public class RoutineWriteRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public UUID createRoutine(UUID userId, RoutineRequest request, String difficulty, UUID categoryId, boolean categoriesAvailable) {
+    public UUID createRoutine(UUID userId, RoutineRequest request, String objective, String source, String difficulty, UUID categoryId, boolean categoriesAvailable) {
         if (categoriesAvailable) {
             return jdbcTemplate.queryForObject(
                     """
                     INSERT INTO routines (user_id, title, description, objective, source, difficulty, estimated_duration_minutes, days_per_week, category_id)
-                    VALUES (?, ?, ?, ?, 'MANUAL', ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     RETURNING id
                     """,
                     UUID.class,
                     userId,
                     request.title().trim(),
                     request.description(),
-                    request.objective(),
+                    objective,
+                    source,
                     difficulty,
                     request.estimatedDurationMinutes(),
                     request.daysPerWeek(),
@@ -40,14 +41,15 @@ public class RoutineWriteRepository {
         return jdbcTemplate.queryForObject(
                 """
                 INSERT INTO routines (user_id, title, description, objective, source, difficulty, estimated_duration_minutes, days_per_week)
-                VALUES (?, ?, ?, ?, 'MANUAL', ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 RETURNING id
                 """,
                 UUID.class,
                 userId,
                 request.title().trim(),
                 request.description(),
-                request.objective(),
+                objective,
+                source,
                 difficulty,
                 request.estimatedDurationMinutes(),
                 request.daysPerWeek()
@@ -67,7 +69,7 @@ public class RoutineWriteRepository {
         return count != null && count > 0;
     }
 
-    public int updateRoutine(UUID routineId, UUID userId, RoutineRequest request, String difficulty, UUID categoryId, boolean categoriesAvailable) {
+    public int updateRoutine(UUID routineId, UUID userId, RoutineRequest request, String objective, String difficulty, UUID categoryId, boolean categoriesAvailable) {
         if (categoriesAvailable) {
             return jdbcTemplate.update(
                     """
@@ -78,7 +80,7 @@ public class RoutineWriteRepository {
                     """,
                     request.title().trim(),
                     request.description(),
-                    request.objective(),
+                    objective,
                     difficulty,
                     request.estimatedDurationMinutes(),
                     request.daysPerWeek(),
@@ -97,7 +99,7 @@ public class RoutineWriteRepository {
                 """,
                 request.title().trim(),
                 request.description(),
-                request.objective(),
+                objective,
                 difficulty,
                 request.estimatedDurationMinutes(),
                 request.daysPerWeek(),
@@ -170,26 +172,38 @@ public class RoutineWriteRepository {
         );
     }
 
-    public UUID findOrCreateExercise(ExerciseRequest exercise) {
+    /**
+     * Ejercicio del catalogo para una fila de rutina: por id (global o propio del usuario), si no por
+     * nombre entre los que el usuario ve, y si no existe se crea como ejercicio propio. Nunca crea
+     * ejercicios globales: un nombre mal escrito no aparece en el catalogo de otros usuarios (H10).
+     */
+    public UUID findOrCreateExercise(ExerciseRequest exercise, UUID userId) {
         UUID requestedExerciseId = parseUuid(exercise.exerciseId());
-        if (requestedExerciseId != null && exerciseExists(requestedExerciseId)) {
+        if (requestedExerciseId != null && exerciseVisible(requestedExerciseId, userId)) {
             return requestedExerciseId;
         }
 
         return jdbcTemplate.query(
-                "SELECT id FROM exercises WHERE lower(name) = lower(?) ORDER BY created_at LIMIT 1",
+                """
+                SELECT id FROM exercises
+                WHERE lower(name) = lower(?) AND (created_by_user_id IS NULL OR created_by_user_id = ?)
+                ORDER BY created_by_user_id NULLS FIRST
+                LIMIT 1
+                """,
                 (rs, rowNum) -> rs.getObject("id", UUID.class),
-                exercise.name().trim()
+                exercise.name().trim(),
+                userId
         ).stream().findFirst().orElseGet(() -> jdbcTemplate.queryForObject(
                 """
-                INSERT INTO exercises (name, primary_muscle_group, difficulty)
-                VALUES (?, ?, ?)
+                INSERT INTO exercises (name, primary_muscle_group, difficulty, created_by_user_id)
+                VALUES (?, ?, ?, ?)
                 RETURNING id
                 """,
                 UUID.class,
                 exercise.name().trim(),
                 exercise.primaryMuscleGroup(),
-                exercise.difficulty()
+                exercise.difficulty(),
+                userId
         ));
     }
 
@@ -246,11 +260,15 @@ public class RoutineWriteRepository {
                 : (exercise.repsMax() != null ? exercise.repsMax() : exercise.repsMin());
     }
 
-    private boolean exerciseExists(UUID exerciseId) {
+    private boolean exerciseVisible(UUID exerciseId, UUID userId) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM exercises WHERE id = ? AND is_active = true",
+                """
+                SELECT count(*) FROM exercises
+                WHERE id = ? AND is_active = true AND (created_by_user_id IS NULL OR created_by_user_id = ?)
+                """,
                 Integer.class,
-                exerciseId
+                exerciseId,
+                userId
         );
         return count != null && count > 0;
     }
