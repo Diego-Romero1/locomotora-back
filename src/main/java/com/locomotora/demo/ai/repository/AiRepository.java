@@ -122,7 +122,7 @@ public class AiRepository {
 
     public int countCompletedWorkouts(UUID userId) {
         Integer workouts = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM workout_sessions WHERE user_id = ? AND status = 'COMPLETED'",
+                "SELECT count(*) FROM workout_sessions WHERE user_id = ? AND status = 'COMPLETED' AND kind <> 'QUICK_LOG'",
                 Integer.class,
                 userId
         );

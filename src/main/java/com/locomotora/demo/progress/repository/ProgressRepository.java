@@ -19,7 +19,7 @@ public class ProgressRepository {
 
     public int countCompletedWorkouts(UUID userId) {
         Integer count = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM workout_sessions WHERE user_id = ? AND status = 'COMPLETED'",
+                "SELECT count(*) FROM workout_sessions WHERE user_id = ? AND status = 'COMPLETED' AND kind <> 'QUICK_LOG'",
                 Integer.class,
                 userId
         );
@@ -40,7 +40,8 @@ public class ProgressRepository {
                 """
                 SELECT count(DISTINCT completed_at::date)
                 FROM workout_sessions
-                WHERE user_id = ? AND status = 'COMPLETED' AND completed_at >= now() - interval '30 days'
+                WHERE user_id = ? AND status = 'COMPLETED' AND kind <> 'QUICK_LOG'
+                  AND completed_at >= now() - interval '30 days'
                 """,
                 Integer.class,
                 userId
@@ -53,9 +54,9 @@ public class ProgressRepository {
                 """
                 SELECT ws.id,
                        ws.routine_id,
-                       COALESCE(r.title, 'Rutina') AS routine_title,
+                       COALESCE(r.title, ws.routine_title, 'Rutina') AS routine_title,
                        ws.routine_day_id,
-                       rd.title AS routine_day_title,
+                       COALESCE(rd.title, ws.day_title) AS routine_day_title,
                        ws.completed_at
                 FROM workout_sessions ws
                 LEFT JOIN routines r ON r.id = ws.routine_id
@@ -98,7 +99,7 @@ public class ProgressRepository {
                 JOIN exercises e ON e.id = wel.exercise_id
                 WHERE ws.id = ?
                   AND wel.completed = true
-                ORDER BY wel.created_at, wel.set_number, e.name
+                ORDER BY COALESCE(wel.exercise_position, 0), wel.created_at, wel.set_number, e.name
                 """,
                 this::mapExerciseActivity,
                 sessionId

@@ -198,6 +198,7 @@ Campos principales:
 | V6      | `V6__routine_templates_hypertrophy.sql`  | `routines.user_id` opcional, `template_key`, `routine_split`. 4 ejercicios mas y 7 plantillas multi-dia. |
 | V7      | `V7__normalize_exercise_catalog.sql`     | Unifica grupos musculares sin tilde (`Cuadriceps`, `Triceps`, `Biceps`, `Gluteos`) con la forma con tilde. |
 | V8      | `V8__deferrable_routine_order_constraints.sql` | `UNIQUE (routine_id, day_index)` y `UNIQUE (routine_day_id, position)` pasan a `DEFERRABLE INITIALLY DEFERRED`, para reordenar dentro de una transaccion. |
+| V9      | `V9__workout_sessions_v2.sql`            | Sesiones v2: `client_session_id` (unico por usuario), `kind`, copia de `routine_title`/`day_title`; en logs, `exercise_position` y el plan del momento. Marca como `QUICK_LOG` los registros sueltos existentes. |
 
 ### Tablas agregadas en V2 y V3
 
@@ -243,6 +244,9 @@ Campos principales:
 - `status`
 - `perceived_exertion`
 - `notes`
+- `client_session_id` (V9): uuid generado en el telefono. `UNIQUE (user_id, client_session_id)` hace idempotente `POST /workout-sessions`.
+- `kind` (V9): `ROUTINE` (con rutina), `FREE` (sin rutina) o `QUICK_LOG` (registro suelto de `POST /exercises/{id}/logs`). Los `QUICK_LOG` no cuentan como entrenamientos en `/progress/summary`.
+- `routine_title`, `day_title` (V9): copia al guardar, para que el historial siga legible si se renombra o borra el dia.
 
 ### `workout_exercise_logs`
 
@@ -261,6 +265,10 @@ Campos principales:
 - `distance_meters`
 - `completed`
 - `notes`
+- `exercise_position` (V9): orden del ejercicio en la sesion.
+- `target_reps_min`, `target_reps_max`, `target_weight_kg`, `rest_seconds` (V9): plan del momento, copiado de `routine_exercises`. El registro no depende de la rutina actual.
+
+Desde la Fase 1 hay **una fila por serie** (`set_number` 1..N). Las sesiones anteriores tienen una fila por ejercicio con `set_number = 1`.
 
 ### `nutrition_entries`
 
@@ -334,6 +342,7 @@ Campos principales:
 - `routine_exercises.routine_day_id, position`.
 - `workout_sessions.user_id, completed_at desc`.
 - `workout_exercise_logs.workout_session_id`.
+- `workout_exercise_logs.exercise_id, created_at desc` (V9), para "la vez pasada" e historial por ejercicio.
 - `nutrition_entries.user_id, entry_date desc`.
 - `ai_conversations.user_id, updated_at desc`.
 - `ai_messages.conversation_id, created_at`.

@@ -28,12 +28,7 @@ public class ExerciseProgressService {
         }
 
         Instant completedAt = request.completedAt() == null ? Instant.now() : Instant.parse(request.completedAt());
-        UUID sessionId = workoutSessionRepository.createCompletedSession(
-                userId,
-                null,
-                null,
-                Timestamp.from(completedAt)
-        );
+        UUID sessionId = workoutSessionRepository.createQuickLogSession(userId, Timestamp.from(completedAt));
 
         workoutSessionRepository.insertStandaloneExerciseLog(
                 sessionId,

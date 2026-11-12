@@ -46,14 +46,34 @@ public class WorkoutSessionRepository {
     public UUID createCompletedSession(UUID userId, UUID routineId, UUID routineDayId, Timestamp completedAt) {
         return jdbcTemplate.queryForObject(
                 """
-                INSERT INTO workout_sessions (user_id, routine_id, routine_day_id, started_at, completed_at, status)
-                VALUES (?, ?, ?, ?, ?, 'COMPLETED')
+                INSERT INTO workout_sessions
+                    (user_id, routine_id, routine_day_id, started_at, completed_at, status, kind, routine_title, day_title)
+                VALUES (?, ?, ?, ?, ?, 'COMPLETED', 'ROUTINE',
+                        (SELECT title FROM routines WHERE id = ?),
+                        (SELECT title FROM routine_days WHERE id = ?))
                 RETURNING id
                 """,
                 UUID.class,
                 userId,
                 routineId,
                 routineDayId,
+                completedAt,
+                completedAt,
+                routineId,
+                routineDayId
+        );
+    }
+
+    /** Registro suelto de un ejercicio (sin rutina). No cuenta como entrenamiento. */
+    public UUID createQuickLogSession(UUID userId, Timestamp completedAt) {
+        return jdbcTemplate.queryForObject(
+                """
+                INSERT INTO workout_sessions (user_id, started_at, completed_at, status, kind)
+                VALUES (?, ?, ?, 'COMPLETED', 'QUICK_LOG')
+                RETURNING id
+                """,
+                UUID.class,
+                userId,
                 completedAt,
                 completedAt
         );

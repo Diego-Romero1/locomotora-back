@@ -1,6 +1,6 @@
 # Locomotora — Contexto técnico para agentes
 
-Actualizado: 2026-10-09
+Actualizado: 2026-11-11
 
 Este es el punto de entrada para cualquier persona o agente que trabaje en el repositorio.
 
@@ -46,10 +46,10 @@ El código vive en WSL (`/home/romero/my-stuff/locomotora-app`). Ejecutar las he
 | Java           | 21                                                                     |
 | Spring Boot    | 3.5.0 (web, security, validation, jdbc, data-jpa, actuator)            |
 | Acceso a datos | `JdbcTemplate` con SQL explícito. Sin entidades JPA.                   |
-| Migraciones    | Flyway, V1–V8. `ddl-auto=validate`.                                    |
+| Migraciones    | Flyway, V1–V9. `ddl-auto=validate`.                                    |
 | Base de datos  | PostgreSQL 17 (Docker, puerto local `5433`)                            |
 | Seguridad      | Spring Security + JWT HS256 propio (`JwtService`), BCrypt              |
-| Tests          | JUnit 5 + Mockito. 14 tests (contexto, `RoutineService`, `WorkoutLogService`). |
+| Tests          | JUnit 5 + Mockito. 25 tests (contexto, `RoutineService`, `WorkoutLogService`, `WorkoutSessionService`). |
 
 Variables relevantes (`application.properties`): `SPRING_DATASOURCE_URL`, `LOCOMOTORA_JWT_SECRET` (por defecto inseguro), `LOCOMOTORA_JWT_EXPIRATION_MINUTES` (1440), `LOCOMOTORA_CORS_ALLOWED_ORIGIN_PATTERNS`.
 
@@ -90,7 +90,8 @@ com.locomotora.demo
 - **Crear/editar** (`RoutineService`): normaliza y valida días y ejercicios, inserta la rutina con `source = 'MANUAL'`, y luego `syncDays` deja días y ejercicios iguales al request **conservando los ids existentes** (actualiza, inserta lo nuevo y borra lo ausente). Cada ejercicio se resuelve con `findOrCreateExercise` (por `exerciseId`, después por nombre, y si no existe crea uno global).
 - **Leer** (`RoutineReadService`): arma `RoutineResponse` con `days[]` y `exercises` (primer día, legado). Consultas N+1.
 - **Plantillas**: rutinas con `user_id IS NULL` y `source = 'TEMPLATE'`. "Usar" clona rutina, días y ejercicios al usuario.
-- **Registrar** (`WorkoutLogService`): crea una sesión `COMPLETED` asociada al primer día y una fila de log por ejercicio.
+- **Registrar** (`WorkoutSessionService`, `POST /workout-sessions`): la app manda la sesión entera al terminar. Es idempotente por `clientSessionId`, guarda una fila por serie con el plan del momento y copia los títulos. `WorkoutLogService` (`/workout-log`) queda como legado.
+- **Sesión en curso (frontend, `src/features/workout/`):** `WorkoutSessionContext` mantiene la sesión con `workoutReducer` y la escribe en AsyncStorage en cada cambio (`locomotora:workout:active:<userId>`). Al guardar, la sesión pasa a la cola (`locomotora:workout:queue:<userId>`) y se envía. Si falla por red, reintenta al volver a la app. Si el servidor la rechaza (4xx), queda marcada como fallida y se puede reintentar o borrar desde Inicio. Al recuperar una sesión que quedó "activa" (la app se cerró), pasa a pausada desde su último cambio.
 
 Ver H1–H4 en `SYSTEM_OVERVIEW.md` para los problemas de este flujo.
 
@@ -141,6 +142,7 @@ src/
 │   ├── common/                Button, Card
 │   ├── routines/wizard/       Stepper, FieldDropdown, ExerciseConfigCard   ← sin commitear (H5)
 │   └── workout/               ExerciseCatalogGroupCard
+├── features/workout/          sesion en curso: reducer puro, cola de envio, AsyncStorage, contexto (ver 3.4)
 └── utils/                     exerciseCatalog, aiRoutineGenerator (IA simulada), progressInsights
 ```
 
@@ -160,7 +162,7 @@ AppNavigator (stack)
 │   ├── Progress
 │   ├── AI
 │   └── Profile
-├── Workout                       { routine, dayId? }  pantalla completa
+├── Workout                       sin parámetros: lee la sesión del contexto. Se abre con useStartWorkout
 ├── ExerciseGroup                 { groupName, exercises }
 └── ExerciseDetail                { exercise }
 ```
@@ -178,7 +180,7 @@ El catálogo de ejercicios se carga una vez en `TabNavigator` y se pasa como pro
 | RoutineDetail     | ✅             | Pestañas por día, editar/eliminar, usar plantilla, empezar entrenamiento del día elegido      |
 | RoutineForm (IA)  | 🟡 Simulado    | Generador local por palabras clave + `setTimeout` de 1,6 s, un solo día                       |
 | RoutineWizard     | ⚠️             | 3 pasos, un solo día; aplana rutinas multi-día al editar (H1)                                 |
-| Workout           | ⚠️             | Peso/reps compartidos entre series (H3), sin persistencia ni timer (H6)                       |
+| Workout           | ✅ Fase 1      | Estado por serie guardado en el teléfono, pausa/retoma, cierre con RPE. Sin timer (Fase 2)    |
 | Progress          | ✅             | Resumen, actividad reciente, métricas, nutrición del día                                      |
 | AI                | 🟡 Simulado    | Chat persistido; respuestas por palabras clave en backend                                     |
 | Profile           | ✅             | Datos, objetivo, foto, tema claro/oscuro, idioma, logout                                      |
@@ -226,6 +228,9 @@ cd locomotora-backend && ./mvnw test
 
 # Frontend (desde WSL)
 cd locomotora-frontend && npm run start
+
+# Tests del frontend (jest-expo)
+cd locomotora-frontend && npm test
 
 # Chequeo de tipos del frontend
 cd locomotora-frontend && npx tsc --noEmit

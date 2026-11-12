@@ -1,9 +1,52 @@
 # Plan de implementación — Rutinas: crear, entrenar y registrar
 
-Actualizado: 2026-10-09
+Actualizado: 2026-11-11
 
 > Prerrequisito: leer [`SYSTEM_OVERVIEW.md`](SYSTEM_OVERVIEW.md). Los códigos H1, H2… refieren a los hallazgos de ese documento.
 > Tamaños: **S** = menos de 1 día, **M** = 1 a 3 días, **L** = más de 3 días (una persona).
+
+## Plan vigente (aprobado el 2026-11-11)
+
+El 2026-11-11 se aprobo reordenar las fases para registrar bien antes de crear mas facil: cada sesion guardada con `/workout-log` perdia las series para siempre, y las plantillas ya cubrian las rutinas de varios dias. Las tareas de abajo conservan sus codigos originales; esta tabla dice en que fase nueva cae cada una.
+
+| Fase nueva                    | Contenido                                                                                       | Tareas originales                    | Estado        |
+| ----------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------ | ------------- |
+| 1. Registro fiel              | V9, `POST /workout-sessions` idempotente, estado por serie guardado en el telefono, pausar/retomar/descartar, cierre con RPE y notas, cola de envio, tests | 2.B1, 2.B2, 2.B5, 2.F1, 2.F6, 2.F7, 4.2 (reducer) | ✅ 2026-11-11 |
+| 2. Entrenar sin friccion      | "La vez pasada" y prellenado, botones + y −, timer de descanso, lista del dia, saltar o reemplazar ejercicio, pantalla Hoy con rotacion de dias (`GET /today`) y barra de 4 pestañas | 2.B3, 2.B4, 2.F2, 2.F3, 2.F4, 2.F5, 2.F8 | Pendiente |
+| 3. Medir el rendimiento       | Historial paginado, detalle, editar y borrar sesiones, progreso por ejercicio, records, racha semanal | 3.1–3.5                              | Pendiente     |
+| 4. Crear facil                | Wizard v2 multi-dia, punto de partida, duplicar, ejercicios propios, i18n del wizard            | Fase 1 original (1.F1–1.F8, 1.B2–1.B5) | Pendiente   |
+| 5. Base tecnica e IA real     | Testcontainers, refactor de plantillas, N+1, JWT/refresh, OpenAPI, restos del starter, IA real  | Fase 4 y Fase 5 originales           | Pendiente     |
+
+Decisiones aprobadas junto con el plan:
+
+- **Sin señal primero:** la sesion vive en el telefono (AsyncStorage) y se envia una sola vez al final, con un `clientSessionId` para reintentar sin duplicar.
+- **Plan del momento en cada serie:** el log copia reps objetivo, peso objetivo y descanso; la sesion copia los titulos de rutina y dia.
+- **Cuatro pestañas** (Hoy, Rutinas, Progreso, Perfil); el coach IA pasa a "Crear con IA" y a una tarjeta en Hoy. Se implementa en la Fase 2.
+- **Racha semanal** (semanas seguidas cumpliendo los dias objetivo). Se implementa en la Fase 3.
+- **Series de calentamiento** (`set_type`): opcional, despues de la Fase 3.
+
+### Avance de la Fase 1 (2026-11-11, rama `main`)
+
+Backend:
+
+- `V9__workout_sessions_v2.sql`: `client_session_id` + `UNIQUE (user_id, client_session_id)`, `kind` (`ROUTINE`/`FREE`/`QUICK_LOG`), `routine_title`, `day_title`; en logs `exercise_position`, `target_reps_min`, `target_reps_max`, `target_weight_kg`, `rest_seconds`; indice `(exercise_id, created_at desc)`. Marca como `QUICK_LOG` los registros sueltos ya existentes.
+- `WorkoutSessionController` + `WorkoutSessionService` + `WorkoutSessionWriteRepository`: `POST /workout-sessions` (contrato en `API.md`).
+- `POST /exercises/{id}/logs` crea sesiones `QUICK_LOG`, que ya no cuentan en `/progress/summary` ni en el contexto del coach (H18).
+- JSON mal formado responde 400 en lugar de 500.
+- 11 tests nuevos en `WorkoutSessionServiceTest` (25 en total). Probado contra Postgres: reintento devuelve `200` y la misma sesion, una fila por serie, duracion real.
+
+Frontend:
+
+- `src/features/workout/`: `workoutSession.ts` (reducer puro por serie, duracion sin pausas, armado del envio), `syncQueue.ts` (cola con reintento y clasificacion de errores), `workoutStorage.ts` (AsyncStorage por usuario), `WorkoutSessionContext.tsx` (estado global, guardado en cada cambio, reenvio al volver a la app) y `useStartWorkout.ts` (no pisa una sesion en curso).
+- `WorkoutScreen` reescrita: peso y reps por serie, agregar o quitar series, salir pausa, cierre con duracion, volumen, RPE y notas, descartar con confirmacion.
+- Inicio muestra "Entrenamiento en curso · Continuar" y las sesiones sin enviar o rechazadas.
+- La pantalla de entrenamiento ya no recibe la rutina por parametro (`Workout: undefined`). Se quito `postWorkoutLog` del frontend.
+- `jest-expo` configurado: 33 tests de reducer y cola (`npm test`). Se agrego `@react-native-async-storage/async-storage`.
+- Probado: el envio que arma la app contra el backend real coincide en series, volumen y duracion.
+
+Pendiente de la Fase 1: probarla en un telefono real (modo avion, matar la app a mitad), porque hasta ahora se verifico con tests y contra la API.
+
+---
 
 ## Objetivo
 

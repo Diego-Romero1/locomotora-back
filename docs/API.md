@@ -65,7 +65,8 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `POST`   | `/routines/recommendation/use`      | Clona la plantilla recomendada                                  |
 | `GET`    | `/exercises`                        | Catalogo de ejercicios activos                                  |
 | `POST`   | `/exercises/{id}/logs`              | Registro suelto de un ejercicio (fuera de rutina)               |
-| `POST`   | `/workout-log`                      | Registra un entrenamiento completado                            |
+| `POST`   | `/workout-sessions`                 | Guarda una sesion completa, una fila por serie (idempotente)    |
+| `POST`   | `/workout-log`                      | Legado: un registro por ejercicio. La app ya no lo usa          |
 | `GET`    | `/progress/summary`                 | Resumen de progreso                                             |
 | `GET`    | `/progress/activity`                | Ultimas 10 sesiones con sus ejercicios                          |
 | `GET`    | `/metrics`                          | Ultimas 100 metricas corporales                                 |
@@ -196,7 +197,57 @@ Reglas (`RoutineService`):
 
 ## Entrenamientos
 
-### `POST /workout-log`
+### `POST /workout-sessions`
+
+Guarda un entrenamiento terminado en un solo envio. Lo usa la app desde la Fase 1.
+
+```json
+{
+  "clientSessionId": "uuid generado en el telefono",
+  "routineId": "... (opcional: sin rutina = sesion libre)",
+  "routineDayId": "... (opcional: si falta, primer dia)",
+  "startedAt": "2026-11-11T18:02:00Z",
+  "completedAt": "2026-11-11T18:56:00Z",
+  "perceivedExertion": 8,
+  "notes": "Buena sesion",
+  "exercises": [
+    {
+      "routineExerciseId": "... (opcional)",
+      "exerciseId": "...",
+      "position": 1,
+      "notes": null,
+      "sets": [
+        { "setNumber": 1, "reps": 10, "weightKg": 80, "completed": true },
+        { "setNumber": 2, "reps": 10, "weightKg": 82.5, "completed": true }
+      ]
+    }
+  ]
+}
+```
+
+Respuesta (`201` si se creo, `200` si ya existia):
+
+```json
+{
+  "id": "...", "clientSessionId": "...", "kind": "ROUTINE",
+  "routineId": "...", "routineDayId": "...", "routineTitle": "...", "dayTitle": "Lower A",
+  "startedAt": "...", "completedAt": "...", "durationSeconds": 3240,
+  "completedSets": 13, "totalVolumeKg": 12797.50
+}
+```
+
+Comportamiento:
+
+- **Idempotente** por `(usuario, clientSessionId)`: reenviar devuelve la sesion ya guardada (`200`) sin duplicar. Dos envios simultaneos tambien terminan en una sola sesion (`ON CONFLICT DO NOTHING`).
+- Inserta **una fila por serie** en `workout_exercise_logs`, con `exercise_position` y una copia del plan del momento (`target_reps_min`, `target_reps_max`, `target_weight_kg`, `rest_seconds`).
+- La rutina debe ser del usuario; puede estar borrada (soft delete), para que una sesion que esperaba en la cola del telefono se pueda guardar igual. Si no es del usuario: 404.
+- El dia debe pertenecer a la rutina (si no, 400). `routineDayId` sin `routineId`: 400.
+- Si `routineExerciseId` ya no esta en la rutina (se edito mientras la sesion esperaba) o no coincide con `exerciseId`, la serie se guarda igual sin vinculo al plan. `exerciseId` desconocido: 400.
+- 400 tambien si: no hay series con `completed = true`, hay `setNumber` repetido en un ejercicio, `completedAt < startedAt`, la sesion dura mas de 12 h o `completedAt` esta mas de 10 min en el futuro.
+- Guarda `kind` (`ROUTINE` con rutina, `FREE` sin rutina) y copia `routine_title` y `day_title`.
+- La duracion es `completedAt − startedAt`. La app corre `startedAt` para descontar las pausas.
+
+### `POST /workout-log` (legado)
 
 ```json
 {
@@ -220,7 +271,7 @@ Comportamiento actual:
 - Si viene `completedExercises`, se usa; si no, `completedExerciseIds` con las reps/peso objetivo.
 - Inserta **una fila por ejercicio** con `set_number = 1` (H3).
 
-El reemplazo propuesto (`POST /workout-sessions`, con series e idempotencia) esta en `ROADMAP_RUTINAS.md`, Fase 2.
+Se mantiene para versiones viejas de la app. Se borra cuando ninguna lo use.
 
 ### `POST /exercises/{id}/logs`
 
