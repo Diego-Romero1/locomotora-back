@@ -13,7 +13,7 @@ El 2026-11-11 se aprobo reordenar las fases para registrar bien antes de crear m
 | ----------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------ | ------------- |
 | 1. Registro fiel              | V9, `POST /workout-sessions` idempotente, estado por serie guardado en el telefono, pausar/retomar/descartar, cierre con RPE y notas, cola de envio, tests | 2.B1, 2.B2, 2.B5, 2.F1, 2.F6, 2.F7, 4.2 (reducer) | ✅ 2026-11-11 |
 | 2. Entrenar sin friccion      | "La vez pasada" y prellenado, botones + y −, timer de descanso, lista del dia, saltar o reemplazar ejercicio, pantalla Hoy con rotacion de dias (`GET /today`) y barra de 4 pestañas | 2.B3, 2.B4, 2.F2, 2.F3, 2.F4, 2.F5, 2.F8 | ✅ 2026-11-12 |
-| 3. Medir el rendimiento       | Historial paginado, detalle, editar y borrar sesiones, progreso por ejercicio, records, racha semanal | 3.1–3.5                              | Pendiente     |
+| 3. Medir el rendimiento       | Historial paginado, detalle, editar y borrar sesiones, progreso por ejercicio, records, racha semanal | 3.1–3.5                              | ✅ 2026-11-12 |
 | 4. Crear facil                | Wizard v2 multi-dia, punto de partida, duplicar, ejercicios propios, i18n del wizard            | Fase 1 original (1.F1–1.F8, 1.B2–1.B5) | Pendiente   |
 | 5. Base tecnica e IA real     | Testcontainers, refactor de plantillas, N+1, JWT/refresh, OpenAPI, restos del starter, IA real  | Fase 4 y Fase 5 originales           | Pendiente     |
 
@@ -68,6 +68,35 @@ Frontend:
 - 16 tests nuevos de reducer (49 en total).
 
 Pendiente de la Fase 2: probar en un telefono el timer con la pantalla bloqueada y la notificacion. En Expo Go las notificaciones locales funcionan; las remotas no hacen falta.
+
+### Revision antes de la Fase 3 (2026-11-12)
+
+Se reviso lo commiteado de las Fases 1 y 2: tests, tipos y lint en verde; el backend de Docker ya corre la Fase 2. En la base no hay todavia sesiones guardadas desde la app con el formato nuevo, asi que falta la prueba en el telefono. Se corrigieron dos problemas:
+
+- Guardar mientras habia un envio en curso dejaba la sesion en la cola hasta el siguiente disparador. Ahora el envio se repite al terminar si se pidio otro mientras tanto.
+- `expo-notifications` se cargaba al abrir la app, y en Expo Go (Android) eso muestra un error por las notificaciones remotas. Ahora se carga al programar el primer aviso de descanso.
+
+### Avance de la Fase 3 (2026-11-12, rama `main`)
+
+Backend (`WorkoutHistoryController`, `WorkoutHistoryService`, `WorkoutHistoryRepository`, contratos en `API.md`):
+
+- `GET /workout-sessions` paginado por cursor, sin registros sueltos, con cantidad de records por sesion.
+- `GET /workout-sessions/{id}` con cada serie, el plan del momento y la serie record marcada.
+- `PUT /workout-sessions/{id}` corrige valores de series, borra series, esfuerzo y notas, en una transaccion. `DELETE` borra la sesion.
+- `GET /progress/exercises`, `GET /exercises/{id}/history` (puntos por sesion y records de todo el historial) y `GET /progress/weekly` (semanas en la zona horaria del telefono, con ceros).
+- Record = superar la mejor fuerza estimada (Epley) de las sesiones anteriores; la primera vez no cuenta.
+- 14 tests nuevos (52 en total). Probado contra Postgres: paginacion, records, correccion con recalculo del volumen, rollback al intentar dejar la sesion sin series, 404 tras borrar, semanas con ceros.
+
+Frontend:
+
+- Progreso con cuatro secciones: Resumen (racha semanal, dias de la semana, total, volumen de 8 semanas, mejores marcas), Historial (por mes, paginado, con las sesiones sin enviar arriba), Ejercicios (con buscador) y Cuerpo (medidas y nutricion, lo que ya existia).
+- Detalle de sesion: series contra el plan, records, notas; modo edicion para corregir valores, quitar series, esfuerzo y notas, y borrar la sesion.
+- Progreso de un ejercicio: grafico (fuerza estimada, mas peso o volumen) con `react-native-svg`, records que abren su sesion y sesiones recientes.
+- "Ultimo entrenamiento" en Hoy abre su detalle.
+- Se borraron `utils/progressInsights.ts` (racha diaria, volumen y records calculados con las ultimas 10 sesiones) y el uso de `/progress/activity`.
+- 7 tests nuevos de agrupado y escalas de graficos (56 en total). Contrato verificado: los tipos de la app coinciden campo por campo con las respuestas del backend.
+
+Pendiente de la Fase 3: probar las pantallas en un telefono.
 
 ---
 

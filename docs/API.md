@@ -70,7 +70,14 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `POST`   | `/workout-sessions`                 | Guarda una sesion completa, una fila por serie (idempotente)    |
 | `POST`   | `/workout-log`                      | Legado: un registro por ejercicio. La app ya no lo usa          |
 | `GET`    | `/progress/summary`                 | Resumen de progreso                                             |
-| `GET`    | `/progress/activity`                | Ultimas 10 sesiones con sus ejercicios                          |
+| `GET`    | `/progress/activity`                | Legado: ultimas 10 sesiones. La app usa `/workout-sessions`     |
+| `GET`    | `/workout-sessions?cursor=&limit=`  | Historial paginado (sin registros sueltos)                      |
+| `GET`    | `/workout-sessions/{id}`            | Detalle por serie, plan del momento y records                   |
+| `PUT`    | `/workout-sessions/{id}`            | Corrige series, esfuerzo y notas                                |
+| `DELETE` | `/workout-sessions/{id}`            | Borra la sesion con sus series                                  |
+| `GET`    | `/progress/exercises`               | Ejercicios entrenados con su mejor fuerza estimada              |
+| `GET`    | `/exercises/{id}/history?limit=`    | Progreso de un ejercicio: puntos por sesion y records           |
+| `GET`    | `/progress/weekly?tz=&weeks=`       | Totales por semana (sesiones, dias, series, volumen)            |
 | `GET`    | `/metrics`                          | Ultimas 100 metricas corporales                                 |
 | `POST`   | `/metrics`                          | Agrega metrica corporal                                         |
 | `GET`    | `/nutrition?date=`                  | Entradas de nutricion del dia                                   |
@@ -327,10 +334,76 @@ Registro suelto de un ejercicio del catalogo, sin rutina:
 
 Crea una sesion sin rutina y una fila de log.
 
+## Historial y progreso (Fase 3)
+
+Todos filtran por el usuario autenticado: una sesion de otro usuario responde 404.
+
+### `GET /workout-sessions?cursor=&limit=20`
+
+```json
+{
+  "items": [
+    {
+      "id": "...", "kind": "ROUTINE", "routineId": "...", "routineTitle": "Upper/Lower", "dayTitle": "Lower A",
+      "startedAt": "...", "completedAt": "...", "durationSeconds": 3240,
+      "completedSets": 13, "exerciseCount": 4, "totalVolumeKg": 12797.50,
+      "perceivedExertion": 8, "recordCount": 2
+    }
+  ],
+  "nextCursor": "opaco o null"
+}
+```
+
+- De la sesion mas nueva a la mas vieja. `limit` entre 1 y 50 (por defecto 20). Pasar `nextCursor` como `cursor` para la pagina siguiente; `null` indica que no hay mas. Cursor invalido: 400.
+- No incluye registros sueltos (`QUICK_LOG`). Los titulos salen de la copia guardada en la sesion (V9) o, en sesiones viejas, de la rutina.
+- `recordCount`: ejercicios cuya mejor serie supera la mejor fuerza estimada de las sesiones anteriores. La primera vez que se hace un ejercicio no es record.
+
+### `GET /workout-sessions/{id}`
+
+`{ session: <item de la lista>, notes, exercises: [{ position, exerciseId, name, primaryMuscleGroup, routineExerciseId, plan: { repsMin, repsMax, weightKg, restSeconds } | null, notes, sets: [{ id, setNumber, reps, weightKg, completed, record }] }] }`
+
+- `plan` es la copia del momento (null en sesiones anteriores a V9). `record = true` marca la serie que supero la mejor marca previa.
+
+### `PUT /workout-sessions/{id}`
+
+```json
+{
+  "perceivedExertion": 9,
+  "notes": "corregido",
+  "sets": [ { "id": "...", "reps": 9, "weightKg": 65 } ],
+  "deletedSetIds": [ "..." ]
+}
+```
+
+- Corrige valores de series existentes y borra series. No agrega series nuevas.
+- `perceivedExertion` y `notes` se reemplazan por lo enviado (null los borra).
+- 400 si una serie no es de la sesion, si una serie se edita y se borra a la vez, o si la sesion quedaria sin series hechas (para eso esta `DELETE`). Todo es una transaccion: un error no deja cambios a medias.
+- Devuelve el detalle actualizado.
+
+### `DELETE /workout-sessions/{id}`
+
+Borra la sesion y sus series. 204; 404 si no existe o es de otro usuario.
+
+### `GET /progress/exercises`
+
+`[{ exerciseId, name, primaryMuscleGroup, sessionCount, lastCompletedAt, bestEstimatedOneRepMaxKg }]`, del ultimo entrenado al mas viejo. Incluye registros sueltos.
+
+### `GET /exercises/{id}/history?limit=30`
+
+`{ exerciseId, name, primaryMuscleGroup, points: [...], records: { bestEstimatedOneRepMax, heaviest, mostVolume } }`
+
+- `points`: las ultimas `limit` sesiones (1 a 100) con el ejercicio, de la mas vieja a la mas nueva: `{ sessionId, completedAt, bestWeightKg, bestReps, estimatedOneRepMaxKg, volumeKg, setCount }`. La mejor serie es la de mayor fuerza estimada.
+- `records` se calculan sobre todo el historial: `{ value, weightKg, reps, completedAt, sessionId }`. `value` es la fuerza estimada, el peso o el volumen segun el record.
+- 404 si el ejercicio no existe.
+
+### `GET /progress/weekly?tz=America/Argentina/Buenos_Aires&weeks=8`
+
+`[{ weekStart, sessions, trainedDays, completedSets, volumeKg }]`, de la semana mas vieja a la actual, con ceros en las semanas sin entrenar. `weeks` entre 1 y 52. Sin registros sueltos.
+
 ## Progreso
 
 - `GET /progress/summary` → `{ completedWorkouts, activeRoutines, activeDaysLast30, latestMetric }`
-- `GET /progress/activity` → ultimas 10 sesiones: `{ id, routineId, routineTitle, routineDayId, routineDayTitle, completedAt, exercises: [{ id, exerciseId, exerciseName, primaryMuscleGroup, reps, weightKg, completedAt }] }`
+- `GET /progress/activity` (legado) → ultimas 10 sesiones: `{ id, routineId, routineTitle, routineDayId, routineDayTitle, completedAt, exercises: [{ id, exerciseId, exerciseName, primaryMuscleGroup, reps, weightKg, completedAt }] }`
 - `GET /metrics`, `POST /metrics` → `{ id, measuredAt, weightKg, bodyFatPercentage, waistCm, chestCm, hipCm, armCm, legCm, notes }`
 
 ## Nutricion

@@ -26,7 +26,7 @@ El sistema tiene **mucha superficie y poca profundidad**: casi todos los módulo
 | 2. Rutinas y entrenamientos   | ⚠️ ~60 %        | CRUD, catálogo (109 ejercicios) y 7 plantillas listos. Wizard de un solo día. Registro superficial. |
 | 3. Progreso y perfil          | ⚠️ Parcial      | Onboarding, perfil, métricas, actividad reciente. Sin PRs, volumen ni racha real.                   |
 | 4. IA y nutrición             | 🟡 Simulado     | Coach y generador de rutinas son reglas por palabras clave, sin modelo real.                        |
-| 5. Escalabilidad y calidad    | ⚠️ Bajo         | 38 tests backend, 49 tests frontend (reducer y cola), sin CI ni OpenAPI.                             |
+| 5. Escalabilidad y calidad    | ⚠️ Bajo         | 52 tests backend, 56 tests frontend (reducers, cola, gráficos), sin CI ni OpenAPI.                           |
 
 Además hay un **rediseño visual en curso** (handoff en `locomotora-backend/docs/design_handoff_locomotora_redesign/` y wizard en `locomotora-backend/docs/design_routine_wizard_redesign/`). El wizard nuevo está implementado (un solo día por rutina).
 
@@ -39,12 +39,14 @@ Además hay un **rediseño visual en curso** (handoff en `locomotora-backend/doc
 | Crear (IA)           | Pantalla con prompt y resultado.                                                                       | Generador local por palabras clave con espera simulada. Un solo día. Se guarda como `MANUAL`.          |
 | Entrenar             | Serie activa prellenada con la vez pasada, botones + y −, timer de descanso con vibración y aviso, lista del día, reemplazar ejercicio, aviso de récord. Guardado en el teléfono. | Sin calentamiento marcado (opcional, después de la Fase 3).                                          |
 | Registrar            | `POST /workout-sessions`: una fila por serie, día correcto, duración real, RPE y notas, idempotente. Cola de reenvío sin señal. | —                                                                                                     |
-| Consultar historial  | `GET /progress/activity` (últimas 10 sesiones) y resumen (`/progress/summary`).                        | Sin historial paginado, sin detalle por serie, sin progreso por ejercicio. Racha hardcodeada en 7.     |
+| Consultar historial  | Historial paginado, detalle por serie con el plan y los récords, corregir o borrar una sesión, progreso por ejercicio con gráfico y récords, volumen por semana. | Racha y récords usan el objetivo y la fórmula actuales (Epley) para todo el historial.               |
 
 ## Hallazgos principales
 
 Los identificadores (H1, H2…) se usan en el roadmap.
 
+> **Avance Fase 3 · Medir el rendimiento (2026-11-12, `main`):** historial, detalle y corrección de sesiones, progreso por ejercicio y volumen semanal desde el servidor. Progreso deja de calcular racha, volumen y récords en el teléfono con las últimas 10 sesiones.
+>
 > **Avance Fase 2 · Entrenar sin fricción (2026-11-12, `main`):** H7 resuelto. Pantalla Hoy con el día que toca, semana y racha semanal; "la vez pasada", botones + y −, timer de descanso con aviso, lista del día y reemplazo de ejercicio. Barra de 4 pestañas.
 >
 > **Avance Fase 1 · Registro fiel (2026-11-11, `main`):** H3 resuelto: una fila por serie con `POST /workout-sessions`. H6 resuelto: la sesion se guarda en el telefono en cada cambio, se retoma desde Inicio, tiene duracion real y se reenvia sin duplicar. H18 resuelto. El plan cambio de orden: ver "Plan vigente" en `ROADMAP_RUTINAS.md`.

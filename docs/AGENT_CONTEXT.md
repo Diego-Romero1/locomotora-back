@@ -49,7 +49,7 @@ El código vive en WSL (`/home/romero/my-stuff/locomotora-app`). Ejecutar las he
 | Migraciones    | Flyway, V1–V9. `ddl-auto=validate`.                                    |
 | Base de datos  | PostgreSQL 17 (Docker, puerto local `5433`)                            |
 | Seguridad      | Spring Security + JWT HS256 propio (`JwtService`), BCrypt              |
-| Tests          | JUnit 5 + Mockito. 38 tests (contexto, `RoutineService`, `WorkoutLogService`, `WorkoutSessionService`, `TrainingService`, `TrainingCalendar`). |
+| Tests          | JUnit 5 + Mockito. 52 tests (contexto, `RoutineService`, `WorkoutLogService`, `WorkoutSessionService`, `TrainingService`, `TrainingCalendar`, `WorkoutHistoryService`). |
 
 Variables relevantes (`application.properties`): `SPRING_DATASOURCE_URL`, `LOCOMOTORA_JWT_SECRET` (por defecto inseguro), `LOCOMOTORA_JWT_EXPIRATION_MINUTES` (1440), `LOCOMOTORA_CORS_ALLOWED_ORIGIN_PATTERNS`.
 
@@ -164,7 +164,9 @@ AppNavigator (stack)
 │   └── Profile
 ├── Workout                       sin parámetros: lee la sesión del contexto. Se abre con useStartWorkout
 ├── ExerciseGroup                 { groupName, exercises }
-└── ExerciseDetail                { exercise }
+├── ExerciseDetail                { exercise }
+├── SessionDetail                 { id }  detalle, corregir y borrar una sesión
+└── ExerciseProgress              { exerciseId, name? }  gráfico y récords
 ```
 
 El catálogo de ejercicios se carga una vez en `TabNavigator` y se pasa como props a `RoutinesNavigator`.
@@ -181,7 +183,7 @@ El catálogo de ejercicios se carga una vez en `TabNavigator` y se pasa como pro
 | RoutineForm (IA)  | 🟡 Simulado    | Generador local por palabras clave + `setTimeout` de 1,6 s, un solo día                       |
 | RoutineWizard     | ⚠️             | 3 pasos, un solo día; aplana rutinas multi-día al editar (H1)                                 |
 | Workout           | ✅ Fase 2      | Serie activa con + y −, la vez pasada, timer de descanso, lista del día, reemplazo, récords   |
-| Progress          | ✅             | Resumen, actividad reciente, métricas, nutrición del día                                      |
+| Progress          | ✅ Fase 3      | Resumen, Historial, Ejercicios y Cuerpo; detalle y corrección de sesión; progreso por ejercicio |
 | AI                | 🟡 Simulado    | Chat persistido; respuestas por palabras clave en backend                                     |
 | Profile           | ✅             | Datos, objetivo, foto, tema claro/oscuro, idioma, logout                                      |
 
