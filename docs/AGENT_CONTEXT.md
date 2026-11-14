@@ -19,7 +19,7 @@ Este es el punto de entrada para cualquier persona o agente que trabaje en el re
 
 ## 1. Qué es el sistema
 
-App móvil de entrenamiento. El foco actual es el ciclo **crear rutina → entrenar → guardar registro**. Además tiene onboarding, perfil, métricas corporales, nutrición y un coach IA (simulado).
+App móvil de entrenamiento. El foco actual es el ciclo **crear rutina → entrenar → guardar registro**. Además tiene onboarding, perfil, métricas corporales, nutrición y un coach IA con Claude (modelo elegible por usuario).
 
 Arquitectura cliente-servidor: app Expo/React Native ↔ API REST Spring Boot ↔ PostgreSQL.
 
@@ -29,7 +29,7 @@ Arquitectura cliente-servidor: app Expo/React Native ↔ API REST Spring Boot �
 locomotora-app/                      ← la raíz NO es un repo git (tiene un .git vacío)
 ├── locomotora-backend/              ← repo principal (locomotora-back). Spring Boot 3.5 / Java 21
 │   └── docs/                        ← esta documentación (de todo el sistema)
-├── locomotora-frontend/             ← repo propio (locomotora-app). Expo 54 / RN 0.81 / TS 5.9
+├── locomotora-frontend/             ← repo propio (locomotora-app). Expo 58 / RN 0.88 / TS 6.0
 └── rediseno-creacion-rutinas.html   ← canvas de diseño exportado (2.5 MB), sin versionar
 ```
 
@@ -46,12 +46,13 @@ El código vive en WSL (`/home/romero/my-stuff/locomotora-app`). Ejecutar las he
 | Java           | 21                                                                     |
 | Spring Boot    | 3.5.0 (web, security, validation, jdbc, data-jpa, actuator)            |
 | Acceso a datos | `JdbcTemplate` con SQL explícito. Sin entidades JPA.                   |
-| Migraciones    | Flyway, V1–V9. `ddl-auto=validate`.                                    |
+| Migraciones    | Flyway, V1–V12. `ddl-auto=validate`.                                   |
 | Base de datos  | PostgreSQL 17 (Docker, puerto local `5433`)                            |
 | Seguridad      | Spring Security + JWT HS256 propio (`JwtService`), BCrypt              |
-| Tests          | JUnit 5 + Mockito. 59 tests (contexto, `RoutineService`, `WorkoutLogService`, `WorkoutSessionService`, `TrainingService`, `TrainingCalendar`, `WorkoutHistoryService`, duplicar/origen/objetivo/ejercicios propios). |
+| Tests          | JUnit 5 + Mockito. 84 tests (contexto, `RoutineService`, `WorkoutLogService`, `WorkoutSessionService`, `TrainingService`, `TrainingCalendar`, `WorkoutHistoryService`, duplicar/origen/objetivo/ejercicios propios, coach y generador IA con cliente simulado). |
+| IA             | Claude vía `anthropic-java` 3.3.0 (`ai/client/AnthropicModelClient`). Modelos permitidos y por defecto en `locomotora.ai.*`; cada usuario elige el suyo (`user_ai_settings`). Sin `ANTHROPIC_API_KEY` el coach responde con reglas locales. |
 
-Variables relevantes (`application.properties`): `SPRING_DATASOURCE_URL`, `LOCOMOTORA_JWT_SECRET` (por defecto inseguro), `LOCOMOTORA_JWT_EXPIRATION_MINUTES` (1440), `LOCOMOTORA_CORS_ALLOWED_ORIGIN_PATTERNS`.
+Variables relevantes (`application.properties`): `SPRING_DATASOURCE_URL`, `LOCOMOTORA_JWT_SECRET` (por defecto inseguro), `LOCOMOTORA_JWT_EXPIRATION_MINUTES` (1440), `LOCOMOTORA_CORS_ALLOWED_ORIGIN_PATTERNS`, `ANTHROPIC_API_KEY` y `LOCOMOTORA_AI_*` (ver `API.md` → IA).
 
 ### 3.2 Paquetes
 
@@ -74,7 +75,8 @@ com.locomotora.demo
 │   └── dto/
 ├── progress/                        /progress/summary, /progress/activity, /metrics
 ├── nutrition/                       /nutrition, /nutrition/summary
-└── ai/                              /ai/chat, /ai/conversations, /ai/recommendations
+└── ai/                              /ai/chat, /ai/models, /ai/preferences, /routines/generate, /ai/conversations, /ai/recommendations
+                                     config/ (AiProperties, AiModelCatalog), client/ (AiModelClient, AnthropicModelClient), service/, repository/
 ```
 
 ### 3.3 Seguridad y errores
@@ -116,7 +118,7 @@ users ─┬─ user_profiles (1:1)   user_goals   user_preferences   user_equip
 
 ### 5.1 Stack
 
-Expo 54, React 19.1, React Native 0.81, TypeScript 5.9, React Navigation 7 (stack + bottom tabs), Axios, i18next (es/en), `expo-secure-store` (sesión e idioma), `expo-haptics`, `expo-image-picker`, fuentes Manrope y Space Grotesk.
+Expo 58, React 19.3, React Native 0.88, TypeScript 6.0, React Navigation 7 (stack + bottom tabs), Axios, i18next (es/en), `expo-secure-store` (sesión e idioma), `expo-haptics`, `expo-image-picker`, fuentes Manrope y Space Grotesk.
 
 Expo Router está instalado y quedan archivos del starter en `app/` y `components/`, pero **la app usa `src/navigation`** (entrada: `index.tsx`).
 
@@ -145,7 +147,9 @@ src/
 │   └── workout/               ExerciseCatalogGroupCard
 ├── features/workout/          sesion en curso: reducer puro, cola de envio, AsyncStorage, contexto (ver 3.4)
 ├── features/routineBuilder/   borrador del Wizard v2: reducer puro (routineDraft.ts), conversion desde/hacia la API, guardado en el teléfono
-└── utils/                     exerciseCatalog, aiRoutineGenerator (IA simulada), progressInsights
+├── features/ai/               aiModels.ts: eleccion de modelo, errores de IA, rutina generada → borrador
+├── components/ai/             AiModelSettings (sección "Coach IA" de Perfil)
+└── utils/                     exerciseCatalog, progressInsights
 ```
 
 ### 5.3 Navegación
@@ -160,7 +164,7 @@ AppNavigator (stack)
 │   │   ├── RoutinesList          pestañas: Mis rutinas / Sugeridas IA / Plantillas
 │   │   ├── RoutineDetail         { id, mode?: "user" | "template" }
 │   │   ├── NewRoutine            punto de partida: recomendada, plantilla, desde cero, duplicar, IA
-│   │   ├── RoutineAI             generador (simulado); el resultado abre el wizard en revisión
+│   │   ├── RoutineAI             { prompt? } generador con Claude (`POST /routines/generate`); abre el wizard en revisión
 │   │   └── RoutineWizard         { id?, draft?, step? } Wizard v2 de 4 pasos, crear y editar
 │   ├── Progress
 │   ├── AI                        oculta en la barra (4 pestañas); se abre desde la tarjeta del coach en Hoy
@@ -184,12 +188,12 @@ El catálogo de ejercicios se carga una vez en `TabNavigator` y se pasa como pro
 | Routines (lista)  | ✅             | Mis rutinas, recomendación, plantillas, filtro por categoría                                  |
 | RoutineDetail     | ✅             | Pestañas por día, editar/eliminar, usar plantilla, empezar entrenamiento del día elegido      |
 | NewRoutine        | ✅ Fase 4      | Recomendada (usar y empezar o personalizar), plantillas, desde cero, duplicar, IA             |
-| RoutineAI         | 🟡 Simulado    | Generador local por palabras clave; el resultado se revisa en el wizard y se guarda como AI   |
+| RoutineAI         | ✅ Fase 5      | Claude genera una rutina de varios días; se revisa en el wizard y se guarda como AI           |
 | RoutineWizard     | ✅ Fase 4      | 4 pasos, varios días, conserva ids y rangos al editar, borrador guardado en el teléfono       |
 | Workout           | ✅ Fase 2      | Serie activa con + y −, la vez pasada, timer de descanso, lista del día, reemplazo, récords   |
 | Progress          | ✅ Fase 3      | Resumen, Historial, Ejercicios y Cuerpo; detalle y corrección de sesión; progreso por ejercicio |
-| AI                | 🟡 Simulado    | Chat persistido; respuestas por palabras clave en backend                                     |
-| Profile           | ✅             | Datos, objetivo, foto, tema claro/oscuro, idioma, logout                                      |
+| AI                | ✅ Fase 5      | Chat con Claude y el contexto del usuario; reglas locales si no hay clave                     |
+| Profile           | ✅             | Datos, objetivo, foto, tema claro/oscuro, idioma, modelo de Claude por tarea, logout          |
 
 ## 6. Decisiones de diseño
 
@@ -227,10 +231,10 @@ El catálogo de ejercicios se carga una vez en `TabNavigator` y se pasa como pro
 cd locomotora-backend && docker compose up --build -d
 
 # Backend local contra la base de Docker
-cd locomotora-backend && ./mvnw spring-boot:run
+cd locomotora-backend && sh ./mvnw spring-boot:run   # ANTHROPIC_API_KEY=... para la IA
 
 # Tests backend
-cd locomotora-backend && ./mvnw test
+cd locomotora-backend && sh ./mvnw test
 
 # Frontend (desde WSL)
 cd locomotora-frontend && npm run start

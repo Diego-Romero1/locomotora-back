@@ -73,30 +73,105 @@ public class AiRepository {
         );
     }
 
-    public void createAssistantMessage(UUID conversationId, String answer) {
+    /** @param metadata JSON con tokens, origen (CLAUDE/LOCAL) y modelo pedido. */
+    public void createAssistantMessage(UUID conversationId, String answer, String model, String metadata) {
         jdbcTemplate.update(
-                "INSERT INTO ai_messages (conversation_id, role, content, model) VALUES (?, 'ASSISTANT', ?, 'local-context-coach-v1')",
+                """
+                INSERT INTO ai_messages (conversation_id, role, content, model, metadata)
+                VALUES (?, 'ASSISTANT', ?, ?, CAST(? AS jsonb))
+                """,
                 conversationId,
-                answer
+                answer,
+                model,
+                metadata
+        );
+    }
+
+    public boolean conversationBelongsTo(UUID conversationId, UUID userId) {
+        Boolean owned = jdbcTemplate.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM ai_conversations WHERE id = ? AND user_id = ?)",
+                Boolean.class,
+                conversationId,
+                userId
+        );
+        return Boolean.TRUE.equals(owned);
+    }
+
+    /** Ultimos mensajes de la conversacion, en orden cronologico. */
+    public List<MessageResponse> findRecentMessages(UUID conversationId, int limit) {
+        return jdbcTemplate.query(
+                """
+                SELECT * FROM (
+                    SELECT id, role, content, model, created_at
+                    FROM ai_messages
+                    WHERE conversation_id = ? AND role IN ('USER', 'ASSISTANT')
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                ) recent
+                ORDER BY created_at
+                """,
+                this::mapMessage,
+                conversationId,
+                limit
+        );
+    }
+
+    public record ModelChoice(String coachModel, String routineModel) {
+    }
+
+    public ModelChoice findModelChoice(UUID userId) {
+        return jdbcTemplate.query(
+                "SELECT coach_model, routine_model FROM user_ai_settings WHERE user_id = ?",
+                rs -> rs.next()
+                        ? new ModelChoice(rs.getString("coach_model"), rs.getString("routine_model"))
+                        : new ModelChoice(null, null),
+                userId
+        );
+    }
+
+    public void saveModelChoice(UUID userId, String coachModel, String routineModel) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO user_ai_settings (user_id, coach_model, routine_model)
+                VALUES (?, ?, ?)
+                ON CONFLICT (user_id) DO UPDATE
+                SET coach_model = EXCLUDED.coach_model,
+                    routine_model = EXCLUDED.routine_model,
+                    updated_at = now()
+                """,
+                userId,
+                coachModel,
+                routineModel
+        );
+    }
+
+    /** Llamadas al modelo de esa tarea en las ultimas 24 horas. */
+    public int countUsageLastDay(UUID userId, String feature) {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                SELECT count(*) FROM ai_usage
+                WHERE user_id = ? AND feature = ? AND created_at > now() - interval '1 day'
+                """,
+                Integer.class,
+                userId,
+                feature
+        );
+        return count == null ? 0 : count;
+    }
+
+    public void recordUsage(UUID userId, String feature, String model, long inputTokens, long outputTokens) {
+        jdbcTemplate.update(
+                "INSERT INTO ai_usage (user_id, feature, model, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?)",
+                userId,
+                feature,
+                model,
+                (int) Math.min(Integer.MAX_VALUE, inputTokens),
+                (int) Math.min(Integer.MAX_VALUE, outputTokens)
         );
     }
 
     public void touchConversation(UUID conversationId) {
         jdbcTemplate.update("UPDATE ai_conversations SET updated_at = now() WHERE id = ?", conversationId);
-    }
-
-    public UUID createRecommendation(UUID userId, UUID conversationId, String answer) {
-        return jdbcTemplate.queryForObject(
-                """
-                INSERT INTO ai_recommendations (user_id, conversation_id, type, title, content)
-                VALUES (?, ?, 'GENERAL', 'AI Coach recommendation', ?)
-                RETURNING id
-                """,
-                UUID.class,
-                userId,
-                conversationId,
-                answer
-        );
     }
 
     public List<RecommendationResponse> findRecommendations(UUID userId) {
@@ -118,31 +193,6 @@ public class AiRepository {
                 ),
                 userId
         );
-    }
-
-    public int countCompletedWorkouts(UUID userId) {
-        Integer workouts = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM workout_sessions WHERE user_id = ? AND status = 'COMPLETED' AND kind <> 'QUICK_LOG'",
-                Integer.class,
-                userId
-        );
-        return workouts == null ? 0 : workouts;
-    }
-
-    public String findPrimaryActiveGoal(UUID userId) {
-        return jdbcTemplate.query(
-                "SELECT goal_type FROM user_goals WHERE user_id = ? AND status = 'ACTIVE' ORDER BY priority LIMIT 1",
-                (rs, rowNum) -> rs.getString("goal_type"),
-                userId
-        ).stream().findFirst().orElse("general_fitness");
-    }
-
-    public String findLatestActiveRoutineTitle(UUID userId) {
-        return jdbcTemplate.query(
-                "SELECT title FROM routines WHERE user_id = ? AND is_active = true ORDER BY updated_at DESC LIMIT 1",
-                (rs, rowNum) -> rs.getString("title"),
-                userId
-        ).stream().findFirst().orElse("tu rutina actual");
     }
 
     private MessageResponse mapMessage(ResultSet rs, int rowNum) throws SQLException {

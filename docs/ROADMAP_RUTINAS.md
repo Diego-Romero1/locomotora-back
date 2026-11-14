@@ -15,7 +15,7 @@ El 2026-11-11 se aprobo reordenar las fases para registrar bien antes de crear m
 | 2. Entrenar sin friccion      | "La vez pasada" y prellenado, botones + y −, timer de descanso, lista del dia, saltar o reemplazar ejercicio, pantalla Hoy con rotacion de dias (`GET /today`) y barra de 4 pestañas | 2.B3, 2.B4, 2.F2, 2.F3, 2.F4, 2.F5, 2.F8 | ✅ 2026-11-12 |
 | 3. Medir el rendimiento       | Historial paginado, detalle, editar y borrar sesiones, progreso por ejercicio, records, racha semanal | 3.1–3.5                              | ✅ 2026-11-12 |
 | 4. Crear facil                | Wizard v2 multi-dia, punto de partida, duplicar, ejercicios propios, i18n del wizard            | Fase 1 original (1.F1–1.F8, 1.B2–1.B5) | ✅ 2026-11-12 |
-| 5. Base tecnica e IA real     | Testcontainers, refactor de plantillas, N+1, JWT/refresh, OpenAPI, restos del starter, IA real  | Fase 4 y Fase 5 originales           | Pendiente     |
+| 5. Base tecnica e IA real     | Testcontainers, refactor de plantillas, N+1, JWT/refresh, OpenAPI, restos del starter, IA real  | Fase 4 y Fase 5 originales           | 🟡 IA real ✅ 2026-11-13; base tecnica pendiente |
 
 Decisiones aprobadas junto con el plan:
 
@@ -121,6 +121,39 @@ Frontend:
 - Probado contra Postgres con el codigo real del borrador: una plantilla de 6 dias se clona y se edita (renombrar, cambiar un rango, repetir un ejercicio, quitar un dia) sin perder dias ni rangos (36 de 36), ningun dia cambia de id y el historial sigue mostrando el dia entrenado.
 
 Pendiente de la Fase 4: probar el wizard en un telefono y medir el criterio de "rutina de 4 dias desde cero en menos de 2 minutos".
+
+### Avance de la Fase 5 · IA real con Claude (2026-11-13, rama `main`)
+
+Decision: Claude (API de Anthropic, SDK `anthropic-java` 3.3.0) con **modelo intercambiable**. Cada usuario elige en Perfil que modelo usa para el chat y para crear rutinas; el servidor define que modelos se ofrecen y cual es el de por defecto, sin recompilar.
+
+| Tarea   | Modelo por defecto | Por que                                                       |
+| ------- | ------------------ | ------------------------------------------------------------- |
+| Coach   | `claude-haiku-5-5` | Rapido y barato para preguntas frecuentes                     |
+| Rutinas | `claude-sonnet-5-5`| Mas razonamiento para un plan semanal coherente               |
+| Opcion  | `claude-opus-5-5`  | El mas capaz; se ofrece pero no es el de por defecto          |
+
+Backend:
+
+- `V12__ai_settings_and_usage.sql`: `user_ai_settings` (modelo elegido por tarea; NULL = por defecto) y `ai_usage` (una fila por llamada, con tokens).
+- Paquete `ai`: `AiProperties` (`locomotora.ai.*`), `AiModelCatalog` (modelos permitidos y si piden respaldo en el servidor), `AiModelClient` + `AnthropicModelClient` (endpoint beta de mensajes; Sonnet y Opus con `fallbacks: default`, Haiku sin ellos; esfuerzo medio en el chat y alto en rutinas; sin `temperature` ni `thinking`), `AiSettingsService`, `AiContextRepository` + `UserContext` (perfil, objetivos, limitaciones, equipo, rutinas activas, ultimas 6 sesiones, mejores series de 90 dias).
+- `POST /ai/chat` con Claude: historial de 12 mensajes, contexto del usuario en el system prompt, reglas de seguridad (no diagnostica, no dietas extremas). Sin clave o si Claude falla responde el coach local (`source = LOCAL`). La llamada al modelo no ocurre dentro de una transaccion.
+- Corregido: el chat aceptaba un `conversationId` de otro usuario; ahora responde 404 antes de guardar nada.
+- `POST /routines/generate`: salida estructurada (JSON schema) con ejercicios referidos por numero del catalogo visible del usuario; se valida en codigo (solo ejercicios del catalogo, sin repetidos por dia, rangos de series, reps y descanso, como mucho los dias pedidos) y devuelve un borrador con avisos. 503 sin clave, 429 al pasar el limite diario, 422 si el modelo se niega, 502 si la respuesta no sirve.
+- `GET /ai/models` y `PUT /ai/preferences`. Limites diarios configurables (40 mensajes, 6 rutinas).
+- Rutas inexistentes responden 404 (antes 500) y un metodo no soportado 405.
+- 25 tests nuevos con el cliente simulado (84 en total). Probado de punta a punta con el backend real apuntando a un servidor falso de Claude (`LOCOMOTORA_AI_BASE_URL`): cabecera beta, `fallbacks`, `output_config` con esfuerzo y `json_schema`, historial alternado, uso y tokens guardados.
+
+Frontend:
+
+- `RoutineAIScreen` llama a `POST /routines/generate` con peticion libre, dias, minutos y modelo; muestra todos los dias con series, rango, descanso y nota, los avisos y el modelo usado. "Usar esta rutina" abre el wizard en revision (`generatedToRoutine` → `routineToDraft`, origen AI). Sin clave ofrece crear la rutina con el asistente.
+- `AIScreen`: muestra el modelo que respondio, marca las respuestas basicas, mensajes claros para limite, IA no activa o sin conexion. Si la pregunta pide una rutina ofrece "Crear rutina con IA" con el texto ya cargado (antes armaba una rutina local de un dia).
+- Perfil: seccion "Coach IA" (`AiModelSettings`) para elegir el modelo del chat y el de rutinas, con velocidad, costo, el de por defecto y el uso del dia. Se guarda al tocar.
+- Se borro `src/utils/aiRoutineGenerator.ts`. Textos de IA en "tu" (quedaban en voseo).
+- 7 tests nuevos (80 en total).
+
+Para activarla: `ANTHROPIC_API_KEY` en el entorno del backend (en Docker, en `docker-compose.yml` se toma del entorno del host) y reconstruir la imagen. Ver `API.md`.
+
+Pendiente de la Fase 5: probar con una clave real (calidad de las respuestas y rutinas, tiempos), los 12 errores de lint de React Compiler, `set_type` (calentamiento) y la base tecnica (4.1, 4.3–4.8).
 
 ---
 
@@ -391,6 +424,8 @@ Hacer un mínimo en cada fase, no al final.
 - El resultado se valida con las mismas reglas de `RoutineService`.
 - La respuesta es un **borrador** que se abre en el paso 4 del Wizard v2 para revisar y editar; se guarda con `source = AI`.
 - Reemplaza `src/utils/aiRoutineGenerator.ts` y la espera simulada de `RoutineFormScreen`.
+
+✅ Hecho el 2026-11-13 con Claude y modelo intercambiable (ver "Avance de la Fase 5" arriba).
 
 ---
 

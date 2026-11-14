@@ -202,6 +202,7 @@ Campos principales:
 | V9      | `V9__workout_sessions_v2.sql`            | Sesiones v2: `client_session_id` (unico por usuario), `kind`, copia de `routine_title`/`day_title`; en logs, `exercise_position` y el plan del momento. Marca como `QUICK_LOG` los registros sueltos existentes. |
 | V10     | `V10__own_exercises_and_objectives.sql`  | `exercises.created_by_user_id` (NULL = global). El nombre pasa a ser unico entre los globales y, por separado, dentro de los propios de cada usuario. Objetivo `HYPERTROPHY` → `BUILD_MUSCLE` en las rutinas. |
 | V11     | `V11__deferrable_exercise_references.sql` | Las FK `routine_exercises.exercise_id` y `workout_exercise_logs.exercise_id` pasan a `DEFERRABLE INITIALLY DEFERRED`, para que borrar un usuario (con sus ejercicios propios en cascada) no falle por el orden de la cascada. |
+| V12     | `V12__ai_settings_and_usage.sql`         | `user_ai_settings` (modelo de Claude elegido para el coach y para rutinas) y `ai_usage` (una fila por llamada al modelo, con tokens; limites diarios y costo). |
 
 ### Tablas agregadas en V2 y V3
 
@@ -319,9 +320,19 @@ Campos principales:
 - `metadata`
 - `created_at`
 
+En `metadata` del asistente (Fase 5): `source` (`CLAUDE`/`LOCAL`), `requestedModel`, `stopReason`, `inputTokens`, `outputTokens`. `model` es el que respondio.
+
+### `user_ai_settings` (V12)
+
+Una fila por usuario: `user_id` (PK), `coach_model`, `routine_model`, `updated_at`. `NULL` = el modelo por defecto del servidor. Es una tabla propia porque `user_preferences` se borra y recrea en el onboarding.
+
+### `ai_usage` (V12)
+
+`id`, `user_id`, `feature` (`COACH`/`ROUTINE`), `model`, `input_tokens`, `output_tokens`, `created_at`. Indice `(user_id, feature, created_at desc)` para contar el uso de las ultimas 24 h.
+
 ### `ai_recommendations`
 
-Recomendaciones persistidas a partir de IA.
+Recomendaciones persistidas a partir de IA. Desde la Fase 5 el chat ya no crea una por respuesta.
 
 Campos principales:
 

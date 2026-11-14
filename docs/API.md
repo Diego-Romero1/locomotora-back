@@ -85,7 +85,10 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `GET`    | `/nutrition?date=`                  | Entradas de nutricion del dia                                   |
 | `POST`   | `/nutrition`                        | Agrega entrada                                                  |
 | `GET`    | `/nutrition/summary?date=`          | Macros del dia                                                  |
-| `POST`   | `/ai/chat`                          | Mensaje al coach (motor local por palabras clave)               |
+| `POST`   | `/ai/chat`                          | Mensaje al coach (Claude; reglas locales si no hay clave)       |
+| `GET`    | `/ai/models`                        | Modelos de Claude disponibles y los elegidos por el usuario     |
+| `PUT`    | `/ai/preferences`                   | Elige el modelo del coach y el de rutinas                       |
+| `POST`   | `/routines/generate`                | Borrador de rutina generado con Claude (no se guarda)           |
 | `GET`    | `/ai/conversations`                 | Conversaciones                                                  |
 | `GET`    | `/ai/conversations/{id}/messages`   | Mensajes de una conversacion                                    |
 | `GET`    | `/ai/recommendations`               | Ultimas 50 recomendaciones                                      |
@@ -429,7 +432,78 @@ Borra la sesion y sus series. 204; 404 si no existe o es de otro usuario.
 
 ## IA
 
-- `POST /ai/chat` → `{ conversationId?, message }` → `{ conversationId, answer, recommendationId }`
-- `GET /ai/conversations`, `GET /ai/conversations/{id}/messages`, `GET /ai/recommendations`
+Coach y generador de rutinas con Claude (Fase 5). El modelo es intercambiable: el servidor define los permitidos y el de por defecto de cada tarea, y cada usuario elige el suyo.
 
-La respuesta la genera un motor local por palabras clave (`model = local-context-coach-v1`). No hay proveedor externo conectado. Conversaciones, mensajes y recomendaciones si se persisten.
+### Configuracion
+
+| Variable                                   | Por defecto                                             | Uso                                             |
+| ------------------------------------------ | ------------------------------------------------------- | ----------------------------------------------- |
+| `ANTHROPIC_API_KEY`                        | vacia                                                   | Sin clave: coach local y `/routines/generate` 503 |
+| `LOCOMOTORA_AI_ALLOWED_MODELS`             | `claude-haiku-5-5,claude-sonnet-5-5,claude-opus-5-5`    | Modelos que se ofrecen (en ese orden)           |
+| `LOCOMOTORA_AI_COACH_MODEL`                | `claude-haiku-5-5`                                      | Modelo por defecto del chat                     |
+| `LOCOMOTORA_AI_ROUTINE_MODEL`              | `claude-sonnet-5-5`                                     | Modelo por defecto para rutinas                 |
+| `LOCOMOTORA_AI_DAILY_COACH_MESSAGES`       | `40`                                                    | Mensajes por usuario cada 24 h (0 = sin limite) |
+| `LOCOMOTORA_AI_DAILY_ROUTINE_GENERATIONS`  | `6`                                                     | Rutinas generadas por usuario cada 24 h         |
+| `LOCOMOTORA_AI_TIMEOUT_SECONDS`            | `120`                                                   | Espera maxima por llamada                       |
+| `LOCOMOTORA_AI_BASE_URL`                   | vacia                                                   | Solo para un proxy o pruebas locales            |
+
+```bash
+cd locomotora-backend
+ANTHROPIC_API_KEY=sk-ant-... docker compose up --build -d
+```
+
+Un id permitido que no esta en `AiModelCatalog` se ofrece con datos genericos, asi que un modelo nuevo se prueba solo cambiando `LOCOMOTORA_AI_ALLOWED_MODELS`. Si un usuario tenia elegido un modelo que se quita de la lista, vuelve al de por defecto.
+
+### `GET /ai/models`
+
+```json
+{
+  "configured": true,
+  "coach":   { "selected": "claude-haiku-5-5",  "defaultModel": "claude-haiku-5-5",  "custom": false, "dailyLimit": 40, "usedToday": 3 },
+  "routine": { "selected": "claude-opus-5-5",   "defaultModel": "claude-sonnet-5-5", "custom": true,  "dailyLimit": 6,  "usedToday": 0 },
+  "models": [
+    { "id": "claude-haiku-5-5", "label": "Claude Haiku 5.5", "description": "...", "speed": "FAST", "cost": "LOW" }
+  ]
+}
+```
+
+### `PUT /ai/preferences`
+
+`{ "coachModel": "claude-sonnet-5-5", "routineModel": null }` → misma respuesta que `GET /ai/models`. `null` o vacio = modelo por defecto. Un modelo no permitido → 400.
+
+### `POST /ai/chat`
+
+`{ conversationId?, message (max 4000) }` → `{ conversationId, answer, model, source }`.
+
+- `source`: `CLAUDE` o `LOCAL` (sin clave, o Claude no respondio). `model` es el que respondio de verdad (con respaldo del servidor puede ser otro).
+- El modelo recibe el perfil, objetivos, limitaciones, equipo, rutinas activas, ultimas sesiones y mejores series, y los ultimos 12 mensajes de la conversacion.
+- `conversationId` de otro usuario → 404; mal formado → 400; limite diario → 429 (no se guarda nada).
+- Cada mensaje del asistente guarda en `metadata` el origen, el modelo pedido, `stopReason` y los tokens. Ya no se crea una recomendacion por cada respuesta.
+
+`GET /ai/conversations`, `GET /ai/conversations/{id}/messages` y `GET /ai/recommendations` siguen igual.
+
+### `POST /routines/generate`
+
+```json
+{ "prompt": "Quiero priorizar pecho", "daysPerWeek": 4, "sessionMinutes": 60,
+  "objective": "BUILD_MUSCLE", "level": "INTERMEDIATE", "focusMuscles": ["Pecho"], "model": null }
+```
+
+Todo es opcional: lo que falta sale del perfil (dias, minutos, nivel, objetivo). `model` cambia el modelo solo para esta llamada. Respuesta (no se guarda; la app la abre en el wizard y la guarda con `POST /routines`, `source = AI`):
+
+```json
+{
+  "title": "Torso / Pierna", "description": "...", "objective": "BUILD_MUSCLE", "difficulty": "INTERMEDIATE",
+  "daysPerWeek": 4, "estimatedDurationMinutes": 60, "model": "claude-sonnet-5-5", "warnings": [],
+  "days": [
+    { "dayIndex": 1, "title": "Torso A", "focus": "Pecho, Espalda",
+      "exercises": [ { "exerciseId": "uuid", "name": "Press banca", "primaryMuscleGroup": "Pecho", "equipment": "BARBELL",
+                       "sets": 4, "repsMin": 6, "repsMax": 10, "restSeconds": 120, "notes": "..." } ] }
+  ]
+}
+```
+
+- Solo ejercicios del catalogo visible del usuario (globales y propios). Los desconocidos se descartan.
+- Rangos: series 1–10, reps 1–50 (`repsMin <= repsMax`), descanso 0–600 s, como mucho 10 ejercicios por dia y los dias pedidos.
+- `warnings`: `UNKNOWN_EXERCISES_DROPPED`, `VALUES_ADJUSTED`, `FEWER_DAYS`, `EXTRA_DAYS_DROPPED`.
+- Errores: 503 sin clave o Claude no disponible, 429 limite diario, 422 el modelo se nego, 502 respuesta cortada o sin dias validos, 400 modelo no permitido o parametros fuera de rango.

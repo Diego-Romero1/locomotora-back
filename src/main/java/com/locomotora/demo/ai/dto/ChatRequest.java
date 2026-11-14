@@ -1,6 +1,7 @@
 package com.locomotora.demo.ai.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
-public record ChatRequest(String conversationId, @NotBlank String message) {
+public record ChatRequest(String conversationId, @NotBlank @Size(max = 4000) String message) {
 }

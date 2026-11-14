@@ -25,8 +25,8 @@ El sistema tiene **mucha superficie y poca profundidad**: casi todos los módulo
 | 1. Base backend               | ✅ Hecho        | Auth JWT, Flyway, capa de servicios, Docker. Faltan refresh tokens.                                 |
 | 2. Rutinas y entrenamientos   | ⚠️ ~60 %        | CRUD, catálogo (109 ejercicios) y 7 plantillas listos. Wizard de un solo día. Registro superficial. |
 | 3. Progreso y perfil          | ⚠️ Parcial      | Onboarding, perfil, métricas, actividad reciente. Sin PRs, volumen ni racha real.                   |
-| 4. IA y nutrición             | 🟡 Simulado     | Coach y generador de rutinas son reglas por palabras clave, sin modelo real.                        |
-| 5. Escalabilidad y calidad    | ⚠️ Bajo         | 59 tests backend, 73 tests frontend (reducers, cola, gráficos, borrador), sin CI ni OpenAPI.                           |
+| 4. IA y nutrición             | ✅ IA real      | Coach y generador de rutinas con Claude, modelo elegible por usuario (Fase 5). Falta probar con clave real. Nutrición sin cambios. |
+| 5. Escalabilidad y calidad    | ⚠️ Bajo         | 84 tests backend, 80 tests frontend (reducers, cola, gráficos, borrador, IA), sin CI ni OpenAPI.                       |
 
 Además hay un **rediseño visual en curso** (handoff en `locomotora-backend/docs/design_handoff_locomotora_redesign/` y wizard en `locomotora-backend/docs/design_routine_wizard_redesign/`). El wizard nuevo está implementado (un solo día por rutina).
 
@@ -36,7 +36,7 @@ Además hay un **rediseño visual en curso** (handoff en `locomotora-backend/doc
 | -------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | Crear (manual)       | Wizard v2 de 4 pasos: base → estructura semanal (días propuestos por split) → ejercicios por día → revisar (series por músculo, avisos). Borrador guardado en el teléfono. | Probarlo en un teléfono: medir que una rutina de 4 días se arme en menos de 2 minutos. |
 | Crear (plantilla)    | Pantalla "Nueva rutina": recomendada (usar y empezar, o personalizar), plantillas, duplicar una propia. Plantilla y copia abren el wizard en revisión. | — |
-| Crear (IA)           | El resultado abre el wizard en revisión y se guarda con `source = AI`. | El generador sigue siendo local por palabras clave y de un solo día (Fase 5). |
+| Crear (IA)           | Claude genera una rutina de varios días con el perfil, el historial y el catálogo del usuario; se valida, se revisa en el wizard y se guarda con `source = AI`. | Probar con una clave real (calidad y tiempos). |
 | Entrenar             | Serie activa prellenada con la vez pasada, botones + y −, timer de descanso con vibración y aviso, lista del día, reemplazar ejercicio, aviso de récord. Guardado en el teléfono. | Sin calentamiento marcado (opcional, después de la Fase 3).                                          |
 | Registrar            | `POST /workout-sessions`: una fila por serie, día correcto, duración real, RPE y notas, idempotente. Cola de reenvío sin señal. | —                                                                                                     |
 | Consultar historial  | Historial paginado, detalle por serie con el plan y los récords, corregir o borrar una sesión, progreso por ejercicio con gráfico y récords, volumen por semana. | Racha y récords usan el objetivo y la fórmula actuales (Epley) para todo el historial.               |
@@ -45,6 +45,8 @@ Además hay un **rediseño visual en curso** (handoff en `locomotora-backend/doc
 
 Los identificadores (H1, H2…) se usan en el roadmap.
 
+> **Avance Fase 5 · IA real (2026-11-13, `main`):** coach y generador de rutinas con Claude; el usuario elige el modelo de cada tarea en Perfil. Corregido que el chat aceptara conversaciones de otro usuario. Rutas inexistentes responden 404.
+>
 > **Avance Fase 4 · Crear fácil (2026-11-12, `main`):** H1, H9 y H10 resueltos; H11 resuelto en el wizard y la pantalla de IA. Wizard v2 de varios días, punto de partida, duplicar, ejercicios propios por usuario y vocabulario único de objetivo.
 >
 > **Avance Fase 3 · Medir el rendimiento (2026-11-12, `main`):** historial, detalle y corrección de sesiones, progreso por ejercicio y volumen semanal desde el servidor. Progreso deja de calcular racha, volumen y récords en el teléfono con las últimas 10 sesiones.
