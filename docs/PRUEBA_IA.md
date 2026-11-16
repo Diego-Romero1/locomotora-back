@@ -120,9 +120,9 @@ docker exec locomotora-postgres psql -U postgres -d locomotora -c "DELETE FROM u
 | Sintoma | Causa probable | Que hacer |
 | ------- | -------------- | --------- |
 | `"configured":false` | El backend no ve la clave | Revisa `.env` y reconstruye con `docker compose up --build -d` |
-| `source: "LOCAL"` en todas las respuestas | Clave invalida (401), presupuesto diario agotado o Groq caido | `docker logs locomotora-backend 2>&1 \| grep Groq` muestra el estado HTTP de cada llamada |
+| El chat responde 429 o 503 | Clave invalida (401), limite del dia, presupuesto agotado o Groq caido | `docker logs locomotora-backend 2>&1 \| grep Groq` muestra el estado HTTP de cada llamada |
 | `Groq error ... status=401` | Clave mal copiada o revocada | Crea otra clave en la consola |
-| `Groq error ... status=429 ... limit=OTPM` | Limite de 1.000 tokens de salida por minuto (plan gratis) | Espera un minuto. Una rutina usa casi todo ese minuto: el chat justo despues puede responder con reglas locales |
+| `Groq error ... status=429 ... limit=OTPM` | Limite de 1.000 tokens de salida por minuto (plan gratis) | Espera un minuto. Una rutina usa casi todo ese minuto: el chat justo despues puede responder 429 "busy" |
 | `Groq error ... status=429 ... limit=TPM` | Limite de 8.000 tokens por minuto | Espera un minuto; si pasa seguido, baja `LOCOMOTORA_AI_MAX_TOOL_ROUNDS` a 1 |
 | `Groq: la peticion supera el limite por minuto de la cuenta` | `LOCOMOTORA_AI_*_MAX_TOKENS` mayor que el OTPM de tu plan | Vuelve a 700 (chat) y 1000 (rutinas), o mejora el plan en Groq |
 | `/routines/generate` responde 502 | La respuesta no cumplio el esquema o se corto (`json_validate_failed`) | Reintenta. Solo con un plan con mas OTPM conviene subir `LOCOMOTORA_AI_ROUTINE_MAX_TOKENS` |

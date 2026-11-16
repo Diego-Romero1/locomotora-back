@@ -16,6 +16,8 @@ import com.locomotora.demo.ai.service.RoutineGenerationService;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -67,6 +69,13 @@ public class AiController {
     @GetMapping("/ai/conversations/{id}/messages")
     public List<MessageResponse> messages(@PathVariable UUID id) {
         return aiConversationService.messages(id);
+    }
+
+    /** Borra una conversacion propia con todos sus mensajes. 204; 404 si no existe o es de otro usuario. */
+    @DeleteMapping("/ai/conversations/{id}")
+    public ResponseEntity<Void> deleteConversation(@PathVariable UUID id) {
+        aiConversationService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/ai/chat")

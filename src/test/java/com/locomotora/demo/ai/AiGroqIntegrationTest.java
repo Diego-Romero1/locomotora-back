@@ -124,6 +124,18 @@ class AiGroqIntegrationTest {
         post("/ai/chat", bruno, Map.of("message", "Muestrame la rutina " + anaRoutineId));
         String toolResult = GROQ.received.get(1).path("messages").get(3).path("content").asText();
         assertEquals("{\"error\":\"not_found\"}", toolResult);
+
+        // La respuesta dice que herramientas uso; el historial guarda la llamada con rol TOOL.
+        assertEquals("[\"list_my_routines\"]", reply.path("toolsUsed").toString());
+        JsonNode history = get("/ai/conversations/" + conversation + "/messages", ana);
+        assertEquals(List.of("USER", "TOOL", "ASSISTANT"),
+                List.of(history.get(0).path("role").asText(), history.get(1).path("role").asText(), history.get(2).path("role").asText()));
+
+        // Borrar: Bruno no puede borrar la conversacion de Ana; Ana si, y desaparece con sus mensajes.
+        assertEquals(404, exchange(HttpMethod.DELETE, "/ai/conversations/" + conversation, bruno, null).getStatusCode().value());
+        assertEquals(204, exchange(HttpMethod.DELETE, "/ai/conversations/" + conversation, ana, null).getStatusCode().value());
+        assertEquals(0, count("SELECT count(*) FROM ai_messages WHERE conversation_id = ?", conversation));
+        assertEquals(404, exchange(HttpMethod.DELETE, "/ai/conversations/" + conversation, ana, null).getStatusCode().value());
     }
 
     @Test
@@ -164,14 +176,16 @@ class AiGroqIntegrationTest {
     }
 
     @Test
-    void providerRateLimitFallsBackToTheLocalCoach() {
+    void whenGroqIsBusyTheChatAnswers429AndSavesNothing() {
         String token = register();
         GROQ.enqueue(429, "{\"error\":{\"message\":\"Rate limit reached\",\"type\":\"tokens\"}}", "retry-after", "60");
 
-        JsonNode reply = post("/ai/chat", token, Map.of("message", "¿Cuanta proteina necesito?"));
+        ResponseEntity<String> reply = exchange(HttpMethod.POST, "/ai/chat", token, Map.of("message", "¿Cuanta proteina necesito?"));
 
-        assertEquals("LOCAL", reply.path("source").asText());
+        assertEquals(429, reply.getStatusCode().value());
+        assertTrue(reply.getBody().contains("busy"));
         assertEquals(1, GROQ.received.size(), "a long retry-after is not retried");
+        assertEquals(0, get("/ai/conversations", token).size(), "no conversation and no canned answer are stored");
     }
 
     @Test
@@ -181,9 +195,9 @@ class AiGroqIntegrationTest {
         jdbc.update("INSERT INTO ai_usage (user_id, feature, model, input_tokens, output_tokens) VALUES (?, 'ROUTINE', ?, 100000, 0)",
                 userId, QWEN);
         try {
-            JsonNode reply = post("/ai/chat", token, Map.of("message", "Hola"));
-            assertEquals("LOCAL", reply.path("source").asText());
+            assertEquals(429, exchange(HttpMethod.POST, "/ai/chat", token, Map.of("message", "Hola")).getStatusCode().value());
             assertTrue(GROQ.received.isEmpty());
+            assertEquals(0, get("/ai/conversations", token).size());
 
             ResponseEntity<String> generate = exchange(HttpMethod.POST, "/routines/generate", token, Map.of());
             assertEquals(429, generate.getStatusCode().value());

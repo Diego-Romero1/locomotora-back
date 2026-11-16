@@ -160,22 +160,22 @@ public class RoutineGenerationService {
 
     static String userMessage(Plan plan, RoutineGenerationRequest request, List<ExerciseCatalogItemResponse> catalog) {
         StringBuilder text = new StringBuilder();
-        text.append("Crea una rutina con estos parametros:\n")
-                .append("- Dias por semana: ").append(plan.daysPerWeek()).append(" (devuelve exactamente ")
-                .append(plan.daysPerWeek()).append(" dias, de 3 a ").append(maxExercisesFor(plan.daysPerWeek()))
+        text.append("Crea una rutina con estos parámetros:\n")
+                .append("- Días por semana: ").append(plan.daysPerWeek()).append(" (devuelve exactamente ")
+                .append(plan.daysPerWeek()).append(" días, de 3 a ").append(maxExercisesFor(plan.daysPerWeek()))
                 .append(" ejercicios cada uno)\n")
-                .append("- Minutos por sesion: ").append(plan.sessionMinutes()).append('\n')
+                .append("- Minutos por sesión: ").append(plan.sessionMinutes()).append('\n')
                 .append("- Objetivo: ").append(plan.objective()).append('\n')
                 .append("- Nivel: ").append(plan.level()).append('\n');
         if (!plan.focusMuscles().isEmpty()) {
             text.append("- Grupos a priorizar: ").append(String.join(", ", plan.focusMuscles())).append('\n');
         }
         if (request.prompt() != null && !request.prompt().isBlank()) {
-            text.append("\nPeticion del usuario (tenla en cuenta, pero las reglas del plan mandan):\n<peticion>\n")
+            text.append("\nPetición del usuario (tenla en cuenta, pero las reglas del plan mandan):\n<peticion>\n")
                     .append(PersonalDataFilter.redact(request.prompt().trim()).replace("</peticion>", ""))
                     .append("\n</peticion>\n");
         }
-        text.append("\nCatalogo de ejercicios (ref | nombre | grupo muscular | equipo):\n");
+        text.append("\nCatálogo de ejercicios (ref | nombre | grupo muscular | equipo):\n");
         for (int index = 0; index < catalog.size(); index++) {
             ExerciseCatalogItemResponse exercise = catalog.get(index);
             text.append(index + 1).append(" | ").append(exercise.name())
@@ -215,7 +215,7 @@ public class RoutineGenerationService {
         Map<String, Object> dayProperties = new java.util.LinkedHashMap<>();
         dayProperties.put("title", Map.of("type", "string"));
         if (withTip) {
-            dayProperties.put("tip", Map.of("type", "string", "description", "Una indicacion de tecnica para el primer ejercicio, maximo 60 caracteres"));
+            dayProperties.put("tip", Map.of("type", "string", "description", "Una indicación de técnica para el primer ejercicio, máximo 60 caracteres"));
         }
         dayProperties.put("exercises", Map.of("type", "array", "minItems", 3, "maxItems", maxExercisesFor(daysPerWeek), "items", exercise));
         Map<String, Object> day = Map.of(
@@ -327,7 +327,7 @@ public class RoutineGenerationService {
             String title = dayNode.path("title").asText("").trim();
             days.add(new GeneratedRoutineResponse.Day(
                     days.size() + 1,
-                    title.isEmpty() ? "Dia " + (days.size() + 1) : truncate(title, 80),
+                    title.isEmpty() ? "Día " + (days.size() + 1) : truncate(title, 80),
                     focus.isEmpty() ? null : truncate(String.join(", ", focus), 160),
                     exercises
             ));

@@ -25,6 +25,7 @@ public class AiRepository {
                 FROM ai_conversations
                 WHERE user_id = ?
                 ORDER BY updated_at DESC
+                LIMIT 50
                 """,
                 (rs, rowNum) -> new ConversationResponse(
                         rs.getObject("id", UUID.class).toString(),
@@ -34,6 +35,11 @@ public class AiRepository {
                 ),
                 userId
         );
+    }
+
+    /** Borra la conversacion (y sus mensajes, en cascada) si es del usuario. */
+    public boolean deleteConversation(UUID conversationId, UUID userId) {
+        return jdbcTemplate.update("DELETE FROM ai_conversations WHERE id = ? AND user_id = ?", conversationId, userId) > 0;
     }
 
     public List<MessageResponse> findMessages(UUID conversationId, UUID userId) {

@@ -190,14 +190,17 @@ class AiCoachTest {
         assertEquals("AI", response.source());
         assertEquals(QWEN, response.model());
         assertEquals("Prueba el press inclinado.", response.answer());
+        assertEquals(List.of("search_exercises"), response.toolsUsed());
         assertEquals(2, sentRequests.size());
         AiModelClient.Request first = sentRequests.get(0);
         assertEquals(QWEN, first.model());
         assertEquals("none", first.reasoningEffort());
         assertEquals(ToolChoice.AUTO, first.toolChoice());
         assertEquals(1, first.tools().size());
-        assertTrue(first.system().contains("Equipo disponible: DUMBBELLS, BARBELL"));
-        assertTrue(first.system().contains("Preferencias de alimentacion: vegetariano"));
+        assertTrue(first.system().contains("Equipo disponible: mancuernas, barra"));
+        assertTrue(first.system().contains("Objetivos activos: ganar músculo"));
+        assertTrue(first.system().contains("Experiencia: intermedio"));
+        assertTrue(first.system().contains("Preferencias de alimentación: vegetariano"));
         // El email del usuario no sale hacia el proveedor.
         assertTrue(first.turns().get(0).text().contains("[email]"));
         assertFalse(first.turns().get(0).text().contains("juan@mail.com"));
@@ -213,6 +216,36 @@ class AiCoachTest {
         verify(aiRepository, times(1)).recordUsage(userId, "COACH", QWEN, 2000, 90);
         verify(aiRepository).createAssistantMessage(eq(conversationId), eq("Prueba el press inclinado."), eq(QWEN),
                 argThat(json -> json.contains("\"source\":\"AI\"") && json.contains("\"toolCalls\":1") && json.contains("\"modelCalls\":2")));
+    }
+
+    @Test
+    void theSystemPromptLimitsTheCoachToFitnessWithoutOverRestricting() {
+        answers(text("Solo te ayudo con entrenamiento y nutrición deportiva.", 500, 20));
+
+        aiService.chat(new ChatRequest(null, "Cuanto es 2 + 2?"));
+
+        String system = sentRequests.get(0).system();
+        assertTrue(system.contains("Alcance (qué respondes)"));
+        assertTrue(system.contains("Fuera de alcance (no lo respondes, ni siquiera en parte)"));
+        assertTrue(system.contains("Matemáticas o cálculos sin relación con entrenar o comer"));
+        // No sobre-restringir: ante la duda, en clave de fitness; los calculos de entrenamiento siguen permitidos.
+        assertTrue(system.contains("Ante la duda, interpreta la pregunta en clave de entrenamiento"));
+        assertTrue(system.contains("kg y lb, calorías de los macros, volumen, 1RM"));
+        assertTrue(system.contains("aunque antes, en esta conversación, se haya respondido algo fuera de tema"));
+        assertTrue(system.contains("frases o mensajes para motivarse"));
+        // El recordatorio viaja al final del ultimo turno del usuario, pero no se guarda.
+        List<Turn> turns = sentRequests.get(0).turns();
+        assertTrue(turns.get(turns.size() - 1).text().startsWith("Cuanto es 2 + 2?"));
+        assertTrue(turns.get(turns.size() - 1).text().endsWith(CoachPrompts.SCOPE_NOTE));
+        verify(aiRepository).createUserMessage(conversationId, "Cuanto es 2 + 2?");
+    }
+
+    @Test
+    void theScopeNoteGoesOnlyOnTheLastUserTurn() {
+        List<Turn> turns = AiService.withScopeNote(new java.util.ArrayList<>(List.of(
+                Turn.user("Hola"), Turn.assistant("Hola, ¿en qué te ayudo?"), Turn.user("¿Y cuánto es 10 dividido 2?"))));
+        assertEquals("Hola", turns.get(0).text());
+        assertEquals("¿Y cuánto es 10 dividido 2?" + CoachPrompts.SCOPE_NOTE, turns.get(2).text());
     }
 
     @Test
@@ -264,10 +297,19 @@ class AiCoachTest {
 
         ChatResponse response = aiService.chat(new ChatRequest(null, "Me dio dolor en el pecho haciendo sentadillas"));
 
-        assertTrue(sentRequests.get(0).system().contains("sintomas cardiovasculares"));
+        assertTrue(sentRequests.get(0).system().contains("síntomas cardiovasculares"));
         assertTrue(response.answer().startsWith("Para y descansa."));
         assertTrue(response.answer().contains("consulta a un médico"));
         verify(aiRepository).createAssistantMessage(any(), anyString(), anyString(), argThat(json -> json.contains("CARDIO")));
+    }
+
+    @Test
+    void noFixedNoticeWhenTheModelAlreadyRefersToAProfessional() {
+        answers(text("Para ahora mismo y consulta a un médico hoy.", 500, 30));
+
+        ChatResponse response = aiService.chat(new ChatRequest(null, "Me dio dolor en el pecho haciendo sentadillas"));
+
+        assertEquals("Para ahora mismo y consulta a un médico hoy.", response.answer());
     }
 
     @Test
@@ -295,52 +337,91 @@ class AiCoachTest {
                 assertThrows(ApiException.class, () -> aiService.chat(new ChatRequest("abc", "Hola"))).status());
     }
 
+    /** Ante cualquier fallo no se guarda nada: ni conversacion, ni pregunta, ni respuesta. */
+    private void verifyNothingSaved() {
+        verify(aiRepository, never()).createConversation(any(), any(), any());
+        verify(aiRepository, never()).createUserMessage(any(), any());
+        verify(aiRepository, never()).createToolMessage(any(), any(), any());
+        verify(aiRepository, never()).createAssistantMessage(any(), any(), any(), any());
+    }
+
     @Test
-    void withoutApiKeyTheLocalCoachAnswers() {
+    void withoutApiKeyThereIsNoAnswerAt503() {
         when(client.isConfigured()).thenReturn(false);
 
-        ChatResponse response = aiService.chat(new ChatRequest(null, "¿Cuanta proteina necesito?"));
+        ApiException exception = assertThrows(ApiException.class, () -> aiService.chat(new ChatRequest(null, "¿Cuanta proteina necesito?")));
 
-        assertEquals("LOCAL", response.source());
-        assertEquals(LocalCoach.MODEL, response.model());
-        assertTrue(response.answer().contains("128"), response.answer());
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exception.status());
         verify(client, never()).complete(any());
         verify(aiRepository, never()).recordUsage(any(), any(), any(), anyLong(), anyLong());
+        verifyNothingSaved();
     }
 
     @Test
-    void whenTheAppBudgetIsSpentTheLocalCoachAnswersWithoutCallingTheProvider() {
+    void whenTheAppBudgetIsSpentThereIsNoAnswerAndGroqIsNotCalled() {
         when(aiRepository.sumTokensLastDay()).thenReturn(150000L);
 
-        ChatResponse response = aiService.chat(new ChatRequest(null, "Hola"));
+        ApiException exception = assertThrows(ApiException.class, () -> aiService.chat(new ChatRequest(null, "Hola")));
 
-        assertEquals("LOCAL", response.source());
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, exception.status());
         verify(client, never()).complete(any());
-        verify(aiRepository).createAssistantMessage(any(), anyString(), eq(LocalCoach.MODEL),
-                argThat(json -> json.contains("budget_exhausted")));
+        verifyNothingSaved();
     }
 
     @Test
-    void whenTheProviderFailsTheLocalCoachAnswersAndSpentTokensAreRecorded() {
+    void whenTheProviderFailsNothingIsSavedButSpentTokensAreRecorded() {
         when(tools.execute(any(), anyString(), anyString())).thenReturn(new AiToolRegistry.Result("{}", false));
         var stub = when(client.complete(any()));
         stub.thenReturn(toolCall("search_exercises", "{}", 400, 10)).thenThrow(new AiUnavailableException("busy", 429, 30L));
 
-        ChatResponse response = aiService.chat(new ChatRequest(null, "Dame una rutina"));
+        ApiException busy = assertThrows(ApiException.class, () -> aiService.chat(new ChatRequest(null, "Dame una rutina")));
 
-        assertEquals("LOCAL", response.source());
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, busy.status());
         verify(aiRepository).recordUsage(userId, "COACH", QWEN, 400, 10);
-        verify(aiRepository).createAssistantMessage(any(), anyString(), eq(LocalCoach.MODEL), argThat(json -> json.contains("rate_limited")));
+        verifyNothingSaved();
+
+        org.mockito.Mockito.doThrow(new AiUnavailableException("down", 503, null)).when(client).complete(any());
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE,
+                assertThrows(ApiException.class, () -> aiService.chat(new ChatRequest(null, "Hola"))).status());
+        verifyNothingSaved();
     }
 
     @Test
-    void refusalIsReplacedBySafeAnswerAndEmptyAnswerFallsBackToLocal() {
-        answers(new Completion("", QWEN, StopReason.REFUSAL, List.of(), 10, 0));
-        assertEquals(AiService.REFUSAL_ANSWER, aiService.chat(new ChatRequest(null, "...")).answer());
+    void aRefusalIsAnsweredWithTheModelsOwnTextAndAnEmptyAnswerIsAnError() {
+        answers(new Completion("No puedo ayudarte con eso, pero si con tu tecnica.", QWEN, StopReason.REFUSAL, List.of(), 10, 12));
+        assertEquals("No puedo ayudarte con eso, pero si con tu tecnica.", aiService.chat(new ChatRequest(null, "...")).answer());
 
         sentRequests.clear();
-        answers(text("   ", 10, 0));
-        assertEquals("LOCAL", aiService.chat(new ChatRequest(null, "...")).source());
+        org.mockito.Mockito.reset(aiRepository);
+        when(aiRepository.findModelChoice(userId)).thenReturn(new ModelChoice(null, null));
+        answers(new Completion("   ", QWEN, StopReason.END, List.of(), 10, 0));
+        ApiException empty = assertThrows(ApiException.class, () -> aiService.chat(new ChatRequest(null, "...")));
+        assertEquals(HttpStatus.BAD_GATEWAY, empty.status());
+        verifyNothingSaved();
+    }
+
+    @Test
+    void aSuccessfulAnswerIsSavedInOrderInTheExistingConversation() {
+        UUID existing = UUID.fromString("00000000-0000-0000-0000-000000000077");
+        when(aiRepository.conversationBelongsTo(existing, userId)).thenReturn(true);
+        when(aiRepository.findRecentMessages(eq(existing), anyInt())).thenReturn(List.of(
+                new MessageResponse("1", "USER", "Hola", null, "t"),
+                new MessageResponse("2", "ASSISTANT", "Hola, ¿en que te ayudo?", QWEN, "t")));
+        when(tools.execute(any(), anyString(), anyString())).thenReturn(new AiToolRegistry.Result("{\"sessions\":[]}", false));
+        answers(toolCall("get_recent_training", "{\"days\":7}", 800, 20), text("Esta semana no entrenaste.", 900, 30));
+
+        ChatResponse response = aiService.chat(new ChatRequest(existing.toString(), "¿Como voy?"));
+
+        assertEquals(existing.toString(), response.conversationId());
+        // El historial guardado mas la pregunta nueva, que todavia no esta en la base.
+        List<Turn> first = sentTurns.get(0);
+        assertEquals(3, first.size());
+        assertEquals("¿Como voy?" + CoachPrompts.SCOPE_NOTE, first.get(2).text());
+        var order = org.mockito.Mockito.inOrder(aiRepository);
+        order.verify(aiRepository).createUserMessage(existing, "¿Como voy?");
+        order.verify(aiRepository).createToolMessage(eq(existing), eq("get_recent_training"), anyString());
+        order.verify(aiRepository).createAssistantMessage(eq(existing), eq("Esta semana no entrenaste."), eq(QWEN), anyString());
+        verify(aiRepository, never()).createConversation(any(), any(), any());
     }
 
     @Test
@@ -350,7 +431,7 @@ class AiCoachTest {
         ApiException exception = assertThrows(ApiException.class, () -> aiService.chat(new ChatRequest(null, "Hola")));
 
         assertEquals(HttpStatus.TOO_MANY_REQUESTS, exception.status());
-        verify(aiRepository, never()).createConversation(any(), any(), any());
+        verifyNothingSaved();
     }
 
     @Test

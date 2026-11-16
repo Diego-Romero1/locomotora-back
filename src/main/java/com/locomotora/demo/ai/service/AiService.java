@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.locomotora.demo.ai.client.AiModelClient;
 import com.locomotora.demo.ai.client.AiModelClient.Completion;
 import com.locomotora.demo.ai.client.AiModelClient.Role;
-import com.locomotora.demo.ai.client.AiModelClient.StopReason;
 import com.locomotora.demo.ai.client.AiModelClient.ToolCall;
 import com.locomotora.demo.ai.client.AiModelClient.ToolChoice;
 import com.locomotora.demo.ai.client.AiModelClient.Turn;
@@ -33,8 +32,8 @@ import org.springframework.stereotype.Service;
 /**
  * Coach IA: un agente que responde con el modelo (Qwen 3.8 27B en GroqCloud) y puede consultar,
  * con herramientas del backend, las rutinas, sesiones, progreso y catalogo del usuario.
- * Si el modelo no esta configurado, se agoto el presupuesto o falla, responden las reglas locales
- * para que el chat nunca quede mudo. No abre una transaccion durante las llamadas al modelo.
+ * Solo responde el modelo: no hay respuestas predeterminadas. No abre una transaccion durante las
+ * llamadas al modelo.
  */
 @Service
 public class AiService {
@@ -42,9 +41,6 @@ public class AiService {
     static final int HISTORY_MESSAGE_CHARS = 1500;
     static final int MAX_CALLS_PER_ROUND = 4;
     static final String SOURCE_AI = "AI";
-    static final String SOURCE_LOCAL = "LOCAL";
-    static final String REFUSAL_ANSWER = "No puedo ayudarte con eso. Si tienes dolor o una lesion, consulta con un medico "
-            + "o fisioterapeuta. Puedo ayudarte con tu rutina, la tecnica de los ejercicios o tu alimentacion.";
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private final AiRepository aiRepository;
@@ -78,6 +74,7 @@ public class AiService {
         int toolRounds;
         int toolCalls;
         String model;
+        final java.util.LinkedHashSet<String> toolNames = new java.util.LinkedHashSet<>();
 
         void add(Completion completion) {
             input += completion.inputTokens();
@@ -91,75 +88,96 @@ public class AiService {
         }
     }
 
+    /**
+     * Responde solo el agente (el modelo de IA). Si no puede responder (sin clave, sin presupuesto,
+     * proveedor saturado o caido, respuesta vacia) se devuelve un error y no se guarda nada: ni una
+     * respuesta predeterminada ni el mensaje del usuario, que la app permite reintentar.
+     */
     public ChatResponse chat(ChatRequest request) {
         UUID userId = CurrentUser.id();
         String message = request.message().trim();
-        UserContext context = contextRepository.load(userId);
 
-        // Antes de guardar nada: una conversacion ajena es un 404 y el limite diario un 429.
-        UUID conversationId = request.conversationId() == null || request.conversationId().isBlank()
+        // Antes de llamar al modelo: conversacion ajena 404, IA no activa 503, limites 429.
+        UUID existing = request.conversationId() == null || request.conversationId().isBlank()
                 ? null
                 : ownedConversation(request.conversationId(), userId);
-        boolean configured = client.isConfigured();
-        if (configured) {
-            settings.checkQuota(userId, Feature.COACH);
+        if (!client.isConfigured()) {
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI is not configured");
         }
-        boolean budgetLeft = configured && !settings.globalBudgetExhausted();
-        if (conversationId == null) {
-            conversationId = aiRepository.createConversation(userId, title(message),
-                    json(Map.of("sessionsLast28Days", context.sessionsLast28Days())));
+        settings.checkQuota(userId, Feature.COACH);
+        if (settings.globalBudgetExhausted()) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "AI daily budget reached");
         }
-        aiRepository.createUserMessage(conversationId, message);
 
+        UserContext context = contextRepository.load(userId);
         String model = settings.modelFor(userId, Feature.COACH, null);
         Set<SafetyGuard.Risk> risks = SafetyGuard.detect(message);
-        Usage usage = new Usage();
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("requestedModel", model);
-        metadata.put("risks", risks.stream().map(Enum::name).toList());
-        String answer;
-        String answeredBy;
-        String source;
-        try {
-            if (!configured) {
-                throw new AiUnavailableException("not configured");
-            }
-            if (!budgetLeft) {
-                throw new AiUnavailableException("daily token budget exhausted", 429, null);
-            }
-            Completion completion = runAgent(userId, conversationId, model, context, risks, usage);
-            String text = plainText(completion.text());
-            boolean refused = completion.stopReason() == StopReason.REFUSAL;
-            if (text.isEmpty() && !refused) {
-                throw new AiUnavailableException("empty answer", 502, null);
-            }
-            Set<SafetyGuard.Issue> issues = refused ? Set.of() : SafetyGuard.review(text);
-            answer = SafetyGuard.withNotices(refused ? REFUSAL_ANSWER : text, risks, issues);
-            answeredBy = completion.model();
-            source = SOURCE_AI;
-            metadata.put("stopReason", completion.stopReason().name());
-            metadata.put("issues", issues.stream().map(Enum::name).toList());
-        } catch (AiUnavailableException unavailable) {
-            answer = SafetyGuard.withNotices(LocalCoach.answer(context, message), risks, Set.of());
-            answeredBy = LocalCoach.MODEL;
-            source = SOURCE_LOCAL;
-            metadata.put("reason", !configured ? "not_configured"
-                    : !budgetLeft ? "budget_exhausted"
-                    : unavailable.rateLimited() ? "rate_limited" : "provider_error");
-        } finally {
-            if (usage.calls > 0) {
-                settings.recordUsage(userId, Feature.COACH, usage.model, usage.input, usage.output);
-            }
-        }
+        List<MessageResponse> history = new ArrayList<>(existing == null
+                ? List.of()
+                : aiRepository.findRecentMessages(existing, HISTORY_MESSAGES - 1));
+        history.add(new MessageResponse(null, "USER", message, null, null));
 
-        metadata.put("source", source);
+        Usage usage = new Usage();
+        List<ToolLog> toolLogs = new ArrayList<>();
+        Completion completion;
+        try {
+            completion = runAgent(userId, model, context, risks, withScopeNote(turns(history)), usage, toolLogs);
+        } catch (AiUnavailableException unavailable) {
+            recordUsage(userId, usage);
+            if (unavailable.rateLimited()) {
+                throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "AI provider is busy, try again in a minute");
+            }
+            throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI service unavailable");
+        }
+        recordUsage(userId, usage);
+
+        // Si el modelo se niega, su propio texto es la respuesta; si no dice nada, es un error.
+        String text = plainText(completion.text());
+        if (text.isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "AI returned an empty answer");
+        }
+        Set<SafetyGuard.Issue> issues = SafetyGuard.review(text);
+        String answer = SafetyGuard.withNotices(text, SafetyGuard.unaddressed(text, risks), issues);
+
+        // Recien ahora se guarda: conversacion, pregunta, llamadas a herramientas y respuesta.
+        UUID conversationId = existing != null
+                ? existing
+                : aiRepository.createConversation(userId, title(message),
+                        json(Map.of("sessionsLast28Days", context.sessionsLast28Days())));
+        aiRepository.createUserMessage(conversationId, message);
+        toolLogs.forEach(log -> aiRepository.createToolMessage(conversationId, log.tool(), log.metadata()));
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("source", SOURCE_AI);
+        metadata.put("requestedModel", model);
+        metadata.put("stopReason", completion.stopReason().name());
+        metadata.put("risks", risks.stream().map(Enum::name).toList());
+        metadata.put("issues", issues.stream().map(Enum::name).toList());
         metadata.put("inputTokens", usage.input);
         metadata.put("outputTokens", usage.output);
         metadata.put("modelCalls", usage.calls);
         metadata.put("toolCalls", usage.toolCalls);
-        aiRepository.createAssistantMessage(conversationId, answer, answeredBy, json(metadata));
+        aiRepository.createAssistantMessage(conversationId, answer, completion.model(), json(metadata));
         aiRepository.touchConversation(conversationId);
-        return new ChatResponse(conversationId.toString(), answer, answeredBy, source);
+        return new ChatResponse(conversationId.toString(), answer, completion.model(), SOURCE_AI, List.copyOf(usage.toolNames));
+    }
+
+    /** Agrega el recordatorio de alcance al ultimo mensaje del usuario (solo en lo que se envia al modelo). */
+    static List<Turn> withScopeNote(List<Turn> turns) {
+        int last = turns.size() - 1;
+        if (last >= 0 && turns.get(last).role() == Role.USER) {
+            turns.set(last, Turn.user(turns.get(last).text() + CoachPrompts.SCOPE_NOTE));
+        }
+        return turns;
+    }
+
+    /** Llamada a una herramienta, para guardarla junto con la respuesta. */
+    record ToolLog(String tool, String metadata) {
+    }
+
+    private void recordUsage(UUID userId, Usage usage) {
+        if (usage.calls > 0) {
+            settings.recordUsage(userId, Feature.COACH, usage.model, usage.input, usage.output);
+        }
     }
 
     public List<RecommendationResponse> recommendations() {
@@ -169,9 +187,10 @@ public class AiService {
     /**
      * Bucle del agente: el modelo puede pedir herramientas hasta {@code max-tool-rounds} veces; despues,
      * o si el mensaje se acerca al presupuesto de tokens, se le pide la respuesta final sin herramientas.
+     * Las llamadas se anotan en {@code toolLogs}; se guardan solo si hay respuesta.
      */
-    Completion runAgent(UUID userId, UUID conversationId, String model, UserContext context, Set<SafetyGuard.Risk> risks, Usage usage) {
-        List<Turn> turns = turns(aiRepository.findRecentMessages(conversationId, HISTORY_MESSAGES));
+    Completion runAgent(UUID userId, String model, UserContext context, Set<SafetyGuard.Risk> risks, List<Turn> turns,
+                        Usage usage, List<ToolLog> toolLogs) {
         String system = CoachPrompts.coachSystem(context) + SafetyGuard.instructions(risks);
         String effort = properties.reasoningEffortFor(Feature.COACH);
         long maxTokens = properties.maxTokensFor(Feature.COACH);
@@ -205,13 +224,16 @@ public class AiService {
             for (ToolCall call : calls) {
                 AiToolRegistry.Result result = tools.execute(userId, call.name(), call.arguments());
                 usage.toolCalls++;
+                if (!result.error()) {
+                    usage.toolNames.add(call.name());
+                }
                 resultChars += result.content().length();
                 turns.add(Turn.toolResult(call.id(), call.name(), result.content()));
-                aiRepository.createToolMessage(conversationId, call.name(), json(Map.of(
+                toolLogs.add(new ToolLog(call.name(), json(Map.of(
                         "tool", call.name(),
                         "arguments", PersonalDataFilter.redact(truncate(call.arguments(), 300)),
                         "error", result.error(),
-                        "result", truncate(result.content(), 500))));
+                        "result", truncate(result.content(), 500)))));
             }
             // Siguiente llamada: lo ya enviado mas los resultados (~3 caracteres por token).
             long nextPrompt = completion.inputTokens() + completion.outputTokens() + resultChars / 3 + 100;

@@ -62,29 +62,29 @@ public class AiToolRegistry {
     public List<ToolSpec> specs() {
         return List.of(
                 new ToolSpec("search_exercises",
-                        "Busca ejercicios del catalogo del usuario por grupo muscular, equipo o nombre. "
-                                + "Usala para recomendar ejercicios concretos o alternativas.",
+                        "Busca ejercicios del catálogo del usuario por grupo muscular, equipo o nombre. "
+                                + "Úsala para recomendar ejercicios concretos o alternativas.",
                         object(Map.of(
                                 "muscle", Map.of("type", "string", "enum", MUSCLES),
                                 "equipment", Map.of("type", "string", "enum", EQUIPMENT),
                                 "query", Map.of("type", "string", "description", "Parte del nombre, por ejemplo 'press'"),
                                 // Texto y no booleano: Qwen escribe los booleanos como True y Groq rechaza la llamada.
                                 "equipment_scope", Map.of("type", "string", "enum", List.of("mine", "all"),
-                                        "description", "mine = solo con el equipo del usuario (por defecto); all = todo el catalogo")),
+                                        "description", "mine = solo con el equipo del usuario (por defecto); all = todo el catálogo")),
                                 List.of())),
                 new ToolSpec("list_my_routines",
-                        "Lista las rutinas activas del usuario con sus dias.",
+                        "Lista las rutinas activas del usuario con sus días.",
                         object(Map.of(), List.of())),
                 new ToolSpec("get_routine",
                         "Devuelve una rutina del usuario con sus ejercicios, series, repeticiones y descansos.",
                         object(Map.of("routine_id", Map.of("type", "string", "description", "id de list_my_routines")),
                                 List.of("routine_id"))),
                 new ToolSpec("get_recent_training",
-                        "Sesiones completadas recientes: fecha, dia, series, volumen y esfuerzo percibido.",
-                        object(Map.of("days", Map.of("type", "integer", "description", "Cuantos dias hacia atras, de 1 a 90")),
+                        "Sesiones completadas recientes: fecha, día, series, volumen y esfuerzo percibido.",
+                        object(Map.of("days", Map.of("type", "integer", "description", "Cuántos días hacia atrás, de 1 a 90")),
                                 List.of())),
                 new ToolSpec("get_exercise_progress",
-                        "Progreso del usuario en un ejercicio: mejores series por sesion y records.",
+                        "Progreso del usuario en un ejercicio: mejores series por sesión y récords.",
                         object(Map.of("exercise_name", Map.of("type", "string")), List.of("exercise_name")))
         );
     }
@@ -150,7 +150,7 @@ public class AiToolRegistry {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("name", exercise.name());
             item.put("muscle", exercise.primaryMuscleGroup());
-            item.put("equipment", exercise.equipment());
+            item.put("equipment", equipmentLabel(exercise.equipment()));
             found.add(item);
             if (found.size() == 15) {
                 break;
@@ -169,7 +169,7 @@ public class AiToolRegistry {
             item.put("routine_id", routine.id());
             item.put("title", routine.title());
             item.put("objective", routine.objective());
-            item.put("days", routine.days().stream().map(day -> day.title() == null ? "Dia " + day.dayIndex() : day.title()).toList());
+            item.put("days", routine.days().stream().map(day -> day.title() == null ? "Día " + day.dayIndex() : day.title()).toList());
             routines.add(item);
             if (routines.size() == 10) {
                 break;
@@ -193,7 +193,7 @@ public class AiToolRegistry {
         List<Map<String, Object>> days = new ArrayList<>();
         routine.days().forEach(day -> {
             Map<String, Object> item = new LinkedHashMap<>();
-            item.put("day", day.title() == null ? "Dia " + day.dayIndex() : day.title());
+            item.put("day", day.title() == null ? "Día " + day.dayIndex() : day.title());
             item.put("exercises", day.exercises().stream().map(exercise -> {
                 Integer min = exercise.repsMin() == null ? exercise.reps() : exercise.repsMin();
                 Integer max = exercise.repsMax() == null ? exercise.reps() : exercise.repsMax();
@@ -270,6 +270,23 @@ public class AiToolRegistry {
         }
         String text = value.asText().trim();
         return text.length() > maxLength ? text.substring(0, maxLength) : text;
+    }
+
+    /** Nombre legible del equipo: el modelo lo repite tal cual en la respuesta. */
+    static String equipmentLabel(String code) {
+        if (code == null || code.isBlank()) {
+            return "sin equipo indicado";
+        }
+        return switch (code) {
+            case "BODYWEIGHT" -> "peso corporal";
+            case "DUMBBELL" -> "mancuernas";
+            case "BARBELL" -> "barra";
+            case "FREE_WEIGHT" -> "peso libre";
+            case "MACHINE" -> "máquina";
+            case "CABLE" -> "polea";
+            case "SMITH_MACHINE" -> "máquina Smith";
+            default -> code.toLowerCase(java.util.Locale.ROOT);
+        };
     }
 
     private static String kg(BigDecimal value) {

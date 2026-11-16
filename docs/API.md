@@ -89,7 +89,8 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `GET`    | `/ai/models`                        | Modelo de IA en uso, si se puede elegir y uso del dia           |
 | `PUT`    | `/ai/preferences`                   | Elige el modelo del coach y el de rutinas                       |
 | `POST`   | `/routines/generate`                | Borrador de rutina con IA, JSON estricto (no se guarda)         |
-| `GET`    | `/ai/conversations`                 | Conversaciones                                                  |
+| `GET`    | `/ai/conversations`                 | Conversaciones (las 50 mas recientes)                           |
+| `DELETE` | `/ai/conversations/{id}`            | Borra una conversacion propia con sus mensajes (204/404)        |
 | `GET`    | `/ai/conversations/{id}/messages`   | Mensajes de una conversacion                                    |
 | `GET`    | `/ai/recommendations`               | Ultimas 50 recomendaciones                                      |
 
@@ -432,7 +433,7 @@ Borra la sesion y sus series. 204; 404 si no existe o es de otro usuario.
 
 ## IA
 
-Agente de fitness con **Qwen 3.8 27B** (`qwen/qwen3.8-27b`) servido por **GroqCloud**, a traves de su API compatible con OpenAI (`POST {base}/chat/completions`). El backend es el unico que habla con Groq: la clave nunca llega a la app. Sin clave, el coach responde con reglas locales y `/routines/generate` devuelve 503; el resto de la app funciona igual.
+Agente de fitness con **Qwen 3.8 27B** (`qwen/qwen3.8-27b`) servido por **GroqCloud**, a traves de su API compatible con OpenAI (`POST {base}/chat/completions`). El backend es el unico que habla con Groq: la clave nunca llega a la app. **Solo responde el modelo**: no hay respuestas predeterminadas. Sin clave, `/ai/chat` y `/routines/generate` devuelven 503; el resto de la app funciona igual.
 
 ### Configuracion
 
@@ -461,10 +462,11 @@ Limites de Groq para `qwen/qwen3.8-27b` (pagina de rate limits, nov 2026): 30 pe
 ### Como funciona
 
 - **Chat (agente):** prompt de sistema con reglas de seguridad y un contexto corto del usuario (edad, sexo, altura, peso, nivel, dias, minutos, estilo, objetivos, lesiones, equipo, preferencias de alimentacion, rutinas activas y constancia). Los ultimos 8 mensajes como historial. El modelo puede pedir herramientas; el backend las ejecuta con el usuario autenticado y le devuelve el resultado.
+- **Alcance:** el coach responde sobre entrenamiento, técnica, rutinas, nutrición deportiva, recuperación, hábitos y motivación, la app y los datos del usuario, incluidos cálculos al servicio de eso (kg/lb, macros, volumen, 1RM). Rechaza en una o dos frases, sin responder ni en parte, lo demás (cálculos sueltos, cultura general, programación, tareas, política, finanzas, medicina no relacionada con el ejercicio) y propone algo de fitness. Ante la duda interpreta la pregunta en clave de fitness; en preguntas mixtas responde solo la parte de fitness. El rechazo lo escribe el modelo (no hay textos fijos). Las reglas están en `CoachPrompts.coachSystem` y un recordatorio corto (`CoachPrompts.SCOPE_NOTE`) viaja al final del último mensaje del usuario, solo hacia el modelo: sin él, Qwen seguía respondiendo fuera de tema en conversaciones donde ya lo había hecho antes.
 - **Herramientas** (solo lectura, `AiToolRegistry`): `search_exercises(muscle?, equipment?, query?, only_my_equipment?)`, `list_my_routines()`, `get_routine(routine_id)`, `get_recent_training(days)`, `get_exercise_progress(exercise_name)`. Argumentos validados, resultados recortados (maximo 15 ejercicios, 10 sesiones, 2.500 caracteres). Una rutina de otro usuario responde `not_found`. Cada llamada se guarda en `ai_messages` con rol `TOOL`.
 - **Rutinas:** el backend filtra el catalogo por el equipo del usuario y hace una sola llamada con `response_format: json_schema` y `strict: true` (Groq no permite herramientas y JSON estructurado juntos). El esquema fija la cantidad de dias (`minItems`/`maxItems`) y de ejercicios por dia (6 hasta 3 dias, 5 con 4–5, 4 con 6–7), y es compacto para entrar en 1.000 tokens de salida: cada ejercicio es `{ref, sets, reps: "6-8", rest}`, una indicacion de tecnica por dia (hasta 5 dias) y el nivel, la duracion y el foco los pone el backend. Despues valida todo en codigo.
 - **Datos personales:** nunca se envian nombre, email, fecha de nacimiento, foto ni notas medicas. Emails, telefonos y numeros largos se reemplazan en los mensajes antes de enviarlos. Los logs guardan modelo, estado, latencia y tokens, no el contenido. Recomendado: activar *Zero Data Retention* en console.groq.com → Settings → Data Controls.
-- **Seguridad:** antes, se detectan senales de riesgo (sintomas cardiacos, trastornos alimentarios, embarazo, lesiones, sustancias, menores) y se agregan instrucciones; despues, se agrega siempre un aviso fijo y se revisa la respuesta (menos de 1.200 kcal, ayunos de 24 h o mas).
+- **Seguridad:** antes, se detectan senales de riesgo (sintomas cardiacos, trastornos alimentarios, embarazo, lesiones, sustancias, menores) y se agregan instrucciones; despues, si la respuesta del modelo no deriva a un profesional se agrega un aviso fijo, y se revisa la respuesta (menos de 1.200 kcal, ayunos de 24 h o mas).
 - **Errores:** un 429/498 de Groq se reintenta hasta dos veces si `retry-after` es de 5 s o menos; 500/502/503 se reintentan una vez; un 429 "Request too large" no se reintenta. Si el modelo arma mal una llamada a herramienta (400 `tool_use_failed`), el agente pide la respuesta sin herramientas. Los parametros de las herramientas no usan booleanos: Qwen los escribe como `True` y Groq rechaza la llamada. Si sigue fallando: el chat responde con las reglas locales (`source = LOCAL`) y la generacion responde 429 o 503.
 
 ### `GET /ai/models`
@@ -485,13 +487,16 @@ Limites de Groq para `qwen/qwen3.8-27b` (pagina de rate limits, nov 2026): 30 pe
 
 ### `POST /ai/chat`
 
-`{ conversationId?, message (max 4000) }` → `{ conversationId, answer, model, source }`.
+`{ conversationId?, message (max 4000) }` → `{ conversationId, answer, model, source, toolsUsed }`.
 
-- `source`: `AI` (respondio el modelo) o `LOCAL` (sin clave, sin presupuesto del dia o Groq no respondio).
-- `conversationId` de otro usuario → 404; mal formado → 400; limite diario del usuario → 429 (no se guarda nada).
+- `toolsUsed`: herramientas que consulto el agente para esta respuesta, sin repetir (por ejemplo `["get_recent_training", "search_exercises"]`). La app las muestra como chips bajo la respuesta.
+
+- `source`: siempre `AI`. Si el modelo no puede responder, el endpoint devuelve un error y **no guarda nada** (ni la pregunta ni la conversacion), asi la app puede reintentar sin duplicar.
+- Errores: `conversationId` de otro usuario → 404; mal formado → 400; IA no activa → 503 `AI is not configured`; limite diario del usuario → 429 `Daily AI limit reached`; presupuesto diario de la app → 429 `AI daily budget reached`; Groq saturado → 429 `AI provider is busy, try again in a minute`; Groq caido o sin respuesta → 503 `AI service unavailable`; respuesta vacia → 502.
+- Si el modelo se niega, su propio texto es la respuesta.
 - Cada respuesta guarda en `metadata`: origen, modelo pedido, `stopReason`, tokens, llamadas al modelo, herramientas usadas, riesgos detectados y avisos. Un mensaje = una fila en `ai_usage` con los tokens de todas sus rondas.
 
-`GET /ai/conversations`, `GET /ai/conversations/{id}/messages` y `GET /ai/recommendations` siguen igual.
+`GET /ai/conversations/{id}/messages` devuelve tambien las filas `TOOL` (en `content`, el nombre de la herramienta): la app las agrupa en la respuesta que las sigue. `DELETE /ai/conversations/{id}` responde 204, o 404 si no existe o es de otro usuario. `GET /ai/recommendations` sigue igual.
 
 ### `POST /routines/generate`
 

@@ -320,7 +320,7 @@ Campos principales:
 - `metadata`
 - `created_at`
 
-En `metadata` del asistente (Fase 5): `source` (`AI`/`LOCAL`; `CLAUDE` en mensajes anteriores al 2026-11-15), `requestedModel`, `stopReason`, `inputTokens`, `outputTokens`, `modelCalls`, `toolCalls`, `risks`, `issues` y, si respondieron las reglas locales, `reason`. `model` es el que respondio.
+En `metadata` del asistente (Fase 5): `source` (`AI`; `CLAUDE` en mensajes anteriores al 2026-11-15; el coach local y su `LOCAL` se quitaron el 2026-11-16), `requestedModel`, `stopReason`, `inputTokens`, `outputTokens`, `modelCalls`, `toolCalls`, `risks`, `issues` y, si respondieron las reglas locales, `reason`. `model` es el que respondio.
 
 Las llamadas del agente a herramientas se guardan con `role = 'TOOL'`: `content` es el nombre de la herramienta y `metadata` tiene `tool`, `arguments`, `error` y `result` (recortado). No se mandan al modelo como historial.
 

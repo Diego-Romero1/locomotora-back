@@ -58,6 +58,10 @@ class SafetyAndPrivacyTest {
         assertEquals(Set.of(Issue.LONG_FAST), SafetyGuard.review("prueba ayunar dos dias"));
         assertTrue(SafetyGuard.review("Apunta a 2200 kcal y un ayuno de 16 horas si te sirve").isEmpty());
         assertTrue(SafetyGuard.review("En esa sesion quemas unas 500 kcal").isEmpty());
+        assertEquals(Set.of(Issue.VERY_LOW_CALORIES), SafetyGuard.review("Puedes comer 900 kcal al dia durante un mes."));
+        // Calorias quemadas, no ingeridas: no es una dieta peligrosa.
+        assertTrue(SafetyGuard.review("Con tu peso de 78 kg, correr 30 minutos quema entre 300 y 380 kcal al día.").isEmpty());
+        assertTrue(SafetyGuard.review("Una sesion de pesas gasta unas 400 calorias.").isEmpty());
     }
 
     @Test

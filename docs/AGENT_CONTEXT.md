@@ -50,7 +50,7 @@ El código vive en WSL (`/home/romero/my-stuff/locomotora-app`). Ejecutar las he
 | Base de datos  | PostgreSQL 17 (Docker, puerto local `5433`)                            |
 | Seguridad      | Spring Security + JWT HS256 propio (`JwtService`), BCrypt              |
 | Tests          | JUnit 5 + Mockito. 120 tests, con Testcontainers para la integracion de IA (contexto, `RoutineService`, `WorkoutLogService`, `WorkoutSessionService`, `TrainingService`, `TrainingCalendar`, `WorkoutHistoryService`, duplicar/origen/objetivo/ejercicios propios, coach y generador IA con cliente simulado). |
-| IA             | Qwen 3.8 27B en GroqCloud vía `GroqModelClient` (`RestClient`, API compatible con OpenAI, sin SDK). Agente con herramientas de solo lectura (`ai/tools/AiToolRegistry`), rutinas con JSON estricto. Config en `locomotora.ai.*` / `GROQ_API_KEY`. Sin clave, reglas locales. Prueba manual: `docs/PRUEBA_IA.md`. |
+| IA             | Qwen 3.8 27B en GroqCloud vía `GroqModelClient` (`RestClient`, API compatible con OpenAI, sin SDK). Agente con herramientas de solo lectura (`ai/tools/AiToolRegistry`), rutinas con JSON estricto. Config en `locomotora.ai.*` / `GROQ_API_KEY`. Solo responde el modelo: sin clave o si falla, error y no se guarda nada. Prueba manual: `docs/PRUEBA_IA.md`. |
 
 Variables relevantes (`application.properties`): `SPRING_DATASOURCE_URL`, `LOCOMOTORA_JWT_SECRET` (por defecto inseguro), `LOCOMOTORA_JWT_EXPIRATION_MINUTES` (1440), `LOCOMOTORA_CORS_ALLOWED_ORIGIN_PATTERNS`, `GROQ_API_KEY` y `LOCOMOTORA_AI_*` (ver `API.md` → IA).
 
@@ -147,8 +147,9 @@ src/
 │   └── workout/               ExerciseCatalogGroupCard
 ├── features/workout/          sesion en curso: reducer puro, cola de envio, AsyncStorage, contexto (ver 3.4)
 ├── features/routineBuilder/   borrador del Wizard v2: reducer puro (routineDraft.ts), conversion desde/hacia la API, guardado en el teléfono
-├── features/ai/               aiModels.ts: eleccion de modelo, errores de IA, rutina generada → borrador
+├── features/ai/               aiModels.ts (modelo, errores, rutina generada → borrador), coachChat.ts (formato de respuestas, historial, uso del día)
 ├── components/ai/             AiModelSettings (sección "Coach IA" de Perfil)
+├── components/coach/          CoachMessage, CoachComposer, CoachWelcome, ConversationsSheet, TypingIndicator
 └── utils/                     exerciseCatalog, progressInsights
 ```
 
@@ -167,7 +168,7 @@ AppNavigator (stack)
 │   │   ├── RoutineAI             { prompt? } generador con IA (`POST /routines/generate`); abre el wizard en revisión
 │   │   └── RoutineWizard         { id?, draft?, step? } Wizard v2 de 4 pasos, crear y editar
 │   ├── Progress
-│   ├── AI                        oculta en la barra (4 pestañas); se abre desde la tarjeta del coach en Hoy
+│   ├── AI                        pestaña central «Coach» (5 pestañas: Hoy, Rutinas, Coach, Progreso, Perfil)
 │   └── Profile
 ├── Workout                       sin parámetros: lee la sesión del contexto. Se abre con useStartWorkout
 ├── ExerciseGroup                 { groupName, exercises }
@@ -192,7 +193,7 @@ El catálogo de ejercicios se carga una vez en `TabNavigator` y se pasa como pro
 | RoutineWizard     | ✅ Fase 4      | 4 pasos, varios días, conserva ids y rangos al editar, borrador guardado en el teléfono       |
 | Workout           | ✅ Fase 2      | Serie activa con + y −, la vez pasada, timer de descanso, lista del día, reemplazo, récords   |
 | Progress          | ✅ Fase 3      | Resumen, Historial, Ejercicios y Cuerpo; detalle y corrección de sesión; progreso por ejercicio |
-| AI                | ✅ Fase 5      | Agente con herramientas y el contexto del usuario; reglas locales si no hay clave             |
+| AI                | ✅ Fase 5      | Coach: retoma la última conversación, historial, borrar, sugerencias, chips de herramientas, uso del día |
 | Profile           | ✅             | Datos, objetivo, foto, tema claro/oscuro, idioma, modelo de IA en uso, logout          |
 
 ## 6. Decisiones de diseño

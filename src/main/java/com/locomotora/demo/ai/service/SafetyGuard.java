@@ -33,16 +33,16 @@ public final class SafetyGuard {
     );
 
     private static final Map<Risk, String> INSTRUCTIONS = Map.of(
-            Risk.CARDIO, "El usuario menciona sintomas cardiovasculares o respiratorios: indica parar el ejercicio y consultar a un medico; "
-                    + "si son intensos o en reposo, buscar atencion de urgencia. No des un plan de entrenamiento para eso.",
-            Risk.EATING_DISORDER, "El usuario menciona conductas de trastorno alimentario: responde con empatia, no des cifras de calorias "
-                    + "ni pautas de restriccion, y sugiere hablar con un profesional de salud.",
-            Risk.PREGNANCY, "El usuario menciona embarazo o lactancia: da solo pautas generales y prudentes, y pide validarlas con su medico.",
-            Risk.INJURY, "El usuario menciona una lesion o dolor: no diagnostiques; sugiere evaluacion profesional y, si propones algo, "
+            Risk.CARDIO, "El usuario menciona síntomas cardiovasculares o respiratorios: indica parar el ejercicio y consultar a un médico; "
+                    + "si son intensos o en reposo, buscar atención de urgencia. No des un plan de entrenamiento para eso.",
+            Risk.EATING_DISORDER, "El usuario menciona conductas de trastorno alimentario: responde con empatía, no des cifras de calorías "
+                    + "ni pautas de restricción, y sugiere hablar con un profesional de salud.",
+            Risk.PREGNANCY, "El usuario menciona embarazo o lactancia: da solo pautas generales y prudentes, y pide validarlas con su médico.",
+            Risk.INJURY, "El usuario menciona una lesión o dolor: no diagnostiques; sugiere una evaluación profesional y, si propones algo, "
                     + "que sean alternativas que no carguen la zona afectada.",
             Risk.SUBSTANCES, "El usuario pregunta por sustancias para mejorar el rendimiento: no des dosis ni protocolos; explica riesgos "
-                    + "y recomienda consultar a un medico.",
-            Risk.MINOR, "El usuario podria ser menor de edad: recomienda supervision de un adulto o entrenador y evita dietas o cargas maximas."
+                    + "y recomienda consultar a un médico.",
+            Risk.MINOR, "El usuario podría ser menor de edad: recomienda la supervisión de un adulto o un entrenador y evita dietas o cargas máximas."
     );
 
     private static final Map<Risk, String> NOTICES = Map.of(
@@ -55,6 +55,8 @@ public final class SafetyGuard {
     );
 
     private static final Pattern CALORIES = Pattern.compile("(\\d{3,4})\\s*(kcal|calorias|cal\\b)");
+    private static final Pattern INTAKE = Pattern.compile("\\bcom(e|er|iendo|as)\\b|al dia|diari|por dia|dieta|ingesta|consum");
+    private static final Pattern BURN = Pattern.compile("quem|gast|burn");
     private static final Pattern FAST = Pattern.compile("ayun\\w*\\s+(de\\s+)?(\\d{2,3})\\s*(h\\b|horas)|ayun\\w*\\s+(de\\s+)?(\\d+|varios|dos|tres)\\s+dias");
 
     private SafetyGuard() {
@@ -76,7 +78,7 @@ public final class SafetyGuard {
         if (risks.isEmpty()) {
             return "";
         }
-        StringBuilder text = new StringBuilder("\n\nAtencion en este mensaje:");
+        StringBuilder text = new StringBuilder("\n\nAtención en este mensaje:");
         for (Risk risk : Risk.values()) {
             if (risks.contains(risk)) {
                 text.append("\n- ").append(INSTRUCTIONS.get(risk));
@@ -88,11 +90,17 @@ public final class SafetyGuard {
     public static Set<Issue> review(String answer) {
         String normalized = ExerciseCatalogFilter.normalize(answer);
         Set<Issue> issues = EnumSet.noneOf(Issue.class);
-        Matcher calories = CALORIES.matcher(normalized);
-        while (calories.find()) {
-            int value = Integer.parseInt(calories.group(1));
-            if (value >= 300 && value < 1200 && !normalized.contains("quemas") && !normalized.contains("gastas")) {
-                issues.add(Issue.VERY_LOW_CALORIES);
+        // Solo cuenta si la frase habla de comer (no de calorias quemadas al entrenar).
+        for (String sentence : normalized.split("[.!?\\n]")) {
+            if (!INTAKE.matcher(sentence).find() || BURN.matcher(sentence).find()) {
+                continue;
+            }
+            Matcher calories = CALORIES.matcher(sentence);
+            while (calories.find()) {
+                int value = Integer.parseInt(calories.group(1));
+                if (value >= 300 && value < 1200) {
+                    issues.add(Issue.VERY_LOW_CALORIES);
+                }
             }
         }
         Matcher fast = FAST.matcher(normalized);
@@ -103,6 +111,18 @@ public final class SafetyGuard {
             }
         }
         return issues;
+    }
+
+    /** Palabras con las que el modelo ya deriva a un profesional: si aparecen, no hace falta el aviso fijo. */
+    private static final Pattern REFERRAL = Pattern.compile(
+            "medic|doctor|profesional|fisioterapeut|kinesiolog|urgencia|emergencia|nutricionista|psicolog|especialista");
+
+    /** Riesgos que la respuesta del modelo no atendio (no deriva a un profesional). */
+    public static Set<Risk> unaddressed(String answer, Set<Risk> risks) {
+        if (risks.isEmpty() || REFERRAL.matcher(ExerciseCatalogFilter.normalize(answer)).find()) {
+            return Set.of();
+        }
+        return risks;
     }
 
     /** Respuesta final: la del modelo mas los avisos fijos que correspondan. */

@@ -175,7 +175,7 @@ class RoutineGenerationServiceTest {
         GeneratedRoutineResponse routine = service.generate(request(3, null));
 
         assertEquals(2, routine.days().size());
-        assertEquals("Dia 1", routine.days().get(0).title());
+        assertEquals("Día 1", routine.days().get(0).title());
         GeneratedRoutineResponse.Exercise exercise = routine.days().get(0).exercises().get(0);
         assertEquals(10, exercise.sets());
         assertEquals(8, exercise.repsMin());
@@ -220,7 +220,7 @@ class RoutineGenerationServiceTest {
         GeneratedRoutineResponse routine = service.generate(request(1, "Tengo una hernia de disco"));
 
         assertTrue(routine.warnings().contains("SEE_PROFESSIONAL"));
-        verify(client).complete(argThat(request -> request.system().contains("lesion o dolor")));
+        verify(client).complete(argThat(request -> request.system().contains("lesión o dolor")));
     }
 
     @Test

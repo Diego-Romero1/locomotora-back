@@ -79,6 +79,7 @@ class AiToolRegistryTest {
         assertTrue(result.content().contains("Sentadilla con barra"));
         assertFalse(result.content().contains("Prensa de piernas"), "the user has no machines");
         assertFalse(result.content().contains("0000-0000"), "ids are not exposed");
+        assertTrue(result.content().contains("\"equipment\":\"barra\""), "readable equipment names");
 
         AiToolRegistry.Result all = registry.execute(userId, "search_exercises", "{\"muscle\":\"Cuádriceps\",\"equipment_scope\":\"all\"}");
         assertTrue(all.content().contains("Prensa de piernas"));

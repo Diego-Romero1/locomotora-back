@@ -152,6 +152,30 @@ Prueba con la clave real (2026-11-15): chat de 9 preguntas (proteina, ejercicios
 
 Pendiente: probar en el telefono y decidir el `reasoning_effort` de las rutinas (hoy `none`; razonar gasta tokens de salida, que son el limite mas chico).
 
+### Coach: pestaña y UX (2026-11-16)
+
+- La barra vuelve a 5 pestañas (Hoy, Rutinas, Coach, Progreso, Perfil), como en el handoff de diseño. La barra se oculta con el teclado en el Coach.
+- Pantalla del coach: retoma la ultima conversacion; historial en hoja inferior (abrir, nueva, borrar); bienvenida con saludo, 4 preguntas sugeridas (tecnica, nutricion, progreso, mi rutina), acceso a "Crear rutina con IA" y aviso de que no reemplaza a un profesional; respuestas con listas y el aviso de seguridad destacado; chips con las herramientas que uso el agente ("Reviso tus sesiones", "Busco ejercicios"); indicador de escritura que pasa a "Consultando tus datos…"; error con "Toca para reintentar"; modelo y uso del dia en el encabezado, aviso cuando quedan 5 mensajes y campo bloqueado al llegar al limite.
+- Backend: `toolsUsed` en `POST /ai/chat`, `DELETE /ai/conversations/{id}`, lista de conversaciones limitada a 50, nombres de equipo legibles en `search_exercises`, prompts con tildes (el modelo imitaba la falta de tildes) y "tu" en lugar de "vos", objetivo en palabras en el coach local.
+- Verificado en el navegador (Expo web, 390×844) contra Qwen real: bienvenida, respuesta, herramientas, tarjeta de rutina, historial y retomar conversacion. 127 tests backend y 86 frontend.
+
+### Coach: solo responde la IA y teclado (2026-11-16)
+
+- Auditoria: en la base habia 14 respuestas predeterminadas (13 del motor de palabras clave de junio y 1 del coach local del 14 nov, sin clave) y 2 de Qwen. Ninguna migracion inserta mensajes: las generaba `LocalCoach`.
+- Se quito `LocalCoach` y la respuesta fija de rechazo. Si Qwen no responde, `/ai/chat` devuelve 429/503/502 con el motivo y no guarda nada (ni la pregunta ni la conversacion); la pregunta, las llamadas a herramientas y la respuesta se guardan juntas solo cuando hay respuesta. El aviso de seguridad fijo solo se agrega si el modelo no derivo a un profesional.
+- Se borraron las 14 respuestas predeterminadas, sus preguntas y las conversaciones que quedaron vacias (respaldo en `respaldos/2026-11-16-respuestas-automaticas-borradas.csv`, fuera de los repos).
+- Teclado: el coach usaba `KeyboardAvoidingView` solo en iOS; en Android (edge-to-edge desde Expo SDK 58) el teclado tapaba el campo. Ahora usa `padding` en las dos plataformas y lleva el ultimo mensaje a la vista al abrir el teclado. Falta probarlo en el telefono.
+- App: errores distinguidos (IA no activa, limite propio, presupuesto de la app, Groq saturado, sin respuesta) con "Toca para reintentar"; sin IA activa el campo se bloquea con la explicacion. 129 tests backend y 86 frontend.
+
+### Coach: alcance solo fitness (2026-11-16)
+
+- Problema: el agente respondia cualquier cosa ("¿cuanto es 2 + 2?" → "4.", quien fue Cristobal Colon).
+- Reglas de alcance en el prompt (que responde, que no, como decidir y como rechazar) sin sobre-restringir: ante la duda se interpreta en clave de fitness, los calculos de entrenamiento y nutricion siguen permitidos, las preguntas mixtas se responden en su parte de fitness y el rechazo lo escribe el modelo con una propuesta concreta.
+- Recordatorio de alcance al final del ultimo mensaje del usuario (solo hacia el modelo): con historial que ya tenia respuestas fuera de tema, Qwen seguia el patron en 2 de 4 intentos; con el recordatorio, 0 de 4, y las preguntas de fitness se siguen respondiendo.
+- El contexto del usuario pasa los codigos del perfil en palabras ("barra", "ganar músculo", "intermedio"): con codigos en ingles el modelo decia "barbell" y una vez respondio en ingles.
+- El aviso de menos de 1.200 kcal ya no salta con calorias quemadas ("correr 30 minutos quema 300 kcal").
+- Evaluado contra Qwen real: 9/9 preguntas fuera de tema rechazadas (incluido "ignora tus reglas"), la mixta respondida solo en su parte de fitness, 10/10 de fitness respondidas (incluidas conversiones, volumen, sueño, creatina, frase motivacional y uso de la app) y la conversacion "contaminada" rechazada. 131 tests backend.
+
 ### Avance de la Fase 5 · IA real con Claude (2026-11-13, rama `main`) — reemplazada el 2026-11-15
 
 Decision: Claude (API de Anthropic, SDK `anthropic-java` 3.3.0) con **modelo intercambiable**. Cada usuario elige en Perfil que modelo usa para el chat y para crear rutinas; el servidor define que modelos se ofrecen y cual es el de por defecto, sin recompilar.
