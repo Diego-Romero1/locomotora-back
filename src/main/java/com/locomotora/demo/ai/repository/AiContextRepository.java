@@ -1,6 +1,7 @@
 package com.locomotora.demo.ai.repository;
 
 import com.locomotora.demo.ai.service.UserContext;
+import com.locomotora.demo.common.JsonCodes;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Period;
@@ -56,7 +57,8 @@ public class AiContextRepository {
         return jdbcTemplate.query(
                 """
                 SELECT p.birth_date, p.sex, p.height_cm, p.weight_kg, p.activity_level, p.experience_level,
-                       p.training_days_per_week, p.session_duration_minutes, pref.preferred_training_style
+                       p.training_days_per_week, p.session_duration_minutes, pref.preferred_training_style,
+                       p.training_location, p.health_flags::text AS health_flags
                 FROM users u
                 LEFT JOIN user_profiles p ON p.user_id = u.id
                 LEFT JOIN user_preferences pref ON pref.user_id = u.id
@@ -78,7 +80,9 @@ public class AiContextRepository {
                             rs.getString("experience_level"),
                             (Integer) rs.getObject("training_days_per_week", Integer.class),
                             (Integer) rs.getObject("session_duration_minutes", Integer.class),
-                            rs.getString("preferred_training_style")
+                            rs.getString("preferred_training_style"),
+                            rs.getString("training_location"),
+                            JsonCodes.parse(rs.getString("health_flags"))
                     );
                 },
                 userId

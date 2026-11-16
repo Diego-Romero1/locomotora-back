@@ -1,6 +1,9 @@
 package com.locomotora.demo.user.repository;
 
-import com.locomotora.demo.user.dto.OnboardingRequest;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.locomotora.demo.common.JsonCodes;
 import com.locomotora.demo.user.dto.OnboardingResponse;
 import com.locomotora.demo.user.dto.ProfileRequest;
 import com.locomotora.demo.user.dto.ProfileResponse;
@@ -117,7 +120,9 @@ public class ProfileRepository {
         return jdbcTemplate.queryForObject(
                 """
                 SELECT height_cm, weight_kg, experience_level, training_days_per_week,
-                       session_duration_minutes, onboarding_completed
+                       session_duration_minutes, onboarding_completed, birth_date, sex, activity_level,
+                       training_location, health_flags::text AS health_flags, onboarding_skipped_at,
+                       dietary_preferences::text AS dietary_preferences, medical_notes
                 FROM user_profiles
                 WHERE user_id = ?
                 """,
@@ -127,25 +132,157 @@ public class ProfileRepository {
                         rs.getString("experience_level"),
                         (Integer) rs.getObject("training_days_per_week"),
                         (Integer) rs.getObject("session_duration_minutes"),
-                        rs.getBoolean("onboarding_completed")
+                        rs.getBoolean("onboarding_completed"),
+                        rs.getObject("birth_date", LocalDate.class),
+                        rs.getString("sex"),
+                        rs.getString("activity_level"),
+                        rs.getString("training_location"),
+                        JsonCodes.parse(rs.getString("health_flags")),
+                        rs.getObject("onboarding_skipped_at") != null,
+                        readStringList(rs.getString("dietary_preferences")),
+                        rs.getString("medical_notes")
                 ),
                 userId
         );
     }
 
-    public void updateOnboardingProfile(UUID userId, OnboardingRequest request, String experienceLevel) {
+    public void updateOnboardingProfile(UUID userId, OnboardingProfileUpdate update) {
         jdbcTemplate.update(
                 """
                 UPDATE user_profiles
                 SET height_cm = ?, weight_kg = ?, experience_level = ?, training_days_per_week = ?,
-                    session_duration_minutes = ?, onboarding_completed = true, updated_at = now()
+                    session_duration_minutes = ?, birth_date = ?, sex = ?, activity_level = ?,
+                    training_location = ?, health_flags = CAST(? AS jsonb),
+                    onboarding_completed = true, updated_at = now()
                 WHERE user_id = ?
                 """,
-                request.heightCm(),
-                request.weightKg(),
-                experienceLevel,
-                request.trainingDaysPerWeek(),
-                request.sessionDurationMinutes(),
+                update.heightCm(),
+                update.weightKg(),
+                update.experienceLevel(),
+                update.trainingDaysPerWeek(),
+                update.sessionDurationMinutes(),
+                update.birthDate(),
+                update.sex(),
+                update.activityLevel(),
+                update.trainingLocation(),
+                JsonCodes.toArray(update.healthFlags()),
+                userId
+        );
+    }
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+
+    /** Arreglo JSON de textos libres; cualquier otra cosa (como el {} inicial) es una lista vacia. */
+    static List<String> readStringList(String json) {
+        if (json == null) {
+            return List.of();
+        }
+        try {
+            JsonNode node = JSON.readTree(json);
+            if (!node.isArray()) {
+                return List.of();
+            }
+            List<String> values = new java.util.ArrayList<>();
+            node.forEach(item -> {
+                if (item.isTextual() && !item.asText().isBlank()) {
+                    values.add(item.asText());
+                }
+            });
+            return values;
+        } catch (JsonProcessingException invalid) {
+            return List.of();
+        }
+    }
+
+    public static String writeStringList(List<String> values) {
+        try {
+            return JSON.writeValueAsString(values);
+        } catch (JsonProcessingException impossible) {
+            throw new IllegalStateException(impossible);
+        }
+    }
+
+    /**
+     * Edicion parcial: solo las columnas presentes. Las claves son nombres de columna fijos del
+     * codigo (no vienen del usuario), los valores van como parametros.
+     */
+    public void patchProfile(UUID userId, java.util.LinkedHashMap<String, Object> columns) {
+        if (columns.isEmpty()) {
+            return;
+        }
+        List<String> sets = new java.util.ArrayList<>();
+        List<Object> args = new java.util.ArrayList<>();
+        columns.forEach((column, value) -> {
+            if (!PATCHABLE_COLUMNS.contains(column)) {
+                throw new IllegalArgumentException("Column not patchable: " + column);
+            }
+            boolean json = column.equals("health_flags") || column.equals("dietary_preferences");
+            sets.add(column + (json ? " = CAST(? AS jsonb)" : " = ?"));
+            args.add(value);
+        });
+        args.add(userId);
+        jdbcTemplate.update(
+                "UPDATE user_profiles SET " + String.join(", ", sets) + ", updated_at = now() WHERE user_id = ?",
+                args.toArray()
+        );
+    }
+
+    private static final java.util.Set<String> PATCHABLE_COLUMNS = java.util.Set.of(
+            "experience_level", "training_days_per_week", "session_duration_minutes", "height_cm", "weight_kg",
+            "birth_date", "sex", "activity_level", "training_location", "health_flags", "dietary_preferences",
+            "medical_notes");
+
+    /** Nueva medicion de peso para Progreso, si cambio respecto de la ultima. */
+    public void insertWeightIfChanged(UUID userId, BigDecimal weightKg) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO body_metrics (user_id, weight_kg, notes)
+                SELECT ?, ?, 'Perfil'
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM (
+                        SELECT weight_kg FROM body_metrics
+                        WHERE user_id = ? AND weight_kg IS NOT NULL
+                        ORDER BY measured_at DESC LIMIT 1
+                    ) latest
+                    WHERE latest.weight_kg = ?
+                )
+                """,
+                userId,
+                weightKg,
+                userId,
+                weightKg
+        );
+    }
+
+    public void markOnboardingCompleted(UUID userId) {
+        jdbcTemplate.update(
+                "UPDATE user_profiles SET onboarding_completed = true, updated_at = now() WHERE user_id = ?",
+                userId
+        );
+    }
+
+    /** El usuario salteo el onboarding: deja de mostrarse, pero el perfil sigue incompleto. */
+    public void markOnboardingSkipped(UUID userId) {
+        jdbcTemplate.update(
+                """
+                UPDATE user_profiles
+                SET onboarding_skipped_at = COALESCE(onboarding_skipped_at, now()), updated_at = now()
+                WHERE user_id = ?
+                """,
+                userId
+        );
+    }
+
+    /** Primer registro de peso para Progreso: solo si el usuario todavia no tiene ninguno. */
+    public void insertInitialWeight(UUID userId, BigDecimal weightKg) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO body_metrics (user_id, weight_kg, notes)
+                SELECT ?, ?, 'Onboarding'
+                WHERE NOT EXISTS (SELECT 1 FROM body_metrics WHERE user_id = ? AND weight_kg IS NOT NULL)
+                """,
+                userId,
+                weightKg,
                 userId
         );
     }
@@ -276,7 +413,29 @@ public class ProfileRepository {
             String experienceLevel,
             Integer trainingDaysPerWeek,
             Integer sessionDurationMinutes,
-            boolean onboardingCompleted
+            boolean onboardingCompleted,
+            LocalDate birthDate,
+            String sex,
+            String activityLevel,
+            String trainingLocation,
+            List<String> healthFlags,
+            boolean onboardingSkipped,
+            List<String> dietaryPreferences,
+            String medicalNotes
+    ) {
+    }
+
+    public record OnboardingProfileUpdate(
+            BigDecimal heightCm,
+            BigDecimal weightKg,
+            String experienceLevel,
+            Integer trainingDaysPerWeek,
+            Integer sessionDurationMinutes,
+            LocalDate birthDate,
+            String sex,
+            String activityLevel,
+            String trainingLocation,
+            List<String> healthFlags
     ) {
     }
 }

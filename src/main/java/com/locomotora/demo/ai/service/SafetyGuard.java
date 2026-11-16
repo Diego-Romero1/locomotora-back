@@ -54,6 +54,56 @@ public final class SafetyGuard {
             Risk.MINOR, "Si eres menor de edad, entrena con la supervisión de un adulto o un entrenador."
     );
 
+    /**
+     * Instrucciones permanentes segun el perfil (edad, chequeo de salud, lesiones declaradas). No
+     * reemplazan a las de cada mensaje: piden prudencia sin negar el entrenamiento.
+     */
+    private static final Map<Risk, String> PROFILE_INSTRUCTIONS = Map.of(
+            Risk.CARDIO, "Su chequeo de salud indica una condición cardiovascular, presión alta o síntomas al esfuerzo: "
+                    + "propone intensidad moderada (RPE 7 o menos), sin series al fallo ni HIIT, con descansos amplios, "
+                    + "y recuérdale que necesita el visto bueno de su médico.",
+            Risk.PREGNANCY, "Indicó embarazo o posparto reciente: evita impactos, cargas máximas, trabajo abdominal intenso "
+                    + "y estar mucho tiempo boca arriba; pide validar el plan con su médico.",
+            Risk.INJURY, "Declaró lesiones o molestias (ver 'Lesiones o limitaciones'): evita ejercicios que carguen esas zonas, "
+                    + "propone alternativas y no diagnostiques.",
+            Risk.MINOR, "Es menor de edad: prioriza la técnica y cargas moderadas, nada de máximos ni dietas, y recomienda "
+                    + "supervisión de un adulto o un entrenador."
+    );
+
+    /** Codigos del chequeo de salud del onboarding que piden prudencia cardiovascular. */
+    private static final Set<String> CARDIO_FLAGS = Set.of("HEART_CONDITION", "CHEST_PAIN", "DIZZINESS", "HIGH_BLOOD_PRESSURE");
+
+    /** Riesgos que se desprenden del perfil, no de lo que escribe el usuario. */
+    public static Set<Risk> fromProfile(Integer age, List<String> healthFlags, boolean hasLimitations) {
+        Set<Risk> risks = EnumSet.noneOf(Risk.class);
+        if (age != null && age < 18) {
+            risks.add(Risk.MINOR);
+        }
+        if (healthFlags != null) {
+            if (healthFlags.stream().anyMatch(CARDIO_FLAGS::contains)) {
+                risks.add(Risk.CARDIO);
+            }
+            if (healthFlags.contains("PREGNANCY")) {
+                risks.add(Risk.PREGNANCY);
+            }
+        }
+        if (hasLimitations) {
+            risks.add(Risk.INJURY);
+        }
+        return risks;
+    }
+
+    /** Lineas para el contexto del usuario (vacio si el perfil no pide precauciones). */
+    public static List<String> profileInstructions(Set<Risk> risks) {
+        List<String> lines = new java.util.ArrayList<>();
+        for (Risk risk : Risk.values()) {
+            if (risks.contains(risk) && PROFILE_INSTRUCTIONS.containsKey(risk)) {
+                lines.add(PROFILE_INSTRUCTIONS.get(risk));
+            }
+        }
+        return lines;
+    }
+
     private static final Pattern CALORIES = Pattern.compile("(\\d{3,4})\\s*(kcal|calorias|cal\\b)");
     private static final Pattern INTAKE = Pattern.compile("\\bcom(e|er|iendo|as)\\b|al dia|diari|por dia|dieta|ingesta|consum");
     private static final Pattern BURN = Pattern.compile("quem|gast|burn");

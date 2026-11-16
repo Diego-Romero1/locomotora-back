@@ -1,18 +1,21 @@
 package com.locomotora.demo.user.service;
 
 import com.locomotora.demo.common.CurrentUser;
+import com.locomotora.demo.routine.service.Objectives;
 import com.locomotora.demo.user.dto.MeResponse;
 import com.locomotora.demo.user.dto.OnboardingRequest;
 import com.locomotora.demo.user.dto.OnboardingResponse;
 import com.locomotora.demo.user.dto.PhotoRequest;
 import com.locomotora.demo.user.dto.PhotoResponse;
 import com.locomotora.demo.user.dto.PreferenceResponse;
+import com.locomotora.demo.user.dto.ProfilePatchRequest;
 import com.locomotora.demo.user.dto.ProfileRequest;
 import com.locomotora.demo.user.dto.ProfileResponse;
 import com.locomotora.demo.user.repository.GoalRepository;
 import com.locomotora.demo.user.repository.ProfileRepository;
 import com.locomotora.demo.user.repository.ProfileRepository.OnboardingProfileSnapshot;
 import com.locomotora.demo.user.repository.ProfileRepository.UserAccount;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -81,6 +84,7 @@ public class ProfileService {
     public PhotoResponse updateProfilePhoto(PhotoRequest request) {
         UUID userId = CurrentUser.id();
         String profilePhotoUrl = normalizeValue(request.profilePhotoUrl());
+        OnboardingRules.validatePhoto(profilePhotoUrl);
         profileRepository.updateProfilePhoto(userId, profilePhotoUrl);
         return new PhotoResponse(profilePhotoUrl);
     }
@@ -96,15 +100,107 @@ public class ProfileService {
         return buildOnboardingResponse(userId);
     }
 
+    /** Edicion por secciones desde Perfil: guarda solo lo que vino y completa el perfil si ya esta todo. */
     @Transactional
-    public OnboardingResponse updateOnboarding(OnboardingRequest request) {
+    public OnboardingResponse patchProfile(ProfilePatchRequest request) {
+        OnboardingRules.validate(request);
         UUID userId = CurrentUser.id();
         profileRepository.ensureProfile(userId);
-        profileRepository.updateOnboardingProfile(userId, request, normalizeValue(request.experienceLevel()));
-        replaceGoalsForOnboarding(userId, request.goalType());
-        replacePreference(userId, request.preferredTrainingStyle());
-        replaceEquipment(userId, request.equipment());
-        replaceLimitations(userId, request.limitations());
+        OnboardingProfileSnapshot current = profileRepository.findOnboardingProfile(userId);
+
+        if (request.name() != null) {
+            profileRepository.updateName(userId, request.name().trim());
+        }
+        java.util.LinkedHashMap<String, Object> columns = new java.util.LinkedHashMap<>();
+        putIfPresent(columns, "experience_level", OnboardingRules.upper(request.experienceLevel()));
+        putIfPresent(columns, "training_days_per_week", request.trainingDaysPerWeek());
+        putIfPresent(columns, "session_duration_minutes", request.sessionDurationMinutes());
+        putIfPresent(columns, "height_cm", request.heightCm());
+        putIfPresent(columns, "weight_kg", request.weightKg());
+        if (request.age() != null) {
+            columns.put("birth_date", OnboardingRules.birthDateFor(request.age(), current.birthDate(), LocalDate.now()));
+        }
+        putIfPresent(columns, "sex", OnboardingRules.upper(request.sex()));
+        putIfPresent(columns, "activity_level", OnboardingRules.upper(request.activityLevel()));
+        putIfPresent(columns, "training_location", OnboardingRules.upper(request.trainingLocation()));
+        if (request.healthFlags() != null) {
+            columns.put("health_flags", com.locomotora.demo.common.JsonCodes.toArray(OnboardingRules.normalizedCodes(request.healthFlags())));
+        }
+        if (request.dietaryPreferences() != null) {
+            columns.put("dietary_preferences", ProfileRepository.writeStringList(request.dietaryPreferences().stream()
+                    .map(String::trim).filter(value -> !value.isEmpty()).distinct().toList()));
+        }
+        if (request.medicalNotes() != null) {
+            columns.put("medical_notes", normalizeValue(request.medicalNotes()));
+        }
+        profileRepository.patchProfile(userId, columns);
+
+        if (request.weightKg() != null) {
+            profileRepository.insertWeightIfChanged(userId, request.weightKg());
+        }
+        if (request.goalType() != null) {
+            replaceGoalsForOnboarding(userId, Objectives.canonicalOrRaw(request.goalType()));
+        }
+        if (request.preferredTrainingStyle() != null) {
+            replacePreference(userId, OnboardingRules.upper(normalizeValue(request.preferredTrainingStyle())));
+        }
+        if (request.equipment() != null) {
+            replaceEquipment(userId, OnboardingRules.normalizedCodes(request.equipment()));
+        }
+        if (request.limitations() != null) {
+            replaceLimitations(userId, request.limitations().stream()
+                    .map(item -> new OnboardingRequest.LimitationItem(OnboardingRules.upper(item.limitationType()), item.notes()))
+                    .toList());
+        }
+
+        OnboardingProfileSnapshot updated = profileRepository.findOnboardingProfile(userId);
+        if (!updated.onboardingCompleted() && OnboardingRules.isComplete(updated,
+                goalRepository.findPrimaryGoal(userId) != null, !profileRepository.findEquipment(userId).isEmpty())) {
+            profileRepository.markOnboardingCompleted(userId);
+        }
+        return buildOnboardingResponse(userId);
+    }
+
+    private static void putIfPresent(java.util.Map<String, Object> columns, String column, Object value) {
+        if (value != null) {
+            columns.put(column, value);
+        }
+    }
+
+    @Transactional
+    public OnboardingResponse skipOnboarding() {
+        UUID userId = CurrentUser.id();
+        profileRepository.ensureProfile(userId);
+        profileRepository.markOnboardingSkipped(userId);
+        return buildOnboardingResponse(userId);
+    }
+
+    @Transactional
+    public OnboardingResponse updateOnboarding(OnboardingRequest request) {
+        OnboardingRules.validate(request);
+        UUID userId = CurrentUser.id();
+        profileRepository.ensureProfile(userId);
+        OnboardingProfileSnapshot current = profileRepository.findOnboardingProfile(userId);
+        LocalDate today = LocalDate.now();
+        profileRepository.updateOnboardingProfile(userId, new ProfileRepository.OnboardingProfileUpdate(
+                request.heightCm(),
+                request.weightKg(),
+                OnboardingRules.upper(request.experienceLevel()),
+                request.trainingDaysPerWeek(),
+                request.sessionDurationMinutes(),
+                OnboardingRules.birthDateFor(request.age(), current.birthDate(), today),
+                OnboardingRules.upper(normalizeValue(request.sex())),
+                OnboardingRules.upper(normalizeValue(request.activityLevel())),
+                OnboardingRules.upper(normalizeValue(request.trainingLocation())),
+                OnboardingRules.normalizedCodes(request.healthFlags())
+        ));
+        profileRepository.insertInitialWeight(userId, request.weightKg());
+        replaceGoalsForOnboarding(userId, Objectives.canonicalOrRaw(request.goalType()));
+        replacePreference(userId, OnboardingRules.upper(normalizeValue(request.preferredTrainingStyle())));
+        replaceEquipment(userId, OnboardingRules.normalizedCodes(request.equipment()));
+        replaceLimitations(userId, request.limitations() == null ? List.of() : request.limitations().stream()
+                .map(item -> new OnboardingRequest.LimitationItem(OnboardingRules.upper(item.limitationType()), item.notes()))
+                .toList());
         return buildOnboardingResponse(userId);
     }
 
@@ -120,7 +216,15 @@ public class ProfileService {
                 profileRepository.findPreferredTrainingStyle(userId),
                 profileRepository.findEquipment(userId),
                 profileRepository.findLimitations(userId),
-                profile.onboardingCompleted()
+                profile.onboardingCompleted(),
+                OnboardingRules.ageOf(profile.birthDate(), LocalDate.now()),
+                profile.sex(),
+                profile.activityLevel(),
+                profile.trainingLocation(),
+                profile.healthFlags(),
+                profile.onboardingSkipped(),
+                profile.dietaryPreferences(),
+                profile.medicalNotes()
         );
     }
 

@@ -1,10 +1,13 @@
 package com.locomotora.demo.routine;
 
+import com.locomotora.demo.ai.tools.ExerciseCatalogFilter;
 import com.locomotora.demo.common.ApiException;
+import com.locomotora.demo.common.JsonCodes;
 import com.locomotora.demo.common.CurrentUser;
 import com.locomotora.demo.routine.dto.ExerciseResponse;
 import com.locomotora.demo.routine.dto.RoutineDayResponse;
 import com.locomotora.demo.routine.dto.RoutineResponse;
+import com.locomotora.demo.routine.service.TemplateFit;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -287,7 +290,13 @@ public class RoutineTemplateController {
                 SELECT up.experience_level,
                        up.training_days_per_week,
                        up.session_duration_minutes,
-                       up.medical_notes,
+                       up.birth_date,
+                       up.health_flags::text AS health_flags,
+                       (
+                           SELECT string_agg(ue.equipment_name, ',')
+                           FROM user_equipment ue
+                           WHERE ue.user_id = up.user_id
+                       ) AS equipment,
                        (
                            SELECT ug.goal_type
                            FROM user_goals ug
@@ -303,24 +312,62 @@ public class RoutineTemplateController {
                            LIMIT 1
                        ) AS preferred_training_style,
                        (
-                           SELECT count(*)
+                           SELECT string_agg(ul.limitation_type, ',')
                            FROM user_limitations ul
-                           WHERE ul.user_id = up.user_id
-                       ) AS limitation_count
+                           WHERE ul.user_id = up.user_id AND ul.limitation_type <> 'OTHER'
+                       ) AS injured_zones
                 FROM user_profiles up
                 WHERE up.user_id = ?
                 """,
-                (rs, rowNum) -> new RecommendationProfile(
-                        normalizeGoalWithFallback(rs.getString("goal_type")),
-                        normalizeDifficultyOrDefault(rs.getString("experience_level")),
-                        normalizePositiveOrDefault(asInteger(rs.getObject("training_days_per_week")), 3),
-                        normalizePositiveOrDefault(asInteger(rs.getObject("session_duration_minutes")), 60),
-                        nullableTrimmed(rs.getString("preferred_training_style")),
-                        nullableTrimmed(rs.getString("medical_notes")),
-                        rs.getInt("limitation_count")
-                ),
+                (rs, rowNum) -> {
+                    java.time.LocalDate birthDate = rs.getObject("birth_date", java.time.LocalDate.class);
+                    List<String> healthFlags = JsonCodes.parse(rs.getString("health_flags"));
+                    boolean minor = birthDate != null
+                            && java.time.Period.between(birthDate, java.time.LocalDate.now()).getYears() < 18;
+                    String level = normalizeDifficultyOrDefault(rs.getString("experience_level"));
+                    return new RecommendationProfile(
+                            normalizeGoalWithFallback(rs.getString("goal_type")),
+                            TemplateFit.cautiousLevel(level, minor || (healthFlags != null && !healthFlags.isEmpty())),
+                            normalizePositiveOrDefault(asInteger(rs.getObject("training_days_per_week")), 3),
+                            normalizePositiveOrDefault(asInteger(rs.getObject("session_duration_minutes")), 60),
+                            nullableTrimmed(rs.getString("preferred_training_style")),
+                            splitCodes(rs.getString("equipment")),
+                            Set.copyOf(splitCodes(rs.getString("injured_zones")))
+                    );
+                },
                 userId
-        ).stream().findFirst().orElse(new RecommendationProfile(GOAL_HYPERTROPHY, "BEGINNER", 3, 60, null, null, 0));
+        ).stream().findFirst().orElse(new RecommendationProfile(GOAL_HYPERTROPHY, "BEGINNER", 3, 60, null, List.of(), Set.of()));
+    }
+
+    private static List<String> splitCodes(String csv) {
+        return csv == null ? List.of() : java.util.Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .distinct()
+                .toList();
+    }
+
+    /** Penalizacion de cada plantilla activa segun el equipo y las lesiones del usuario. */
+    private java.util.Map<UUID, Integer> templatePenalties(RecommendationProfile profile) {
+        java.util.Map<UUID, List<TemplateFit.ExerciseInfo>> exercises = new java.util.HashMap<>();
+        jdbcTemplate.query(
+                """
+                SELECT d.routine_id, e.equipment, e.stress_zones::text AS stress_zones
+                FROM routines r
+                JOIN routine_days d ON d.routine_id = r.id
+                JOIN routine_exercises re ON re.routine_day_id = d.id
+                JOIN exercises e ON e.id = re.exercise_id
+                WHERE r.user_id IS NULL AND r.source = 'TEMPLATE' AND r.is_active = true
+                """,
+                rs -> {
+                    exercises.computeIfAbsent(rs.getObject("routine_id", UUID.class), id -> new ArrayList<>())
+                            .add(new TemplateFit.ExerciseInfo(rs.getString("equipment"), JsonCodes.parse(rs.getString("stress_zones"))));
+                }
+        );
+        Set<String> allowed = ExerciseCatalogFilter.allowedEquipment(profile.equipment());
+        java.util.Map<UUID, Integer> penalties = new java.util.HashMap<>();
+        exercises.forEach((id, list) -> penalties.put(id, TemplateFit.penalty(list, allowed, profile.injuredZones())));
+        return penalties;
     }
 
     private UUID findRecommendedTemplateId(RecommendationProfile profile) {
@@ -348,6 +395,7 @@ public class RoutineTemplateController {
         }
 
         List<String> compatibleDifficulties = compatibleDifficulties(profile.experienceLevel());
+        java.util.Map<UUID, Integer> penalties = templatePenalties(profile);
         String objective = normalizeGoalWithFallback(profile.goal());
         for (String split : splitPriority) {
             UUID match = pickBestTemplate(
@@ -356,7 +404,8 @@ public class RoutineTemplateController {
                     split,
                     compatibleDifficulties,
                     profile.trainingDaysPerWeek(),
-                    profile.sessionDurationMinutes()
+                    profile.sessionDurationMinutes(),
+                    penalties
             );
             if (match != null) {
                 return match;
@@ -369,7 +418,8 @@ public class RoutineTemplateController {
                 null,
                 compatibleDifficulties,
                 profile.trainingDaysPerWeek(),
-                profile.sessionDurationMinutes()
+                profile.sessionDurationMinutes(),
+                penalties
         );
         if (fallback != null) {
             return fallback;
@@ -384,7 +434,8 @@ public class RoutineTemplateController {
             String split,
             List<String> compatibleDifficulties,
             int trainingDaysPerWeek,
-            int sessionDurationMinutes
+            int sessionDurationMinutes,
+            java.util.Map<UUID, Integer> penalties
     ) {
         return candidates.stream()
                 .filter(candidate -> candidate.objective() != null)
@@ -394,6 +445,8 @@ public class RoutineTemplateController {
                 .min(Comparator
                         .comparingInt((TemplateCandidate candidate) -> difficultyRank(compatibleDifficulties, candidate.difficulty()))
                         .thenComparingInt(candidate -> Math.abs((candidate.daysPerWeek() == null ? trainingDaysPerWeek : candidate.daysPerWeek()) - trainingDaysPerWeek))
+                        .thenComparingInt(candidate -> penalties.getOrDefault(candidate.id(), 0))
+                        .thenComparingInt(candidate -> TemplateFit.minutesOver(candidate.estimatedDurationMinutes(), sessionDurationMinutes))
                         .thenComparingInt(candidate -> Math.abs((candidate.estimatedDurationMinutes() == null ? sessionDurationMinutes : candidate.estimatedDurationMinutes()) - sessionDurationMinutes))
                         .thenComparing(candidate -> candidate.routineSplit() == null ? "" : candidate.routineSplit()))
                 .map(TemplateCandidate::id)
@@ -608,8 +661,8 @@ public class RoutineTemplateController {
             int trainingDaysPerWeek,
             int sessionDurationMinutes,
             String preferredTrainingStyle,
-            String medicalNotes,
-            int limitationCount
+            List<String> equipment,
+            Set<String> injuredZones
     ) {
     }
 

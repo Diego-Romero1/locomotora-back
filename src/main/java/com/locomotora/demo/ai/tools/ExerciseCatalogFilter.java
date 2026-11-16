@@ -66,6 +66,20 @@ public final class ExerciseCatalogFilter {
         return filtered.size() >= MIN_FILTERED ? new Result(filtered, true) : new Result(catalog, false);
     }
 
+    /**
+     * Saca los ejercicios que cargan alguna de las zonas lesionadas del usuario. Si quedan muy
+     * pocos, devuelve el catalogo como vino (el prompt igual pide cuidar esas zonas).
+     */
+    public static Result withoutStress(List<ExerciseCatalogItemResponse> catalog, Set<String> injuredZones) {
+        if (injuredZones == null || injuredZones.isEmpty()) {
+            return new Result(catalog, false);
+        }
+        List<ExerciseCatalogItemResponse> safe = catalog.stream()
+                .filter(exercise -> exercise.stressZones().stream().noneMatch(injuredZones::contains))
+                .toList();
+        return safe.size() >= MIN_FILTERED ? new Result(safe, true) : new Result(catalog, false);
+    }
+
     /** Minusculas sin tildes, para comparar nombres y grupos ("Cuádriceps" = "cuadriceps"). */
     public static String normalize(String value) {
         if (value == null) {

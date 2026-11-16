@@ -81,7 +81,9 @@ public class RoutineGenerationService {
         // El backend elige el catalogo (equipo del usuario): el modelo no consulta la base.
         ExerciseCatalogFilter.Result filtered = ExerciseCatalogFilter.forUser(
                 routineRepository.findExerciseCatalog(userId), context.equipment());
-        List<ExerciseCatalogItemResponse> catalog = filtered.exercises();
+        // Y saca lo que carga las zonas lesionadas (si queda un catalogo razonable).
+        List<ExerciseCatalogItemResponse> catalog =
+                ExerciseCatalogFilter.withoutStress(filtered.exercises(), context.injuredZones()).exercises();
         if (catalog.isEmpty()) {
             throw new ApiException(HttpStatus.CONFLICT, "Exercise catalog is empty");
         }
@@ -120,7 +122,10 @@ public class RoutineGenerationService {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "AI response was cut off");
         }
         GeneratedRoutineResponse routine = toRoutine(completion, plan, catalog);
-        if (risks.stream().anyMatch(PROFESSIONAL_RISKS::contains)) {
+        // Del perfil cuentan la salud y la edad; una molestia declarada ya se cuida al elegir ejercicios.
+        boolean profileNeedsProfessional = context.profileRisks().stream()
+                .anyMatch(risk -> risk != SafetyGuard.Risk.INJURY && PROFESSIONAL_RISKS.contains(risk));
+        if (profileNeedsProfessional || risks.stream().anyMatch(PROFESSIONAL_RISKS::contains)) {
             routine.warnings().add("SEE_PROFESSIONAL");
         }
         return routine;

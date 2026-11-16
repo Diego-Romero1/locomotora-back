@@ -435,8 +435,10 @@ class AiCoachTest {
     }
 
     @Test
-    void markdownIsRemovedFromAnswers() {
-        assertEquals("- Remo con barra: tiron horizontal.\nTecnica", AiService.plainText("- **Remo con barra**: tiron horizontal.\n## Tecnica"));
+    void onlyBoldIsKeptFromMarkdown() {
+        assertEquals("- **Remo con barra**: tiron horizontal.\nTecnica", AiService.plainText("- **Remo con barra**: tiron horizontal.\n## Tecnica"));
+        assertEquals("Toma **125 g** de proteina", AiService.plainText("Toma __125 g__ de proteina"));
+        assertEquals("Sube 2,5 kg y repite", AiService.plainText("Sube **2,5 kg y repite"), "unbalanced markers are removed");
         assertEquals("2 * 3 = 6", AiService.plainText("2 * 3 = 6"));
     }
 

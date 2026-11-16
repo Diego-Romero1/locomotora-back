@@ -1,5 +1,6 @@
 package com.locomotora.demo.routine.repository;
 
+import com.locomotora.demo.common.JsonCodes;
 import com.locomotora.demo.routine.dto.ExerciseCatalogItemResponse;
 import com.locomotora.demo.routine.dto.ExerciseResponse;
 import com.locomotora.demo.routine.dto.RoutineCategoryResponse;
@@ -157,7 +158,7 @@ public class RoutineRepository {
         return jdbcTemplate.query(
                 """
                 SELECT id, name, category, primary_muscle_group, equipment, difficulty, description, instructions,
-                       created_by_user_id IS NOT NULL AS custom
+                       created_by_user_id IS NOT NULL AS custom, stress_zones::text AS stress_zones
                 FROM exercises
                 WHERE is_active = true AND (created_by_user_id IS NULL OR created_by_user_id = ?)
                 ORDER BY COALESCE(primary_muscle_group, 'ZZZ'), name
@@ -171,7 +172,7 @@ public class RoutineRepository {
         return jdbcTemplate.query(
                 """
                 SELECT id, name, category, primary_muscle_group, equipment, difficulty, description, instructions,
-                       created_by_user_id IS NOT NULL AS custom
+                       created_by_user_id IS NOT NULL AS custom, stress_zones::text AS stress_zones
                 FROM exercises
                 WHERE lower(name) = lower(?) AND (created_by_user_id IS NULL OR created_by_user_id = ?)
                 ORDER BY created_by_user_id NULLS FIRST
@@ -189,7 +190,7 @@ public class RoutineRepository {
                 INSERT INTO exercises (name, primary_muscle_group, equipment, created_by_user_id)
                 VALUES (?, ?, ?, ?)
                 RETURNING id, name, category, primary_muscle_group, equipment, difficulty, description, instructions,
-                          true AS custom
+                          true AS custom, stress_zones::text AS stress_zones
                 """,
                 this::mapExerciseCatalogItem,
                 name,
@@ -283,7 +284,8 @@ public class RoutineRepository {
                 rs.getString("difficulty"),
                 rs.getString("description"),
                 rs.getString("instructions"),
-                rs.getBoolean("custom")
+                rs.getBoolean("custom"),
+                JsonCodes.parse(rs.getString("stress_zones"))
         );
     }
 

@@ -7,6 +7,7 @@ import com.locomotora.demo.user.dto.OnboardingRequest;
 import com.locomotora.demo.user.dto.OnboardingResponse;
 import com.locomotora.demo.user.dto.PhotoRequest;
 import com.locomotora.demo.user.dto.PhotoResponse;
+import com.locomotora.demo.user.dto.ProfilePatchRequest;
 import com.locomotora.demo.user.dto.ProfileRequest;
 import com.locomotora.demo.user.dto.ProfileResponse;
 import com.locomotora.demo.user.service.GoalService;
@@ -15,6 +16,8 @@ import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -44,6 +47,12 @@ public class ProfileController {
         return profileService.updateProfile(request);
     }
 
+    /** Edicion por secciones: solo los campos enviados. Devuelve el perfil de entrenamiento actualizado. */
+    @PatchMapping("/profile")
+    public OnboardingResponse patchProfile(@Valid @RequestBody ProfilePatchRequest request) {
+        return profileService.patchProfile(request);
+    }
+
     @PutMapping("/profile/photo")
     public PhotoResponse updateProfilePhoto(@Valid @RequestBody PhotoRequest request) {
         return profileService.updateProfilePhoto(request);
@@ -62,6 +71,12 @@ public class ProfileController {
     @PutMapping("/profile/onboarding")
     public OnboardingResponse updateOnboarding(@Valid @RequestBody OnboardingRequest request) {
         return profileService.updateOnboarding(request);
+    }
+
+    /** Saltar el onboarding: deja de mostrarse al entrar; el perfil queda para completar desde Perfil. */
+    @PostMapping("/profile/onboarding/skip")
+    public OnboardingResponse skipOnboarding() {
+        return profileService.skipOnboarding();
     }
 
     @GetMapping("/goals")

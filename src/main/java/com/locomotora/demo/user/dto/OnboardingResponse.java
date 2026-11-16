@@ -13,7 +13,17 @@ public record OnboardingResponse(
         String preferredTrainingStyle,
         List<String> equipment,
         List<LimitationItem> limitations,
-        boolean onboardingCompleted
+        boolean onboardingCompleted,
+        Integer age,
+        String sex,
+        String activityLevel,
+        String trainingLocation,
+        /* null = el chequeo de salud no se respondio todavia. */
+        List<String> healthFlags,
+        /* Lo salteo: la app no lo vuelve a mostrar al entrar, pero puede completarlo desde Perfil. */
+        boolean onboardingSkipped,
+        List<String> dietaryPreferences,
+        String medicalNotes
 ) {
     public record LimitationItem(String limitationType, String notes) {
     }

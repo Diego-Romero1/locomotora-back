@@ -276,15 +276,20 @@ public class AiService {
         return turns;
     }
 
-    /** La app muestra texto plano: se quitan negritas y titulos de markdown que el modelo agregue igual. */
+    /**
+     * Normaliza el formato de la respuesta: la app solo muestra negritas (**texto**). Los titulos se quitan,
+     * __texto__ pasa a **texto** y, si quedaron asteriscos dobles sin cerrar, se quitan todos.
+     */
     static String plainText(String text) {
         if (text == null) {
             return "";
         }
-        return text.replaceAll("\\*\\*(.+?)\\*\\*", "$1")
-                .replaceAll("__(.+?)__", "$1")
+        String result = text.replaceAll("__(.+?)__", "**$1**")
                 .replaceAll("(?m)^#{1,6}\\s+", "")
+                .replaceAll("\\*\\*\\s*\\*\\*", "")
                 .trim();
+        int markers = result.split("\\*\\*", -1).length - 1;
+        return markers % 2 == 0 ? result : result.replace("**", "");
     }
 
     private static String truncate(String value, int max) {
