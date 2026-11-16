@@ -19,7 +19,7 @@ Este es el punto de entrada para cualquier persona o agente que trabaje en el re
 
 ## 1. Qué es el sistema
 
-App móvil de entrenamiento. El foco actual es el ciclo **crear rutina → entrenar → guardar registro**. Además tiene onboarding, perfil, métricas corporales, nutrición y un coach IA con Claude (modelo elegible por usuario).
+App móvil de entrenamiento. El foco actual es el ciclo **crear rutina → entrenar → guardar registro**. Además tiene onboarding, perfil, métricas corporales, nutrición y un agente IA (Qwen 3.8 27B en GroqCloud).
 
 Arquitectura cliente-servidor: app Expo/React Native ↔ API REST Spring Boot ↔ PostgreSQL.
 
@@ -49,10 +49,10 @@ El código vive en WSL (`/home/romero/my-stuff/locomotora-app`). Ejecutar las he
 | Migraciones    | Flyway, V1–V12. `ddl-auto=validate`.                                   |
 | Base de datos  | PostgreSQL 17 (Docker, puerto local `5433`)                            |
 | Seguridad      | Spring Security + JWT HS256 propio (`JwtService`), BCrypt              |
-| Tests          | JUnit 5 + Mockito. 84 tests (contexto, `RoutineService`, `WorkoutLogService`, `WorkoutSessionService`, `TrainingService`, `TrainingCalendar`, `WorkoutHistoryService`, duplicar/origen/objetivo/ejercicios propios, coach y generador IA con cliente simulado). |
-| IA             | Claude vía `anthropic-java` 3.3.0 (`ai/client/AnthropicModelClient`). Modelos permitidos y por defecto en `locomotora.ai.*`; cada usuario elige el suyo (`user_ai_settings`). Sin `ANTHROPIC_API_KEY` el coach responde con reglas locales. |
+| Tests          | JUnit 5 + Mockito. 120 tests, con Testcontainers para la integracion de IA (contexto, `RoutineService`, `WorkoutLogService`, `WorkoutSessionService`, `TrainingService`, `TrainingCalendar`, `WorkoutHistoryService`, duplicar/origen/objetivo/ejercicios propios, coach y generador IA con cliente simulado). |
+| IA             | Qwen 3.8 27B en GroqCloud vía `GroqModelClient` (`RestClient`, API compatible con OpenAI, sin SDK). Agente con herramientas de solo lectura (`ai/tools/AiToolRegistry`), rutinas con JSON estricto. Config en `locomotora.ai.*` / `GROQ_API_KEY`. Sin clave, reglas locales. Prueba manual: `docs/PRUEBA_IA.md`. |
 
-Variables relevantes (`application.properties`): `SPRING_DATASOURCE_URL`, `LOCOMOTORA_JWT_SECRET` (por defecto inseguro), `LOCOMOTORA_JWT_EXPIRATION_MINUTES` (1440), `LOCOMOTORA_CORS_ALLOWED_ORIGIN_PATTERNS`, `ANTHROPIC_API_KEY` y `LOCOMOTORA_AI_*` (ver `API.md` → IA).
+Variables relevantes (`application.properties`): `SPRING_DATASOURCE_URL`, `LOCOMOTORA_JWT_SECRET` (por defecto inseguro), `LOCOMOTORA_JWT_EXPIRATION_MINUTES` (1440), `LOCOMOTORA_CORS_ALLOWED_ORIGIN_PATTERNS`, `GROQ_API_KEY` y `LOCOMOTORA_AI_*` (ver `API.md` → IA).
 
 ### 3.2 Paquetes
 
@@ -76,7 +76,7 @@ com.locomotora.demo
 ├── progress/                        /progress/summary, /progress/activity, /metrics
 ├── nutrition/                       /nutrition, /nutrition/summary
 └── ai/                              /ai/chat, /ai/models, /ai/preferences, /routines/generate, /ai/conversations, /ai/recommendations
-                                     config/ (AiProperties, AiModelCatalog), client/ (AiModelClient, AnthropicModelClient), service/, repository/
+                                     config/ (AiProperties, AiModelCatalog), client/ (AiModelClient, GroqModelClient), tools/ (AiToolRegistry, ExerciseCatalogFilter), service/ (AiService = agente, RoutineGenerationService, SafetyGuard, PersonalDataFilter), repository/
 ```
 
 ### 3.3 Seguridad y errores
@@ -164,7 +164,7 @@ AppNavigator (stack)
 │   │   ├── RoutinesList          pestañas: Mis rutinas / Sugeridas IA / Plantillas
 │   │   ├── RoutineDetail         { id, mode?: "user" | "template" }
 │   │   ├── NewRoutine            punto de partida: recomendada, plantilla, desde cero, duplicar, IA
-│   │   ├── RoutineAI             { prompt? } generador con Claude (`POST /routines/generate`); abre el wizard en revisión
+│   │   ├── RoutineAI             { prompt? } generador con IA (`POST /routines/generate`); abre el wizard en revisión
 │   │   └── RoutineWizard         { id?, draft?, step? } Wizard v2 de 4 pasos, crear y editar
 │   ├── Progress
 │   ├── AI                        oculta en la barra (4 pestañas); se abre desde la tarjeta del coach en Hoy
@@ -188,12 +188,12 @@ El catálogo de ejercicios se carga una vez en `TabNavigator` y se pasa como pro
 | Routines (lista)  | ✅             | Mis rutinas, recomendación, plantillas, filtro por categoría                                  |
 | RoutineDetail     | ✅             | Pestañas por día, editar/eliminar, usar plantilla, empezar entrenamiento del día elegido      |
 | NewRoutine        | ✅ Fase 4      | Recomendada (usar y empezar o personalizar), plantillas, desde cero, duplicar, IA             |
-| RoutineAI         | ✅ Fase 5      | Claude genera una rutina de varios días; se revisa en el wizard y se guarda como AI           |
+| RoutineAI         | ✅ Fase 5      | La IA genera una rutina de varios días; se revisa en el wizard y se guarda como AI            |
 | RoutineWizard     | ✅ Fase 4      | 4 pasos, varios días, conserva ids y rangos al editar, borrador guardado en el teléfono       |
 | Workout           | ✅ Fase 2      | Serie activa con + y −, la vez pasada, timer de descanso, lista del día, reemplazo, récords   |
 | Progress          | ✅ Fase 3      | Resumen, Historial, Ejercicios y Cuerpo; detalle y corrección de sesión; progreso por ejercicio |
-| AI                | ✅ Fase 5      | Chat con Claude y el contexto del usuario; reglas locales si no hay clave                     |
-| Profile           | ✅             | Datos, objetivo, foto, tema claro/oscuro, idioma, modelo de Claude por tarea, logout          |
+| AI                | ✅ Fase 5      | Agente con herramientas y el contexto del usuario; reglas locales si no hay clave             |
+| Profile           | ✅             | Datos, objetivo, foto, tema claro/oscuro, idioma, modelo de IA en uso, logout          |
 
 ## 6. Decisiones de diseño
 
@@ -231,7 +231,7 @@ El catálogo de ejercicios se carga una vez en `TabNavigator` y se pasa como pro
 cd locomotora-backend && docker compose up --build -d
 
 # Backend local contra la base de Docker
-cd locomotora-backend && sh ./mvnw spring-boot:run   # ANTHROPIC_API_KEY=... para la IA
+cd locomotora-backend && sh ./mvnw spring-boot:run   # GROQ_API_KEY=... para la IA
 
 # Tests backend
 cd locomotora-backend && sh ./mvnw test

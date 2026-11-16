@@ -3,7 +3,7 @@ package com.locomotora.demo.ai.dto;
 import java.util.List;
 
 /**
- * Borrador de rutina generado por Claude. No se guarda: la app lo abre en el asistente (paso de
+ * Borrador de rutina generado por la IA. No se guarda: la app lo abre en el asistente (paso de
  * revision) para que el usuario lo ajuste y lo guarde con POST /routines (source AI).
  * Todos los ejercicios existen en el catalogo visible del usuario.
  *

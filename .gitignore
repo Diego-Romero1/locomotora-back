@@ -34,3 +34,8 @@ build/
 
 ### Windows ###
 *Zone.Identifier
+
+### Secretos locales (GROQ_API_KEY) ###
+.env
+.env.*
+!.env.example

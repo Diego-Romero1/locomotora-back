@@ -122,7 +122,37 @@ Frontend:
 
 Pendiente de la Fase 4: probar el wizard en un telefono y medir el criterio de "rutina de 4 dias desde cero en menos de 2 minutos".
 
-### Avance de la Fase 5 · IA real con Claude (2026-11-13, rama `main`)
+### Cambio de proveedor: Qwen 3.8 27B en GroqCloud (2026-11-15, rama `main`)
+
+Se saco la integracion con Claude y el agente pasa a usar `qwen/qwen3.8-27b` en GroqCloud. Decisiones del usuario: mantener el mecanismo de modelos con solo Qwen permitido (Perfil lo muestra sin poder elegir), que el backend filtre el catalogo y la rutina salga de una sola llamada con JSON estricto, y pruebas de integracion con Testcontainers. Contrato de la API sin cambios incompatibles, salvo `source = AI` en lugar de `CLAUDE` y el campo nuevo `selectable` en `/ai/models`.
+
+Backend:
+
+- `GroqModelClient` (`RestClient`, sin SDK) reemplaza a `AnthropicModelClient`; se quito la dependencia `anthropic-java`. Reintenta una vez ante 429/498 con `retry-after` corto y ante 500/502/503. Los logs no guardan contenido.
+- `AiModelClient` con herramientas (`ToolSpec`, `ToolCall`, turnos `TOOL`) y salida JSON estricta. Groq no permite usar las dos en la misma llamada: el chat usa herramientas y las rutinas JSON.
+- Agente del coach (`AiService.runAgent`): hasta 2 rondas de herramientas y un presupuesto de 7.000 tokens por mensaje (el plan gratis de Groq da 8.000 por minuto); despues pide la respuesta final sin herramientas. Un registro en `ai_usage` por mensaje, con todos sus tokens.
+- `AiToolRegistry`: `search_exercises`, `list_my_routines`, `get_routine`, `get_recent_training`, `get_exercise_progress`. Solo lectura, con el usuario autenticado, argumentos validados y resultados recortados. Se guardan en `ai_messages` con rol `TOOL` (ya permitido desde V1).
+- `ExerciseCatalogFilter`: el equipo del onboarding (DUMBBELLS, MACHINES...) se traduce al del catalogo (DUMBBELL, MACHINE, CABLE...). Lo usan la herramienta y la generacion de rutinas.
+- `PersonalDataFilter` (emails, telefonos, numeros largos) y `SafetyGuard` (riesgos antes, avisos fijos y revision de la respuesta despues).
+- Rutinas: reglas nuevas (principiante hasta 4 series; avisos `DAY_TOO_LONG`, `HIGH_VOLUME`, `SEE_PROFESSIONAL`). Guardar sigue pasando por `POST /routines` y sus validaciones.
+- Tope diario global de tokens (`LOCOMOTORA_AI_DAILY_TOKEN_BUDGET`) calculado con `ai_usage`. Sin tablas nuevas.
+- `.env.example`; `.env` ignorado por git y por la imagen de Docker. Testcontainers 1.21.4 (compatible con Docker 29).
+- 120 tests (36 nuevos): cliente Groq contra un servidor HTTP simulado, herramientas, agente, seguridad y datos personales, y una prueba de integracion con Postgres real y un Groq falso (herramientas con alcance por usuario, JSON estricto, guardado, 429 y presupuesto).
+
+Frontend: textos sin "Claude", `source = AI`, Perfil › Coach IA muestra el modelo en uso sin elegir, avisos nuevos de rutina.
+
+Prueba con la clave real (2026-11-15): chat de 9 preguntas (proteina, ejercicios con su equipo, su rutina, sus sesiones, dolor en el pecho, dieta de 800 kcal, intento de inyeccion, datos personales, seguimiento con historial) y rutinas de 2 a 6 dias, todo respondido por Qwen. Hallazgos corregidos:
+
+- Qwen escribe los booleanos como `True` y Groq rechazaba la llamada a la herramienta (400 `tool_use_failed`): el parametro pasa a texto (`equipment_scope`) y, si vuelve a pasar, el agente responde sin herramientas.
+- La cuenta gratis tiene un limite no documentado de 1.000 tokens de salida por minuto (OTPM): `max_completion_tokens` del chat baja a 700 y el de rutinas a 1.000; hasta 2 reintentos por 429 corto; "Request too large" no se reintenta y se registra.
+- Las rutinas de 4 o mas dias se cortaban por tokens (`json_validate_failed`): esquema compacto (`reps` como texto, una indicacion por dia, nivel/duracion/foco calculados por el backend) y cantidad de dias fija con `minItems`/`maxItems`. Medido: 2 dias 438 tokens, 3 dias 512, 4 dias 715, 5 dias 819, 6 dias 855-859.
+- Respuestas con negritas markdown: se piden en texto plano y el backend las quita.
+- Con molestia de hombro, la rutina de 6 dias incluia presses por encima de la cabeza: reglas por lesion en el prompt.
+- El agente no mencionaba los datos ocultados: el prompt explica `[email]`/`[telefono]`.
+
+Pendiente: probar en el telefono y decidir el `reasoning_effort` de las rutinas (hoy `none`; razonar gasta tokens de salida, que son el limite mas chico).
+
+### Avance de la Fase 5 · IA real con Claude (2026-11-13, rama `main`) — reemplazada el 2026-11-15
 
 Decision: Claude (API de Anthropic, SDK `anthropic-java` 3.3.0) con **modelo intercambiable**. Cada usuario elige en Perfil que modelo usa para el chat y para crear rutinas; el servidor define que modelos se ofrecen y cual es el de por defecto, sin recompilar.
 
@@ -151,7 +181,7 @@ Frontend:
 - Se borro `src/utils/aiRoutineGenerator.ts`. Textos de IA en "tu" (quedaban en voseo).
 - 7 tests nuevos (80 en total).
 
-Para activarla: `ANTHROPIC_API_KEY` en el entorno del backend (en Docker, en `docker-compose.yml` se toma del entorno del host) y reconstruir la imagen. Ver `API.md`.
+Para activarla (historico): `ANTHROPIC_API_KEY`. Desde el 2026-11-15 es `GROQ_API_KEY` (ver `PRUEBA_IA.md`).
 
 Pendiente de la Fase 5: probar con una clave real (calidad de las respuestas y rutinas, tiempos), los 12 errores de lint de React Compiler, `set_type` (calentamiento) y la base tecnica (4.1, 4.3–4.8).
 
@@ -425,7 +455,7 @@ Hacer un mínimo en cada fase, no al final.
 - La respuesta es un **borrador** que se abre en el paso 4 del Wizard v2 para revisar y editar; se guarda con `source = AI`.
 - Reemplaza `src/utils/aiRoutineGenerator.ts` y la espera simulada de `RoutineFormScreen`.
 
-✅ Hecho el 2026-11-13 con Claude y modelo intercambiable (ver "Avance de la Fase 5" arriba).
+✅ Hecho el 2026-11-13 con Claude y pasado a Qwen 3.8 27B en GroqCloud el 2026-11-15 (ver arriba).
 
 ---
 

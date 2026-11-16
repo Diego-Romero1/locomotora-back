@@ -4,14 +4,15 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.locomotora.demo.ai.client.AiModelClient;
 import com.locomotora.demo.ai.client.AiModelClient.Completion;
-import com.locomotora.demo.ai.client.AiModelClient.Role;
 import com.locomotora.demo.ai.client.AiModelClient.StopReason;
 import com.locomotora.demo.ai.client.AiModelClient.Turn;
 import com.locomotora.demo.ai.client.AiUnavailableException;
 import com.locomotora.demo.ai.config.AiModelCatalog.Feature;
+import com.locomotora.demo.ai.config.AiProperties;
 import com.locomotora.demo.ai.dto.GeneratedRoutineResponse;
 import com.locomotora.demo.ai.dto.RoutineGenerationRequest;
 import com.locomotora.demo.ai.repository.AiContextRepository;
+import com.locomotora.demo.ai.tools.ExerciseCatalogFilter;
 import com.locomotora.demo.common.ApiException;
 import com.locomotora.demo.common.CurrentUser;
 import com.locomotora.demo.routine.dto.ExerciseCatalogItemResponse;
@@ -28,13 +29,18 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 /**
- * Genera un borrador de rutina con Claude (salida estructurada) a partir del perfil del usuario y
+ * Genera un borrador de rutina con el modelo (JSON estricto) a partir del perfil del usuario y
  * del catalogo de ejercicios que puede ver. La respuesta se valida: solo ejercicios del catalogo,
  * valores en rango y como mucho los dias pedidos. No guarda nada.
  */
 @Service
 public class RoutineGenerationService {
-    static final long MAX_TOKENS = 16000;
+    static final int BEGINNER_MAX_SETS = 4;
+    /** Hasta cuantos dias se pide una indicacion de tecnica por dia. */
+    static final int TIP_MAX_DAYS = 5;
+    /** Segundos de trabajo por serie para estimar la duracion de un dia. */
+    static final int WORK_SECONDS_PER_SET = 40;
+    static final int HIGH_WEEKLY_SETS_PER_MUSCLE = 25;
     static final int MAX_EXERCISES_PER_DAY = 10;
     private static final Set<String> LEVELS = Set.of("BEGINNER", "INTERMEDIATE", "ADVANCED");
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -43,17 +49,20 @@ public class RoutineGenerationService {
     private final AiSettingsService settings;
     private final AiContextRepository contextRepository;
     private final RoutineRepository routineRepository;
+    private final AiProperties properties;
 
     public RoutineGenerationService(
             AiModelClient client,
             AiSettingsService settings,
             AiContextRepository contextRepository,
-            RoutineRepository routineRepository
+            RoutineRepository routineRepository,
+            AiProperties properties
     ) {
         this.client = client;
         this.settings = settings;
         this.contextRepository = contextRepository;
         this.routineRepository = routineRepository;
+        this.properties = properties;
     }
 
     public GeneratedRoutineResponse generate(RoutineGenerationRequest request) {
@@ -64,28 +73,45 @@ public class RoutineGenerationService {
         String model = settings.modelFor(userId, Feature.ROUTINE, request.model());
         settings.checkQuota(userId, Feature.ROUTINE);
 
+        if (settings.globalBudgetExhausted()) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "AI daily budget reached");
+        }
+
         UserContext context = contextRepository.load(userId);
-        List<ExerciseCatalogItemResponse> catalog = routineRepository.findExerciseCatalog(userId);
+        // El backend elige el catalogo (equipo del usuario): el modelo no consulta la base.
+        ExerciseCatalogFilter.Result filtered = ExerciseCatalogFilter.forUser(
+                routineRepository.findExerciseCatalog(userId), context.equipment());
+        List<ExerciseCatalogItemResponse> catalog = filtered.exercises();
         if (catalog.isEmpty()) {
             throw new ApiException(HttpStatus.CONFLICT, "Exercise catalog is empty");
         }
         Plan plan = plan(request, context);
+        Set<SafetyGuard.Risk> risks = SafetyGuard.detect(request.prompt());
 
         Completion completion;
         try {
             completion = client.complete(new AiModelClient.Request(
                     model,
-                    CoachPrompts.routineSystem(context),
-                    List.of(new Turn(Role.USER, userMessage(plan, request, catalog))),
-                    MAX_TOKENS,
-                    Feature.ROUTINE.effort(),
-                    schema(),
-                    settings.usesFallbacks(model)
+                    CoachPrompts.routineSystem(context) + SafetyGuard.instructions(risks),
+                    List.of(Turn.user(userMessage(plan, request, catalog))),
+                    properties.maxTokensFor(Feature.ROUTINE),
+                    properties.reasoningEffortFor(Feature.ROUTINE),
+                    "routine",
+                    schema(plan.daysPerWeek()),
+                    settings.strictJson(model),
+                    List.of(),
+                    AiModelClient.ToolChoice.NONE
             ));
         } catch (AiUnavailableException unavailable) {
+            if (unavailable.rateLimited()) {
+                throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "AI provider is busy, try again in a minute");
+            }
+            if (unavailable.rejected()) {
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "AI returned an invalid routine");
+            }
             throw new ApiException(HttpStatus.SERVICE_UNAVAILABLE, "AI service unavailable");
         }
-        settings.recordUsage(userId, Feature.ROUTINE, completion);
+        settings.recordUsage(userId, Feature.ROUTINE, completion.model(), completion.inputTokens(), completion.outputTokens());
 
         if (completion.stopReason() == StopReason.REFUSAL) {
             throw new ApiException(HttpStatus.UNPROCESSABLE_ENTITY, "The AI declined this request");
@@ -93,8 +119,16 @@ public class RoutineGenerationService {
         if (completion.stopReason() == StopReason.MAX_TOKENS) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "AI response was cut off");
         }
-        return toRoutine(completion, plan, catalog);
+        GeneratedRoutineResponse routine = toRoutine(completion, plan, catalog);
+        if (risks.stream().anyMatch(PROFESSIONAL_RISKS::contains)) {
+            routine.warnings().add("SEE_PROFESSIONAL");
+        }
+        return routine;
     }
+
+    /** Riesgos que en una rutina piden consultar a un profesional antes de empezar. */
+    private static final Set<SafetyGuard.Risk> PROFESSIONAL_RISKS = Set.of(
+            SafetyGuard.Risk.CARDIO, SafetyGuard.Risk.INJURY, SafetyGuard.Risk.PREGNANCY, SafetyGuard.Risk.MINOR);
 
     /** Parametros finales: lo pedido, si no el perfil, si no un valor razonable. */
     record Plan(int daysPerWeek, int sessionMinutes, String objective, String level, List<String> focusMuscles) {
@@ -128,7 +162,8 @@ public class RoutineGenerationService {
         StringBuilder text = new StringBuilder();
         text.append("Crea una rutina con estos parametros:\n")
                 .append("- Dias por semana: ").append(plan.daysPerWeek()).append(" (devuelve exactamente ")
-                .append(plan.daysPerWeek()).append(" dias)\n")
+                .append(plan.daysPerWeek()).append(" dias, de 3 a ").append(maxExercisesFor(plan.daysPerWeek()))
+                .append(" ejercicios cada uno)\n")
                 .append("- Minutos por sesion: ").append(plan.sessionMinutes()).append('\n')
                 .append("- Objetivo: ").append(plan.objective()).append('\n')
                 .append("- Nivel: ").append(plan.level()).append('\n');
@@ -137,7 +172,7 @@ public class RoutineGenerationService {
         }
         if (request.prompt() != null && !request.prompt().isBlank()) {
             text.append("\nPeticion del usuario (tenla en cuenta, pero las reglas del plan mandan):\n<peticion>\n")
-                    .append(request.prompt().trim())
+                    .append(PersonalDataFilter.redact(request.prompt().trim()).replace("</peticion>", ""))
                     .append("\n</peticion>\n");
         }
         text.append("\nCatalogo de ejercicios (ref | nombre | grupo muscular | equipo):\n");
@@ -150,37 +185,70 @@ public class RoutineGenerationService {
         return text.toString();
     }
 
-    /** Esquema de la salida estructurada. Los rangos se validan en codigo, no en el esquema. */
-    static Map<String, Object> schema() {
+    /**
+     * Ejercicios por dia segun la frecuencia: mas dias, sesiones mas cortas. Tambien mantiene la
+     * respuesta dentro del limite de tokens de salida por minuto de Groq (1.000 en el plan gratis).
+     */
+    static int maxExercisesFor(int daysPerWeek) {
+        return daysPerWeek <= 3 ? 6 : daysPerWeek <= 5 ? 5 : 4;
+    }
+
+    /**
+     * Esquema de la salida estructurada (JSON estricto). Pensado para gastar pocos tokens de salida
+     * (Groq gratis: 1.000 por minuto): cada ejercicio es {ref, sets, reps "6-8", rest}, una sola
+     * indicacion de tecnica por dia y el foco lo calcula el backend con el catalogo. Los dias y la
+     * cantidad de ejercicios se fijan con minItems/maxItems; los rangos se validan en codigo.
+     */
+    static Map<String, Object> schema(int daysPerWeek) {
         Map<String, Object> exercise = Map.of(
                 "type", "object",
                 "additionalProperties", false,
-                "required", List.of("ref", "sets", "repsMin", "repsMax", "restSeconds", "notes"),
+                "required", List.of("ref", "sets", "reps", "rest"),
                 "properties", Map.of(
                         "ref", Map.of("type", "integer", "description", "Numero ref del catalogo"),
-                        "sets", Map.of("type", "integer"),
-                        "repsMin", Map.of("type", "integer"),
-                        "repsMax", Map.of("type", "integer"),
-                        "restSeconds", Map.of("type", "integer"),
-                        "notes", Map.of("type", "string")));
+                        "sets", Map.of("type", "integer", "description", "Series"),
+                        "reps", Map.of("type", "string", "pattern", "^[0-9]{1,3}(-[0-9]{1,3})?$",
+                                "description", "Repeticiones: rango \"6-8\" o fijo \"10\" (segundos en isometricos)"),
+                        "rest", Map.of("type", "integer", "description", "Descanso en segundos")));
+        // Con 6 o 7 dias no se pide la indicacion de tecnica: no entraria en los 1.000 tokens de salida.
+        boolean withTip = daysPerWeek <= TIP_MAX_DAYS;
+        Map<String, Object> dayProperties = new java.util.LinkedHashMap<>();
+        dayProperties.put("title", Map.of("type", "string"));
+        if (withTip) {
+            dayProperties.put("tip", Map.of("type", "string", "description", "Una indicacion de tecnica para el primer ejercicio, maximo 60 caracteres"));
+        }
+        dayProperties.put("exercises", Map.of("type", "array", "minItems", 3, "maxItems", maxExercisesFor(daysPerWeek), "items", exercise));
         Map<String, Object> day = Map.of(
                 "type", "object",
                 "additionalProperties", false,
-                "required", List.of("title", "focus", "exercises"),
-                "properties", Map.of(
-                        "title", Map.of("type", "string"),
-                        "focus", Map.of("type", "array", "items", Map.of("type", "string")),
-                        "exercises", Map.of("type", "array", "items", exercise)));
+                "required", withTip ? List.of("title", "tip", "exercises") : List.of("title", "exercises"),
+                "properties", dayProperties);
+        // Nivel y duracion los pone el backend (los conoce y los calcula): menos tokens y menos riesgo de corte.
         return Map.of(
                 "type", "object",
                 "additionalProperties", false,
-                "required", List.of("title", "description", "difficulty", "estimatedDurationMinutes", "days"),
+                "required", List.of("title", "description", "days"),
                 "properties", Map.of(
                         "title", Map.of("type", "string"),
-                        "description", Map.of("type", "string", "description", "Una o dos frases: para quien es y como progresar"),
-                        "difficulty", Map.of("type", "string", "enum", List.of("BEGINNER", "INTERMEDIATE", "ADVANCED")),
-                        "estimatedDurationMinutes", Map.of("type", "integer"),
-                        "days", Map.of("type", "array", "items", day)));
+                        "description", Map.of("type", "string", "description", "Una frase corta: para quien es y como progresar"),
+                        "days", Map.of("type", "array", "minItems", daysPerWeek, "maxItems", daysPerWeek, "items", day)));
+    }
+
+    /** Repeticiones "6-8" o "10" → {min, max}; null si no se entiende. */
+    static int[] parseReps(String reps) {
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("^\\s*(\\d{1,3})\\s*(?:-\\s*(\\d{1,3}))?\\s*$").matcher(reps == null ? "" : reps);
+        if (!matcher.matches()) {
+            return null;
+        }
+        int min = Integer.parseInt(matcher.group(1));
+        int max = matcher.group(2) == null ? min : Integer.parseInt(matcher.group(2));
+        return new int[] {min, max};
+    }
+
+    /** Lee un entero con su clave corta o, si no esta, con la larga (respuestas viejas o de otro modelo). */
+    private static int intField(JsonNode node, String shortKey, String longKey, int fallback) {
+        JsonNode value = node.has(shortKey) ? node.path(shortKey) : node.path(longKey);
+        return value.isMissingNode() || value.isNull() ? fallback : value.asInt(fallback);
     }
 
     static GeneratedRoutineResponse toRoutine(Completion completion, Plan plan, List<ExerciseCatalogItemResponse> catalog) {
@@ -213,17 +281,21 @@ public class RoutineGenerationService {
                     continue;
                 }
                 int rawSets = node.path("sets").asInt(3);
-                int rawMin = node.path("repsMin").asInt(10);
-                int rawMax = node.path("repsMax").asInt(rawMin);
-                int rawRest = node.path("restSeconds").asInt(90);
-                int sets = clamp(rawSets, 1, 10);
+                int[] reps = node.path("reps").isTextual() ? parseReps(node.path("reps").asText()) : null;
+                int rawMin = reps != null ? reps[0] : intField(node, "min", "repsMin", 10);
+                int rawMax = reps != null ? reps[1] : intField(node, "max", "repsMax", rawMin);
+                int rawRest = intField(node, "rest", "restSeconds", 90);
+                int sets = clamp(rawSets, 1, "BEGINNER".equals(plan.level()) ? BEGINNER_MAX_SETS : 10);
                 int repsMin = clamp(rawMin, 1, 50);
                 int repsMax = clamp(rawMax, 1, 50);
                 int rest = clamp(rawRest, 0, 600);
                 if (sets != rawSets || repsMin != rawMin || repsMax != rawMax || rest != rawRest || repsMin > repsMax) {
                     adjusted++;
                 }
-                String notes = node.path("notes").asText("").trim();
+                String notes = (node.has("note") ? node.path("note") : node.path("notes")).asText("").trim();
+                if (notes.isEmpty() && exercises.isEmpty()) {
+                    notes = dayNode.path("tip").asText("").trim();
+                }
                 exercises.add(new GeneratedRoutineResponse.Exercise(
                         item.id(),
                         item.name(),
@@ -245,6 +317,13 @@ public class RoutineGenerationService {
                     focus.add(value.asText().trim());
                 }
             });
+            if (focus.isEmpty()) {
+                // El foco sale del catalogo: los grupos musculares de los ejercicios del dia, en orden.
+                exercises.stream().map(GeneratedRoutineResponse.Exercise::primaryMuscleGroup)
+                        .filter(muscle -> muscle != null && !muscle.isBlank() && !focus.contains(muscle))
+                        .limit(4)
+                        .forEach(focus::add);
+            }
             String title = dayNode.path("title").asText("").trim();
             days.add(new GeneratedRoutineResponse.Day(
                     days.size() + 1,
@@ -266,6 +345,12 @@ public class RoutineGenerationService {
         if (days.size() < plan.daysPerWeek()) {
             warnings.add("FEWER_DAYS");
         }
+        if (days.stream().anyMatch(day -> estimatedMinutes(day) > plan.sessionMinutes() * 1.25)) {
+            warnings.add("DAY_TOO_LONG");
+        }
+        if (weeklySetsByMuscle(days).values().stream().anyMatch(sets -> sets > HIGH_WEEKLY_SETS_PER_MUSCLE)) {
+            warnings.add("HIGH_VOLUME");
+        }
         String difficulty = root.path("difficulty").asText(plan.level());
         String title = root.path("title").asText("").trim();
         String description = root.path("description").asText("").trim();
@@ -275,11 +360,28 @@ public class RoutineGenerationService {
                 plan.objective(),
                 LEVELS.contains(difficulty) ? difficulty : plan.level(),
                 days.size(),
-                clamp(root.path("estimatedDurationMinutes").asInt(plan.sessionMinutes()), 10, 240),
+                root.has("estimatedDurationMinutes")
+                        ? clamp(root.path("estimatedDurationMinutes").asInt(plan.sessionMinutes()), 10, 240)
+                        : clamp(days.stream().mapToInt(RoutineGenerationService::estimatedMinutes).max().orElse(plan.sessionMinutes()), 10, 240),
                 days,
                 completion.model(),
                 warnings
         );
+    }
+
+    /** Minutos estimados de un dia: series x (trabajo + descanso), mas 5 de entrada en calor. */
+    static int estimatedMinutes(GeneratedRoutineResponse.Day day) {
+        int seconds = day.exercises().stream()
+                .mapToInt(exercise -> exercise.sets() * (WORK_SECONDS_PER_SET + exercise.restSeconds()))
+                .sum();
+        return 5 + Math.round(seconds / 60f);
+    }
+
+    static Map<String, Integer> weeklySetsByMuscle(List<GeneratedRoutineResponse.Day> days) {
+        Map<String, Integer> sets = new java.util.HashMap<>();
+        days.forEach(day -> day.exercises().forEach(exercise -> sets.merge(
+                exercise.primaryMuscleGroup() == null ? "-" : exercise.primaryMuscleGroup(), exercise.sets(), Integer::sum)));
+        return sets;
     }
 
     private static int firstNonNull(Integer first, Integer second, int fallback) {

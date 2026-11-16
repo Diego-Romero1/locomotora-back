@@ -85,10 +85,10 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `GET`    | `/nutrition?date=`                  | Entradas de nutricion del dia                                   |
 | `POST`   | `/nutrition`                        | Agrega entrada                                                  |
 | `GET`    | `/nutrition/summary?date=`          | Macros del dia                                                  |
-| `POST`   | `/ai/chat`                          | Mensaje al coach (Claude; reglas locales si no hay clave)       |
-| `GET`    | `/ai/models`                        | Modelos de Claude disponibles y los elegidos por el usuario     |
+| `POST`   | `/ai/chat`                          | Mensaje al agente IA (Qwen en Groq, con herramientas)           |
+| `GET`    | `/ai/models`                        | Modelo de IA en uso, si se puede elegir y uso del dia           |
 | `PUT`    | `/ai/preferences`                   | Elige el modelo del coach y el de rutinas                       |
-| `POST`   | `/routines/generate`                | Borrador de rutina generado con Claude (no se guarda)           |
+| `POST`   | `/routines/generate`                | Borrador de rutina con IA, JSON estricto (no se guarda)         |
 | `GET`    | `/ai/conversations`                 | Conversaciones                                                  |
 | `GET`    | `/ai/conversations/{id}/messages`   | Mensajes de una conversacion                                    |
 | `GET`    | `/ai/recommendations`               | Ultimas 50 recomendaciones                                      |
@@ -432,53 +432,64 @@ Borra la sesion y sus series. 204; 404 si no existe o es de otro usuario.
 
 ## IA
 
-Coach y generador de rutinas con Claude (Fase 5). El modelo es intercambiable: el servidor define los permitidos y el de por defecto de cada tarea, y cada usuario elige el suyo.
+Agente de fitness con **Qwen 3.8 27B** (`qwen/qwen3.8-27b`) servido por **GroqCloud**, a traves de su API compatible con OpenAI (`POST {base}/chat/completions`). El backend es el unico que habla con Groq: la clave nunca llega a la app. Sin clave, el coach responde con reglas locales y `/routines/generate` devuelve 503; el resto de la app funciona igual.
 
 ### Configuracion
 
-| Variable                                   | Por defecto                                             | Uso                                             |
-| ------------------------------------------ | ------------------------------------------------------- | ----------------------------------------------- |
-| `ANTHROPIC_API_KEY`                        | vacia                                                   | Sin clave: coach local y `/routines/generate` 503 |
-| `LOCOMOTORA_AI_ALLOWED_MODELS`             | `claude-haiku-5-5,claude-sonnet-5-5,claude-opus-5-5`    | Modelos que se ofrecen (en ese orden)           |
-| `LOCOMOTORA_AI_COACH_MODEL`                | `claude-haiku-5-5`                                      | Modelo por defecto del chat                     |
-| `LOCOMOTORA_AI_ROUTINE_MODEL`              | `claude-sonnet-5-5`                                     | Modelo por defecto para rutinas                 |
-| `LOCOMOTORA_AI_DAILY_COACH_MESSAGES`       | `40`                                                    | Mensajes por usuario cada 24 h (0 = sin limite) |
-| `LOCOMOTORA_AI_DAILY_ROUTINE_GENERATIONS`  | `6`                                                     | Rutinas generadas por usuario cada 24 h         |
-| `LOCOMOTORA_AI_TIMEOUT_SECONDS`            | `120`                                                   | Espera maxima por llamada                       |
-| `LOCOMOTORA_AI_BASE_URL`                   | vacia                                                   | Solo para un proxy o pruebas locales            |
+| Variable                                   | Por defecto                          | Uso                                                                  |
+| ------------------------------------------ | ------------------------------------ | -------------------------------------------------------------------- |
+| `GROQ_API_KEY`                             | vacia                                | Clave de GroqCloud (console.groq.com → API Keys). Secreta            |
+| `LOCOMOTORA_AI_BASE_URL`                   | `https://api.groq.com/openai/v1`     | Solo para un proxy o pruebas con un servidor falso                   |
+| `LOCOMOTORA_AI_ALLOWED_MODELS`             | `qwen/qwen3.8-27b`                   | Modelos ofrecidos. Con uno solo, Perfil lo muestra sin poder elegir  |
+| `LOCOMOTORA_AI_COACH_MODEL`                | `qwen/qwen3.8-27b`                   | Modelo por defecto del chat                                          |
+| `LOCOMOTORA_AI_ROUTINE_MODEL`              | `qwen/qwen3.8-27b`                   | Modelo por defecto para rutinas                                      |
+| `LOCOMOTORA_AI_COACH_REASONING_EFFORT`     | `none`                               | `none`, `default`, `low`, `medium`, `high`. Razonar gasta mas tokens |
+| `LOCOMOTORA_AI_ROUTINE_REASONING_EFFORT`   | `none`                               | Igual, para rutinas. Subirlo requiere un plan de Groq con mas TPM    |
+| `LOCOMOTORA_AI_COACH_MAX_TOKENS`           | `700`                                | Tokens maximos de cada respuesta del chat (usa 100–200)              |
+| `LOCOMOTORA_AI_ROUTINE_MAX_TOKENS`         | `1000`                               | Tokens maximos de la rutina (usa 440–860). No pasar el OTPM          |
+| `LOCOMOTORA_AI_MAX_TOOL_ROUNDS`            | `2`                                  | Rondas de herramientas por mensaje antes de la respuesta final       |
+| `LOCOMOTORA_AI_CHAT_TOKEN_BUDGET`          | `7000`                               | Tokens de un mensaje sumando sus rondas (Groq gratis: 8K por minuto) |
+| `LOCOMOTORA_AI_DAILY_COACH_MESSAGES`       | `30`                                 | Mensajes por usuario cada 24 h (0 = sin limite)                      |
+| `LOCOMOTORA_AI_DAILY_ROUTINE_GENERATIONS`  | `5`                                  | Rutinas generadas por usuario cada 24 h                              |
+| `LOCOMOTORA_AI_DAILY_TOKEN_BUDGET`         | `150000`                             | Tokens de toda la app cada 24 h (Groq gratis: 200K por dia). 0 = sin tope |
+| `LOCOMOTORA_AI_TIMEOUT_SECONDS`            | `60`                                 | Espera maxima por llamada a Groq                                     |
 
-```bash
-cd locomotora-backend
-ANTHROPIC_API_KEY=sk-ant-... docker compose up --build -d
-```
+Con Docker, la clave se pone en `locomotora-backend/.env` (copiar `.env.example`; git y la imagen lo ignoran). Sin Docker, se exporta en la terminal antes de `sh ./mvnw spring-boot:run`.
 
-Un id permitido que no esta en `AiModelCatalog` se ofrece con datos genericos, asi que un modelo nuevo se prueba solo cambiando `LOCOMOTORA_AI_ALLOWED_MODELS`. Si un usuario tenia elegido un modelo que se quita de la lista, vuelve al de por defecto.
+Limites de Groq para `qwen/qwen3.8-27b` (pagina de rate limits, nov 2026): 30 peticiones/min, 1.000/dia, 8.000 tokens/min y 200.000 tokens/dia. **Medido con la clave real (15 nov):** la cuenta gratis tambien tiene **1.000 tokens de salida por minuto (OTPM)**, que la pagina no muestra. Groq rechaza de entrada (429 "Request too large") una peticion cuyo `max_completion_tokens` pase ese limite; por eso los maximos son 700 y 1000, y la rutina usa un formato compacto. Con un plan pago se pueden subir. Son de la cuenta, no del usuario: por eso el contexto es corto, las herramientas devuelven poco y hay un tope diario global. El modelo esta en "Preview" en Groq; si cambia, basta con `LOCOMOTORA_AI_*_MODEL` y `LOCOMOTORA_AI_ALLOWED_MODELS`.
+
+### Como funciona
+
+- **Chat (agente):** prompt de sistema con reglas de seguridad y un contexto corto del usuario (edad, sexo, altura, peso, nivel, dias, minutos, estilo, objetivos, lesiones, equipo, preferencias de alimentacion, rutinas activas y constancia). Los ultimos 8 mensajes como historial. El modelo puede pedir herramientas; el backend las ejecuta con el usuario autenticado y le devuelve el resultado.
+- **Herramientas** (solo lectura, `AiToolRegistry`): `search_exercises(muscle?, equipment?, query?, only_my_equipment?)`, `list_my_routines()`, `get_routine(routine_id)`, `get_recent_training(days)`, `get_exercise_progress(exercise_name)`. Argumentos validados, resultados recortados (maximo 15 ejercicios, 10 sesiones, 2.500 caracteres). Una rutina de otro usuario responde `not_found`. Cada llamada se guarda en `ai_messages` con rol `TOOL`.
+- **Rutinas:** el backend filtra el catalogo por el equipo del usuario y hace una sola llamada con `response_format: json_schema` y `strict: true` (Groq no permite herramientas y JSON estructurado juntos). El esquema fija la cantidad de dias (`minItems`/`maxItems`) y de ejercicios por dia (6 hasta 3 dias, 5 con 4–5, 4 con 6–7), y es compacto para entrar en 1.000 tokens de salida: cada ejercicio es `{ref, sets, reps: "6-8", rest}`, una indicacion de tecnica por dia (hasta 5 dias) y el nivel, la duracion y el foco los pone el backend. Despues valida todo en codigo.
+- **Datos personales:** nunca se envian nombre, email, fecha de nacimiento, foto ni notas medicas. Emails, telefonos y numeros largos se reemplazan en los mensajes antes de enviarlos. Los logs guardan modelo, estado, latencia y tokens, no el contenido. Recomendado: activar *Zero Data Retention* en console.groq.com → Settings → Data Controls.
+- **Seguridad:** antes, se detectan senales de riesgo (sintomas cardiacos, trastornos alimentarios, embarazo, lesiones, sustancias, menores) y se agregan instrucciones; despues, se agrega siempre un aviso fijo y se revisa la respuesta (menos de 1.200 kcal, ayunos de 24 h o mas).
+- **Errores:** un 429/498 de Groq se reintenta hasta dos veces si `retry-after` es de 5 s o menos; 500/502/503 se reintentan una vez; un 429 "Request too large" no se reintenta. Si el modelo arma mal una llamada a herramienta (400 `tool_use_failed`), el agente pide la respuesta sin herramientas. Los parametros de las herramientas no usan booleanos: Qwen los escribe como `True` y Groq rechaza la llamada. Si sigue fallando: el chat responde con las reglas locales (`source = LOCAL`) y la generacion responde 429 o 503.
 
 ### `GET /ai/models`
 
 ```json
 {
   "configured": true,
-  "coach":   { "selected": "claude-haiku-5-5",  "defaultModel": "claude-haiku-5-5",  "custom": false, "dailyLimit": 40, "usedToday": 3 },
-  "routine": { "selected": "claude-opus-5-5",   "defaultModel": "claude-sonnet-5-5", "custom": true,  "dailyLimit": 6,  "usedToday": 0 },
-  "models": [
-    { "id": "claude-haiku-5-5", "label": "Claude Haiku 5.5", "description": "...", "speed": "FAST", "cost": "LOW" }
-  ]
+  "selectable": false,
+  "coach":   { "selected": "qwen/qwen3.8-27b", "defaultModel": "qwen/qwen3.8-27b", "custom": false, "dailyLimit": 30, "usedToday": 3 },
+  "routine": { "selected": "qwen/qwen3.8-27b", "defaultModel": "qwen/qwen3.8-27b", "custom": false, "dailyLimit": 5,  "usedToday": 0 },
+  "models": [ { "id": "qwen/qwen3.8-27b", "label": "Qwen 3.8 27B", "description": "...", "speed": "FAST", "cost": "LOW" } ]
 }
 ```
 
 ### `PUT /ai/preferences`
 
-`{ "coachModel": "claude-sonnet-5-5", "routineModel": null }` → misma respuesta que `GET /ai/models`. `null` o vacio = modelo por defecto. Un modelo no permitido → 400.
+`{ "coachModel": "qwen/qwen3.8-27b", "routineModel": null }` → misma respuesta que `GET /ai/models`. `null` o vacio = modelo por defecto. Un modelo no permitido → 400. Con un solo modelo la app no lo usa, pero queda para cuando se permitan varios.
 
 ### `POST /ai/chat`
 
 `{ conversationId?, message (max 4000) }` → `{ conversationId, answer, model, source }`.
 
-- `source`: `CLAUDE` o `LOCAL` (sin clave, o Claude no respondio). `model` es el que respondio de verdad (con respaldo del servidor puede ser otro).
-- El modelo recibe el perfil, objetivos, limitaciones, equipo, rutinas activas, ultimas sesiones y mejores series, y los ultimos 12 mensajes de la conversacion.
-- `conversationId` de otro usuario → 404; mal formado → 400; limite diario → 429 (no se guarda nada).
-- Cada mensaje del asistente guarda en `metadata` el origen, el modelo pedido, `stopReason` y los tokens. Ya no se crea una recomendacion por cada respuesta.
+- `source`: `AI` (respondio el modelo) o `LOCAL` (sin clave, sin presupuesto del dia o Groq no respondio).
+- `conversationId` de otro usuario → 404; mal formado → 400; limite diario del usuario → 429 (no se guarda nada).
+- Cada respuesta guarda en `metadata`: origen, modelo pedido, `stopReason`, tokens, llamadas al modelo, herramientas usadas, riesgos detectados y avisos. Un mensaje = una fila en `ai_usage` con los tokens de todas sus rondas.
 
 `GET /ai/conversations`, `GET /ai/conversations/{id}/messages` y `GET /ai/recommendations` siguen igual.
 
@@ -489,12 +500,12 @@ Un id permitido que no esta en `AiModelCatalog` se ofrece con datos genericos, a
   "objective": "BUILD_MUSCLE", "level": "INTERMEDIATE", "focusMuscles": ["Pecho"], "model": null }
 ```
 
-Todo es opcional: lo que falta sale del perfil (dias, minutos, nivel, objetivo). `model` cambia el modelo solo para esta llamada. Respuesta (no se guarda; la app la abre en el wizard y la guarda con `POST /routines`, `source = AI`):
+Todo es opcional: lo que falta sale del perfil. Respuesta (no se guarda; la app la abre en el wizard y la guarda con `POST /routines`, `source = AI`, que aplica sus validaciones de siempre):
 
 ```json
 {
   "title": "Torso / Pierna", "description": "...", "objective": "BUILD_MUSCLE", "difficulty": "INTERMEDIATE",
-  "daysPerWeek": 4, "estimatedDurationMinutes": 60, "model": "claude-sonnet-5-5", "warnings": [],
+  "daysPerWeek": 4, "estimatedDurationMinutes": 60, "model": "qwen/qwen3.8-27b", "warnings": [],
   "days": [
     { "dayIndex": 1, "title": "Torso A", "focus": "Pecho, Espalda",
       "exercises": [ { "exerciseId": "uuid", "name": "Press banca", "primaryMuscleGroup": "Pecho", "equipment": "BARBELL",
@@ -503,7 +514,11 @@ Todo es opcional: lo que falta sale del perfil (dias, minutos, nivel, objetivo).
 }
 ```
 
-- Solo ejercicios del catalogo visible del usuario (globales y propios). Los desconocidos se descartan.
-- Rangos: series 1–10, reps 1–50 (`repsMin <= repsMax`), descanso 0–600 s, como mucho 10 ejercicios por dia y los dias pedidos.
-- `warnings`: `UNKNOWN_EXERCISES_DROPPED`, `VALUES_ADJUSTED`, `FEWER_DAYS`, `EXTRA_DAYS_DROPPED`.
-- Errores: 503 sin clave o Claude no disponible, 429 limite diario, 422 el modelo se nego, 502 respuesta cortada o sin dias validos, 400 modelo no permitido o parametros fuera de rango.
+- El modelo elige ejercicios por numero de una lista que arma el backend; el backend los traduce a ids y descarta los que no existen.
+- Reglas: series 1–10 (principiante: hasta 4), reps 1–50 con `repsMin <= repsMax`, descanso 0–600 s, hasta 10 ejercicios por dia y como mucho los dias pedidos.
+- `warnings`: `UNKNOWN_EXERCISES_DROPPED`, `VALUES_ADJUSTED`, `FEWER_DAYS`, `EXTRA_DAYS_DROPPED`, `DAY_TOO_LONG` (no entra en los minutos), `HIGH_VOLUME` (mas de 25 series semanales de un grupo), `SEE_PROFESSIONAL` (se menciono una lesion o condicion de salud).
+- Errores: 503 sin clave o Groq caido, 429 limite del usuario, presupuesto diario o Groq saturado, 422 el modelo se nego, 502 respuesta cortada, invalida o sin dias validos, 400 modelo no permitido o parametros fuera de rango.
+
+### Prueba manual
+
+Ver `docs/PRUEBA_IA.md`.

@@ -87,6 +87,28 @@ public class AiRepository {
         );
     }
 
+    /** Llamada a una herramienta del agente: nombre, argumentos y resultado (recortado) en metadata. */
+    public void createToolMessage(UUID conversationId, String content, String metadata) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO ai_messages (conversation_id, role, content, metadata)
+                VALUES (?, 'TOOL', ?, CAST(? AS jsonb))
+                """,
+                conversationId,
+                content,
+                metadata
+        );
+    }
+
+    /** Tokens de toda la app en las ultimas 24 horas (la clave de Groq es una sola). */
+    public long sumTokensLastDay() {
+        Long total = jdbcTemplate.queryForObject(
+                "SELECT COALESCE(sum(input_tokens + output_tokens), 0) FROM ai_usage WHERE created_at > now() - interval '1 day'",
+                Long.class
+        );
+        return total == null ? 0 : total;
+    }
+
     public boolean conversationBelongsTo(UUID conversationId, UUID userId) {
         Boolean owned = jdbcTemplate.queryForObject(
                 "SELECT EXISTS (SELECT 1 FROM ai_conversations WHERE id = ? AND user_id = ?)",

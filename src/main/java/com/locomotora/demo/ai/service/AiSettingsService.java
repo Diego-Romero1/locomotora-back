@@ -14,7 +14,7 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-/** Que modelo usa cada usuario para cada tarea, y cuanto lo usa. */
+/** Que modelo usa cada usuario para cada tarea, y cuanto se usa la IA (por usuario y en toda la app). */
 @Service
 public class AiSettingsService {
     private final AiModelCatalog catalog;
@@ -54,8 +54,8 @@ public class AiSettingsService {
         return catalog.resolve(feature, feature == Feature.COACH ? choice.coachModel() : choice.routineModel());
     }
 
-    public boolean usesFallbacks(String model) {
-        return catalog.describe(model).supportsFallbacks();
+    public boolean strictJson(String model) {
+        return catalog.describe(model).strictJson();
     }
 
     /** 429 si el usuario ya llego al limite diario de esa tarea. */
@@ -66,14 +66,22 @@ public class AiSettingsService {
         }
     }
 
-    public void recordUsage(UUID userId, Feature feature, AiModelClient.Completion completion) {
-        aiRepository.recordUsage(userId, feature.name(), completion.model(), completion.inputTokens(), completion.outputTokens());
+    /** true si la app ya gasto su presupuesto diario de tokens (todos los usuarios comparten la clave). */
+    public boolean globalBudgetExhausted() {
+        long budget = properties.dailyTokenBudget();
+        return budget > 0 && aiRepository.sumTokensLastDay() >= budget;
+    }
+
+    /** Una fila por mensaje o rutina, con los tokens de todas sus llamadas al modelo. */
+    public void recordUsage(UUID userId, Feature feature, String model, long inputTokens, long outputTokens) {
+        aiRepository.recordUsage(userId, feature.name(), model, inputTokens, outputTokens);
     }
 
     private AiModelsResponse models(UUID userId) {
         ModelChoice choice = aiRepository.findModelChoice(userId);
         return new AiModelsResponse(
                 client.isConfigured(),
+                catalog.selectable(),
                 selection(userId, Feature.COACH, choice.coachModel()),
                 selection(userId, Feature.ROUTINE, choice.routineModel()),
                 catalog.available().stream()

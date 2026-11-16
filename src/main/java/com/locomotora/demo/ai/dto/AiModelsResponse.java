@@ -3,12 +3,13 @@ package com.locomotora.demo.ai.dto;
 import java.util.List;
 
 /**
- * Modelos de Claude que el usuario puede elegir y cuales usa ahora para cada tarea.
+ * Modelos de IA que ofrece el servidor y cual usa ahora el usuario para cada tarea.
  *
  * @param configured false si el servidor no tiene clave: el coach responde con reglas locales
  *                   y la generacion de rutinas no esta disponible.
+ * @param selectable false si el servidor ofrece un solo modelo: Perfil lo muestra sin poder elegir.
  */
-public record AiModelsResponse(boolean configured, Selection coach, Selection routine, List<Model> models) {
+public record AiModelsResponse(boolean configured, boolean selectable, Selection coach, Selection routine, List<Model> models) {
 
     /**
      * @param selected     modelo que se usara.

@@ -3,7 +3,7 @@ package com.locomotora.demo.ai.service;
 import java.util.Locale;
 
 /**
- * Respuestas por reglas cuando Claude no esta disponible (sin clave, sin red o limite diario).
+ * Respuestas por reglas cuando la IA no esta disponible (sin clave, sin red o sin presupuesto).
  * Son genericas a proposito: solo usan datos del usuario que ya estan guardados.
  */
 final class LocalCoach {

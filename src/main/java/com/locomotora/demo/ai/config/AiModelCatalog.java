@@ -5,53 +5,25 @@ import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
- * Modelos de Claude que la app sabe usar. Solo se ofrecen los que esten en
- * locomotora.ai.allowed-models; un id permitido que no este aqui se ofrece con datos genericos,
- * para poder probar un modelo nuevo sin cambiar codigo.
+ * Modelos que la app sabe usar. Solo se ofrecen los de locomotora.ai.allowed-models (hoy, solo
+ * Qwen 3.8 27B en GroqCloud). Un id permitido que no este aqui se ofrece con datos genericos, para
+ * poder probar otro modelo de Groq cambiando solo la configuracion.
  */
 @Component
 public class AiModelCatalog {
-    public enum Feature {
-        /** Chat: respuestas cortas, esfuerzo medio para que sea rapido. */
-        COACH("medium"),
-        /** Rutinas: mas razonamiento para que el plan sea coherente. */
-        ROUTINE("high");
-
-        private final String effort;
-
-        Feature(String effort) {
-            this.effort = effort;
-        }
-
-        public String effort() {
-            return effort;
-        }
-    }
+    public enum Feature { COACH, ROUTINE }
 
     /**
-     * @param supportsFallbacks si se piden reintentos en el servidor con otro modelo cuando este
-     *                          no esta disponible (Sonnet 5.5 y Opus 5.5 los necesitan; Haiku no).
+     * @param strictJson el modelo admite salida JSON estricta (json_schema con strict); si no, se pide
+     *                   en modo de mejor esfuerzo y el backend valida igual.
      */
-    public record ModelInfo(
-            String id,
-            String label,
-            String description,
-            String speed,
-            String cost,
-            boolean supportsFallbacks
-    ) {
+    public record ModelInfo(String id, String label, String description, String speed, String cost, boolean strictJson) {
     }
 
     private static final List<ModelInfo> KNOWN = List.of(
-            new ModelInfo("claude-haiku-5-5", "Claude Haiku 5.5",
-                    "Rapido y economico. Ideal para preguntas del dia a dia.",
-                    "FAST", "LOW", false),
-            new ModelInfo("claude-sonnet-5-5", "Claude Sonnet 5.5",
-                    "Equilibrio entre calidad y costo. Recomendado para crear rutinas.",
-                    "MEDIUM", "MEDIUM", true),
-            new ModelInfo("claude-opus-5-5", "Claude Opus 5.5",
-                    "El mas capaz. Mas lento y caro; para planes complejos.",
-                    "SLOW", "HIGH", true)
+            new ModelInfo(AiProperties.DEFAULT_MODEL, "Qwen 3.8 27B",
+                    "Modelo abierto de Qwen servido por GroqCloud. Rápido, con herramientas y JSON estricto.",
+                    "FAST", "LOW", true)
     );
 
     private final AiProperties properties;
@@ -87,11 +59,15 @@ public class AiModelCatalog {
         return isAllowed(userChoice) ? userChoice : defaultFor(feature);
     }
 
+    /** true si hay mas de un modelo: solo entonces el usuario puede elegir. */
+    public boolean selectable() {
+        return properties.allowedModels().size() > 1;
+    }
+
     public ModelInfo describe(String modelId) {
         return KNOWN.stream()
                 .filter(model -> model.id().equals(modelId))
                 .findFirst()
-                .orElseGet(() -> new ModelInfo(modelId, modelId, "Modelo configurado en el servidor.",
-                        "MEDIUM", "MEDIUM", false));
+                .orElseGet(() -> new ModelInfo(modelId, modelId, "Modelo configurado en el servidor.", "MEDIUM", "MEDIUM", false));
     }
 }

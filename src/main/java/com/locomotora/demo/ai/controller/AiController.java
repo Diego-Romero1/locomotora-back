@@ -42,7 +42,7 @@ public class AiController {
         this.routineGenerationService = routineGenerationService;
     }
 
-    /** Modelos de Claude disponibles y el que usa el usuario para el coach y para rutinas. */
+    /** Modelos de IA disponibles y el que usa el usuario para el coach y para rutinas. */
     @GetMapping("/ai/models")
     public AiModelsResponse models() {
         return aiSettingsService.models();
@@ -53,7 +53,7 @@ public class AiController {
         return aiSettingsService.updatePreferences(request);
     }
 
-    /** Borrador de rutina generado con Claude. No se guarda; 503 si la IA no esta configurada. */
+    /** Borrador de rutina generado con IA. No se guarda; 503 si la IA no esta configurada. */
     @PostMapping("/routines/generate")
     public GeneratedRoutineResponse generateRoutine(@Valid @RequestBody RoutineGenerationRequest request) {
         return routineGenerationService.generate(request);

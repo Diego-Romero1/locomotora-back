@@ -5,15 +5,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Foto del usuario que se le pasa al modelo: perfil, objetivos, limites y como viene entrenando. */
+/**
+ * Datos autorizados del usuario que se le pasan al modelo. Nunca incluye nombre, email, fecha de
+ * nacimiento (solo la edad), foto ni notas medicas. Los textos libres pasan por
+ * {@link PersonalDataFilter}. Lo que pesa (sesiones, rutinas, progreso) lo pide el agente con
+ * herramientas, para gastar pocos tokens.
+ */
 public record UserContext(
         Profile profile,
         Double latestWeightKg,
         List<String> goals,
         List<String> limitations,
         List<String> equipment,
+        List<String> dietaryPreferences,
         List<String> activeRoutines,
-        List<Session> recentSessions,
         int sessionsLast28Days,
         List<Lift> bestLifts
 ) {
@@ -41,8 +46,29 @@ public record UserContext(
         return latestWeightKg != null ? latestWeightKg : profile.weightKg();
     }
 
-    /** Texto compacto para el prompt. Solo incluye lo que se conoce. */
-    public String toPrompt() {
+    /** Contexto del chat: perfil, objetivos, limites, equipo, alimentacion y constancia. */
+    public String coachPrompt() {
+        List<String> lines = profileLines();
+        add(lines, "Preferencias de alimentacion", join(dietaryPreferences));
+        add(lines, "Rutinas activas", join(activeRoutines));
+        lines.add("- Sesiones completadas en los ultimos 28 dias: " + sessionsLast28Days);
+        return String.join("\n", lines);
+    }
+
+    /** Contexto para generar rutinas: perfil, objetivos, limites, equipo y cargas de referencia. */
+    public String routinePrompt() {
+        List<String> lines = profileLines();
+        lines.add("- Sesiones completadas en los ultimos 28 dias: " + sessionsLast28Days);
+        if (!bestLifts.isEmpty()) {
+            List<String> lifts = bestLifts.stream().limit(5)
+                    .map(lift -> lift.exercise() + " " + number(lift.weightKg()) + " kg x " + lift.reps())
+                    .toList();
+            add(lines, "Mejores series recientes", String.join(", ", lifts));
+        }
+        return String.join("\n", lines);
+    }
+
+    private List<String> profileLines() {
         List<String> lines = new ArrayList<>();
         Profile p = profile;
         add(lines, "Edad", p.age() == null ? null : p.age() + " anos");
@@ -53,27 +79,11 @@ public record UserContext(
         add(lines, "Experiencia", p.experienceLevel());
         add(lines, "Dias disponibles por semana", p.trainingDaysPerWeek() == null ? null : p.trainingDaysPerWeek().toString());
         add(lines, "Minutos por sesion", p.sessionDurationMinutes() == null ? null : p.sessionDurationMinutes().toString());
-        add(lines, "Estilo preferido", p.preferredTrainingStyle());
+        add(lines, "Estilo preferido", PersonalDataFilter.redact(p.preferredTrainingStyle()));
         add(lines, "Objetivos activos", join(goals));
         add(lines, "Lesiones o limitaciones", join(limitations));
         add(lines, "Equipo disponible", join(equipment));
-        add(lines, "Rutinas activas", join(activeRoutines));
-        lines.add("- Sesiones completadas en los ultimos 28 dias: " + sessionsLast28Days);
-        if (!recentSessions.isEmpty()) {
-            lines.add("- Ultimas sesiones:");
-            for (Session session : recentSessions) {
-                lines.add("  - " + session.day() + " " + session.title() + ": " + session.completedSets() + " series, "
-                        + number(session.volumeKg()) + " kg de volumen"
-                        + (session.perceivedExertion() == null ? "" : ", esfuerzo percibido " + session.perceivedExertion() + "/10"));
-            }
-        }
-        if (!bestLifts.isEmpty()) {
-            lines.add("- Mejores series recientes (90 dias):");
-            for (Lift lift : bestLifts) {
-                lines.add("  - " + lift.exercise() + ": " + number(lift.weightKg()) + " kg x " + lift.reps());
-            }
-        }
-        return String.join("\n", lines);
+        return lines;
     }
 
     private static void add(List<String> lines, String label, String value) {
@@ -83,7 +93,10 @@ public record UserContext(
     }
 
     private static String join(List<String> values) {
-        return values == null || values.isEmpty() ? null : String.join(", ", values);
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+        return PersonalDataFilter.redact(String.join(", ", values));
     }
 
     private static String number(double value) {

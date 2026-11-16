@@ -202,7 +202,7 @@ Campos principales:
 | V9      | `V9__workout_sessions_v2.sql`            | Sesiones v2: `client_session_id` (unico por usuario), `kind`, copia de `routine_title`/`day_title`; en logs, `exercise_position` y el plan del momento. Marca como `QUICK_LOG` los registros sueltos existentes. |
 | V10     | `V10__own_exercises_and_objectives.sql`  | `exercises.created_by_user_id` (NULL = global). El nombre pasa a ser unico entre los globales y, por separado, dentro de los propios de cada usuario. Objetivo `HYPERTROPHY` → `BUILD_MUSCLE` en las rutinas. |
 | V11     | `V11__deferrable_exercise_references.sql` | Las FK `routine_exercises.exercise_id` y `workout_exercise_logs.exercise_id` pasan a `DEFERRABLE INITIALLY DEFERRED`, para que borrar un usuario (con sus ejercicios propios en cascada) no falle por el orden de la cascada. |
-| V12     | `V12__ai_settings_and_usage.sql`         | `user_ai_settings` (modelo de Claude elegido para el coach y para rutinas) y `ai_usage` (una fila por llamada al modelo, con tokens; limites diarios y costo). |
+| V12     | `V12__ai_settings_and_usage.sql`         | `user_ai_settings` (modelo de IA elegido para el coach y para rutinas; desde el 2026-11-15 solo se permite Qwen y las elecciones viejas vuelven al de por defecto) y `ai_usage` (una fila por llamada al modelo, con tokens; limites diarios y costo). |
 
 ### Tablas agregadas en V2 y V3
 
@@ -320,7 +320,9 @@ Campos principales:
 - `metadata`
 - `created_at`
 
-En `metadata` del asistente (Fase 5): `source` (`CLAUDE`/`LOCAL`), `requestedModel`, `stopReason`, `inputTokens`, `outputTokens`. `model` es el que respondio.
+En `metadata` del asistente (Fase 5): `source` (`AI`/`LOCAL`; `CLAUDE` en mensajes anteriores al 2026-11-15), `requestedModel`, `stopReason`, `inputTokens`, `outputTokens`, `modelCalls`, `toolCalls`, `risks`, `issues` y, si respondieron las reglas locales, `reason`. `model` es el que respondio.
+
+Las llamadas del agente a herramientas se guardan con `role = 'TOOL'`: `content` es el nombre de la herramienta y `metadata` tiene `tool`, `arguments`, `error` y `result` (recortado). No se mandan al modelo como historial.
 
 ### `user_ai_settings` (V12)
 

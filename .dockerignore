@@ -5,4 +5,5 @@ target/
 HELP.md:Zone.Identifier
 mvnw:Zone.Identifier
 mvnw.cmd:Zone.Identifier
-pom.xml:Zone.Identifier
+pom.xml:Zone.Identifier.env
+.env.*

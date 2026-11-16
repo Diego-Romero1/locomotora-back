@@ -1,6 +1,7 @@
 package com.locomotora.demo.ai.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -23,7 +24,7 @@ import com.locomotora.demo.ai.repository.AiRepository;
 import com.locomotora.demo.ai.repository.AiRepository.ModelChoice;
 import com.locomotora.demo.common.ApiException;
 import com.locomotora.demo.routine.dto.ExerciseCatalogItemResponse;
-import com.locomotora.demo.routine.repository.RoutineRepository;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -39,22 +40,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 
-/** Fase 5: rutinas generadas con Claude, validadas contra el catalogo. */
+/** Fase 5 (Groq): rutinas con JSON estricto, catalogo filtrado por el backend y reglas de negocio. */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class RoutineGenerationServiceTest {
+    private static final String QWEN = AiCoachTest.QWEN;
     private final UUID userId = UUID.fromString("00000000-0000-0000-0000-000000000001");
-    private final List<ExerciseCatalogItemResponse> catalog = List.of(
-            item("e1", "Press banca", "Pecho", "BARBELL"),
-            item("e2", "Remo con mancuerna", "Espalda", "DUMBBELL"),
-            item("e3", "Sentadilla", "Cuádriceps", "BARBELL"));
+    private List<ExerciseCatalogItemResponse> catalog;
 
     @Mock
     private AiRepository aiRepository;
     @Mock
     private AiContextRepository contextRepository;
     @Mock
-    private RoutineRepository routineRepository;
+    private com.locomotora.demo.routine.repository.RoutineRepository routineRepository;
     @Mock
     private AiModelClient client;
 
@@ -66,10 +65,18 @@ class RoutineGenerationServiceTest {
 
     @BeforeEach
     void setUp() {
-        AiProperties properties = new AiProperties("sk-test", "claude-haiku-5-5,claude-sonnet-5-5,claude-opus-5-5",
-                "claude-haiku-5-5", "claude-sonnet-5-5", 40, 6, 120, "");
+        // e1..e3 primero (refs 1..3), y relleno con mancuernas para que el filtro no quede corto.
+        catalog = new ArrayList<>(List.of(
+                item("e1", "Press banca", "Pecho", "BARBELL"),
+                item("e2", "Remo con mancuerna", "Espalda", "DUMBBELL"),
+                item("e3", "Sentadilla", "Cuádriceps", "BARBELL"),
+                item("m1", "Prensa de piernas", "Cuádriceps", "MACHINE")));
+        for (int index = 0; index < 12; index++) {
+            catalog.add(item("d" + index, "Mancuerna " + index, "Hombros", "DUMBBELL"));
+        }
+        AiProperties properties = AiProperties.withKey("gsk-test", "");
         AiSettingsService settings = new AiSettingsService(new AiModelCatalog(properties), properties, aiRepository, client);
-        service = new RoutineGenerationService(client, settings, contextRepository, routineRepository);
+        service = new RoutineGenerationService(client, settings, contextRepository, routineRepository, properties);
         when(client.isConfigured()).thenReturn(true);
         when(contextRepository.load(userId)).thenReturn(AiCoachTest.context());
         when(routineRepository.findExerciseCatalog(userId)).thenReturn(catalog);
@@ -84,12 +91,22 @@ class RoutineGenerationServiceTest {
         SecurityContextHolder.clearContext();
     }
 
-    private RoutineGenerationRequest request(Integer days, String model) {
-        return new RoutineGenerationRequest("Quiero mas pecho", days, 50, null, null, List.of("Pecho"), model);
+    private RoutineGenerationRequest request(Integer days, String prompt) {
+        return new RoutineGenerationRequest(prompt, days, 50, null, null, List.of("Pecho"), null);
     }
 
     private void answer(String json) {
-        when(client.complete(any())).thenReturn(new Completion(json, "claude-sonnet-5-5", StopReason.END, 3000, 900));
+        org.mockito.Mockito.doReturn(new Completion(json, QWEN, StopReason.END, 3000, 900)).when(client).complete(any());
+    }
+
+    private static String oneDay(String exercises) {
+        return "{\"title\":\"R\",\"description\":\"\",\"difficulty\":\"INTERMEDIATE\",\"estimatedDurationMinutes\":45,"
+                + "\"days\":[{\"title\":\"A\",\"focus\":[],\"exercises\":[" + exercises + "]}]}";
+    }
+
+    private static String exercise(int ref, int sets, int min, int max, int rest) {
+        return "{\"ref\":" + ref + ",\"sets\":" + sets + ",\"repsMin\":" + min + ",\"repsMax\":" + max
+                + ",\"restSeconds\":" + rest + ",\"notes\":\"\"}";
     }
 
     @Test
@@ -105,52 +122,45 @@ class RoutineGenerationServiceTest {
                      {"ref":3,"sets":4,"repsMin":5,"repsMax":8,"restSeconds":150,"notes":""}]}]}
                 """);
 
-        GeneratedRoutineResponse routine = service.generate(request(2, null));
+        GeneratedRoutineResponse routine = service.generate(request(2, "Quiero mas pecho"));
 
         assertEquals("Torso y pierna", routine.title());
         assertEquals("BUILD_MUSCLE", routine.objective());
-        assertEquals("INTERMEDIATE", routine.difficulty());
         assertEquals(2, routine.daysPerWeek());
         assertEquals("Pecho, Espalda", routine.days().get(0).focus());
         assertEquals("e1", routine.days().get(0).exercises().get(0).exerciseId());
-        assertEquals("Press banca", routine.days().get(0).exercises().get(0).name());
         assertNull(routine.days().get(0).exercises().get(1).notes());
-        assertEquals(2, routine.days().get(1).dayIndex());
-        assertEquals("claude-sonnet-5-5", routine.model());
-        assertTrue(routine.warnings().isEmpty());
-        verify(aiRepository).recordUsage(userId, "ROUTINE", "claude-sonnet-5-5", 3000, 900);
+        assertEquals(QWEN, routine.model());
+        assertTrue(routine.warnings().isEmpty(), routine.warnings().toString());
+        verify(aiRepository).recordUsage(userId, "ROUTINE", QWEN, 3000, 900);
     }
 
     @Test
-    void sendsTheCatalogAndStructuredSchemaToTheDefaultRoutineModel() {
-        answer("{\"title\":\"R\",\"description\":\"\",\"difficulty\":\"BEGINNER\",\"estimatedDurationMinutes\":40,"
-                + "\"days\":[{\"title\":\"A\",\"focus\":[],\"exercises\":[{\"ref\":1,\"sets\":3,\"repsMin\":8,\"repsMax\":12,\"restSeconds\":90,\"notes\":\"\"}]}]}");
+    void sendsAFilteredCatalogAndAStrictSchemaWithoutTools() {
+        answer(oneDay(exercise(1, 3, 8, 12, 90)));
 
-        service.generate(request(1, null));
+        service.generate(request(1, "Quiero mas pecho, llamame al +54 11 5555-1234"));
 
-        verify(client).complete(argThat(request -> request.model().equals("claude-sonnet-5-5")
-                && request.fallbacks()
-                && request.effort().equals("high")
-                && request.jsonSchema() != null
-                && request.turns().get(0).text().contains("1 | Press banca | Pecho | BARBELL")
-                && request.turns().get(0).text().contains("Dias por semana: 1")
-                && request.turns().get(0).text().contains("Quiero mas pecho")));
+        verify(client).complete(argThat(request -> {
+            String user = request.turns().get(0).text();
+            return request.model().equals(QWEN)
+                    && request.strictJson()
+                    && "routine".equals(request.schemaName())
+                    && request.jsonSchema() != null
+                    && request.tools().isEmpty()
+                    && "none".equals(request.reasoningEffort())
+                    && request.maxTokens() == 1000
+                    // El usuario tiene mancuernas y barra: la maquina queda fuera del catalogo enviado.
+                    && user.contains("1 | Press banca | Pecho | BARBELL")
+                    && !user.contains("Prensa de piernas")
+                    && user.contains("Quiero mas pecho")
+                    && user.contains("[telefono]")
+                    && !user.contains("5555-1234");
+        }));
     }
 
     @Test
-    void requestModelOverridesTheSavedChoiceButMustBeAllowed() {
-        answer("{\"title\":\"R\",\"description\":\"\",\"difficulty\":\"BEGINNER\",\"estimatedDurationMinutes\":40,"
-                + "\"days\":[{\"title\":\"A\",\"focus\":[],\"exercises\":[{\"ref\":1,\"sets\":3,\"repsMin\":8,\"repsMax\":12,\"restSeconds\":90,\"notes\":\"\"}]}]}");
-
-        service.generate(request(1, "claude-opus-5-5"));
-        verify(client).complete(argThat(request -> request.model().equals("claude-opus-5-5")));
-
-        ApiException exception = assertThrows(ApiException.class, () -> service.generate(request(1, "gpt-x")));
-        assertEquals(HttpStatus.BAD_REQUEST, exception.status());
-    }
-
-    @Test
-    void dropsUnknownExercisesEmptyDaysAndClampsValues() {
+    void dropsUnknownExercisesAndClampsValues() {
         answer("""
                 {"title":"R","description":"","difficulty":"EXPERT","estimatedDurationMinutes":500,
                  "days":[
@@ -165,11 +175,8 @@ class RoutineGenerationServiceTest {
         GeneratedRoutineResponse routine = service.generate(request(3, null));
 
         assertEquals(2, routine.days().size());
-        assertEquals("Extra", routine.days().get(1).title());
-        assertEquals(2, routine.days().get(1).dayIndex());
         assertEquals("Dia 1", routine.days().get(0).title());
         GeneratedRoutineResponse.Exercise exercise = routine.days().get(0).exercises().get(0);
-        assertEquals(1, routine.days().get(0).exercises().size());
         assertEquals(10, exercise.sets());
         assertEquals(8, exercise.repsMin());
         assertEquals(12, exercise.repsMax());
@@ -180,8 +187,45 @@ class RoutineGenerationServiceTest {
     }
 
     @Test
+    void beginnersGetAtMostFourSets() {
+        when(contextRepository.load(userId)).thenReturn(new UserContext(UserContext.Profile.EMPTY, null, List.of(), List.of(),
+                List.of(), List.of(), List.of(), 0, List.of()));
+        answer(oneDay(exercise(1, 6, 8, 12, 90)));
+
+        GeneratedRoutineResponse routine = service.generate(new RoutineGenerationRequest(null, 1, 60, null, "BEGINNER", null, null));
+
+        assertEquals(4, routine.days().get(0).exercises().get(0).sets());
+        assertTrue(routine.warnings().contains("VALUES_ADJUSTED"));
+    }
+
+    @Test
+    void warnsWhenADayDoesNotFitTheSessionOrVolumeIsTooHigh() {
+        StringBuilder exercises = new StringBuilder();
+        for (int ref = 5; ref <= 12; ref++) {
+            exercises.append(ref == 5 ? "" : ",").append(exercise(ref, 5, 8, 12, 180));
+        }
+        answer(oneDay(exercises.toString()));
+
+        GeneratedRoutineResponse routine = service.generate(request(1, null));
+
+        assertTrue(RoutineGenerationService.estimatedMinutes(routine.days().get(0)) > 50 * 1.25);
+        assertTrue(routine.warnings().contains("DAY_TOO_LONG"));
+        assertTrue(routine.warnings().contains("HIGH_VOLUME"));
+    }
+
+    @Test
+    void injuryInThePromptAddsInstructionsAndAWarning() {
+        answer(oneDay(exercise(1, 3, 8, 12, 90)));
+
+        GeneratedRoutineResponse routine = service.generate(request(1, "Tengo una hernia de disco"));
+
+        assertTrue(routine.warnings().contains("SEE_PROFESSIONAL"));
+        verify(client).complete(argThat(request -> request.system().contains("lesion o dolor")));
+    }
+
+    @Test
     void keepsAtMostTheRequestedDays() {
-        String day = "{\"title\":\"D\",\"focus\":[],\"exercises\":[{\"ref\":1,\"sets\":3,\"repsMin\":8,\"repsMax\":12,\"restSeconds\":90,\"notes\":\"\"}]}";
+        String day = "{\"title\":\"D\",\"focus\":[],\"exercises\":[" + exercise(1, 3, 8, 12, 90) + "]}";
         answer("{\"title\":\"R\",\"description\":\"\",\"difficulty\":\"BEGINNER\",\"estimatedDurationMinutes\":40,\"days\":["
                 + day + "," + day + "," + day + "]}");
 
@@ -194,25 +238,28 @@ class RoutineGenerationServiceTest {
     @Test
     void withoutApiKeyGenerationIsUnavailable() {
         when(client.isConfigured()).thenReturn(false);
-        ApiException exception = assertThrows(ApiException.class, () -> service.generate(request(3, null)));
-        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, exception.status());
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, assertThrows(ApiException.class, () -> service.generate(request(3, null))).status());
         verify(client, never()).complete(any());
     }
 
     @Test
-    void apiFailureIsServiceUnavailable() {
-        when(client.complete(any())).thenThrow(new AiUnavailableException("down"));
+    void providerErrorsBecomeClearStatuses() {
+        org.mockito.Mockito.doThrow(new AiUnavailableException("busy", 429, 20L)).when(client).complete(any());
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, assertThrows(ApiException.class, () -> service.generate(request(3, null))).status());
+
+        org.mockito.Mockito.doThrow(new AiUnavailableException("schema", 400, null)).when(client).complete(any());
+        assertEquals(HttpStatus.BAD_GATEWAY, assertThrows(ApiException.class, () -> service.generate(request(3, null))).status());
+
+        org.mockito.Mockito.doThrow(new AiUnavailableException("down", 503, null)).when(client).complete(any());
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, assertThrows(ApiException.class, () -> service.generate(request(3, null))).status());
     }
 
     @Test
-    void refusalIsUnprocessable() {
-        when(client.complete(any())).thenReturn(new Completion("", "claude-sonnet-5-5", StopReason.REFUSAL, 10, 0));
+    void refusalAndCutOffAndBadJson() {
+        org.mockito.Mockito.doReturn(new Completion("", QWEN, StopReason.REFUSAL, 10, 0)).when(client).complete(any());
         assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, assertThrows(ApiException.class, () -> service.generate(request(3, null))).status());
-    }
-
-    @Test
-    void invalidOrEmptyJsonIsBadGateway() {
+        org.mockito.Mockito.doReturn(new Completion("{\"days\":[", QWEN, StopReason.MAX_TOKENS, 10, 4096)).when(client).complete(any());
+        assertEquals(HttpStatus.BAD_GATEWAY, assertThrows(ApiException.class, () -> service.generate(request(3, null))).status());
         answer("no json");
         assertEquals(HttpStatus.BAD_GATEWAY, assertThrows(ApiException.class, () -> service.generate(request(3, null))).status());
         answer("{\"days\":[]}");
@@ -220,10 +267,20 @@ class RoutineGenerationServiceTest {
     }
 
     @Test
-    void dailyLimitApplies() {
-        when(aiRepository.countUsageLastDay(userId, "ROUTINE")).thenReturn(6);
+    void dailyLimitsApply() {
+        when(aiRepository.countUsageLastDay(userId, "ROUTINE")).thenReturn(5);
+        assertEquals(HttpStatus.TOO_MANY_REQUESTS, assertThrows(ApiException.class, () -> service.generate(request(3, null))).status());
+
+        when(aiRepository.countUsageLastDay(userId, "ROUTINE")).thenReturn(0);
+        when(aiRepository.sumTokensLastDay()).thenReturn(200000L);
         assertEquals(HttpStatus.TOO_MANY_REQUESTS, assertThrows(ApiException.class, () -> service.generate(request(3, null))).status());
         verify(client, never()).complete(any());
+    }
+
+    @Test
+    void requestModelMustBeAllowed() {
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(ApiException.class,
+                () -> service.generate(new RoutineGenerationRequest(null, 3, 60, null, null, null, "claude-opus-5-5"))).status());
     }
 
     @Test
@@ -237,9 +294,51 @@ class RoutineGenerationServiceTest {
     }
 
     @Test
-    void schemaClosesEveryObject() {
-        Map<String, Object> schema = RoutineGenerationService.schema();
+    void schemaIsStrictCompatibleAndFixesTheNumberOfDays() {
+        Map<String, Object> schema = RoutineGenerationService.schema(4);
         assertEquals(false, schema.get("additionalProperties"));
-        assertTrue(schema.toString().split("additionalProperties=false", -1).length - 1 == 3);
+        assertEquals(3, schema.toString().split("additionalProperties=false", -1).length - 1);
+        assertFalse(schema.toString().contains("minimum"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> days = (Map<String, Object>) ((Map<String, Object>) schema.get("properties")).get("days");
+        assertEquals(4, days.get("minItems"));
+        assertEquals(4, days.get("maxItems"));
+        assertEquals(List.of("title", "description", "days"), schema.get("required"));
+        assertTrue(schema.toString().contains("tip"));
+        assertFalse(RoutineGenerationService.schema(6).toString().contains("tip"), "no tip with 6 days");
+        assertEquals(6, RoutineGenerationService.maxExercisesFor(3));
+        assertEquals(5, RoutineGenerationService.maxExercisesFor(5));
+        assertEquals(4, RoutineGenerationService.maxExercisesFor(6));
+    }
+
+    @Test
+    void readsTheCompactFormatWithRepsTextAndADayTip() {
+        answer("{\"title\":\"R\",\"description\":\"\",\"difficulty\":\"INTERMEDIATE\",\"estimatedDurationMinutes\":45,"
+                + "\"days\":[{\"title\":\"A\",\"tip\":\"Escapulas atras\",\"exercises\":["
+                + "{\"ref\":1,\"sets\":4,\"reps\":\"6-8\",\"rest\":150},{\"ref\":2,\"sets\":3,\"reps\":\"12\",\"rest\":60}]}]}");
+
+        GeneratedRoutineResponse.Day day = service.generate(request(1, null)).days().get(0);
+
+        assertEquals(6, day.exercises().get(0).repsMin());
+        assertEquals(8, day.exercises().get(0).repsMax());
+        assertEquals("Escapulas atras", day.exercises().get(0).notes());
+        assertEquals(12, day.exercises().get(1).repsMin());
+        assertEquals(12, day.exercises().get(1).repsMax());
+        assertNull(day.exercises().get(1).notes());
+        assertEquals("Pecho, Espalda", day.focus(), "focus comes from the catalog");
+        assertNull(RoutineGenerationService.parseReps("seis"));
+    }
+
+    @Test
+    void readsTheShortKeysTheModelReturns() {
+        answer("{\"title\":\"R\",\"description\":\"\",\"difficulty\":\"INTERMEDIATE\",\"estimatedDurationMinutes\":45,"
+                + "\"days\":[{\"title\":\"A\",\"focus\":[],\"exercises\":[{\"ref\":1,\"sets\":4,\"min\":6,\"max\":8,\"rest\":150,\"note\":\"Pausa abajo\"}]}]}");
+
+        GeneratedRoutineResponse.Exercise exercise = service.generate(request(1, null)).days().get(0).exercises().get(0);
+
+        assertEquals(6, exercise.repsMin());
+        assertEquals(8, exercise.repsMax());
+        assertEquals(150, exercise.restSeconds());
+        assertEquals("Pausa abajo", exercise.notes());
     }
 }

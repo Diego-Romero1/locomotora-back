@@ -24,11 +24,31 @@ public class AiContextRepository {
                 latestWeight(userId),
                 goals(userId),
                 strings("SELECT limitation_type || COALESCE(': ' || notes, '') FROM user_limitations WHERE user_id = ? ORDER BY created_at", userId),
-                strings("SELECT equipment_name FROM user_equipment WHERE user_id = ? ORDER BY equipment_name", userId),
+                equipment(userId),
+                dietaryPreferences(userId),
                 strings("SELECT title FROM routines WHERE user_id = ? AND is_active = true ORDER BY updated_at DESC LIMIT 5", userId),
-                recentSessions(userId),
                 sessionsLast28Days(userId),
                 bestLifts(userId)
+        );
+    }
+
+    /** Equipo del onboarding (BODYWEIGHT, DUMBBELLS, BARBELL, ...). */
+    public List<String> equipment(UUID userId) {
+        return strings("SELECT equipment_name FROM user_equipment WHERE user_id = ? ORDER BY equipment_name", userId);
+    }
+
+    /** Preferencias de alimentacion: el perfil las guarda como un arreglo JSON de textos. */
+    private List<String> dietaryPreferences(UUID userId) {
+        return jdbcTemplate.query(
+                """
+                SELECT value
+                FROM user_profiles p, jsonb_array_elements_text(
+                    CASE WHEN jsonb_typeof(p.dietary_preferences) = 'array' THEN p.dietary_preferences ELSE '[]'::jsonb END) AS value
+                WHERE p.user_id = ?
+                LIMIT 10
+                """,
+                (rs, rowNum) -> rs.getString(1),
+                userId
         );
     }
 
@@ -101,7 +121,8 @@ public class AiContextRepository {
         );
     }
 
-    private List<UserContext.Session> recentSessions(UUID userId) {
+    /** Sesiones completadas de los ultimos {@code days} dias, la mas reciente primero. */
+    public List<UserContext.Session> recentSessions(UUID userId, int days, int limit) {
         return jdbcTemplate.query(
                 """
                 SELECT s.completed_at::date AS day,
@@ -112,9 +133,10 @@ public class AiContextRepository {
                 FROM workout_sessions s
                 LEFT JOIN workout_exercise_logs l ON l.workout_session_id = s.id
                 WHERE s.user_id = ? AND s.status = 'COMPLETED' AND s.kind <> 'QUICK_LOG'
+                  AND s.completed_at > now() - make_interval(days => ?)
                 GROUP BY s.id
                 ORDER BY s.completed_at DESC
-                LIMIT 6
+                LIMIT ?
                 """,
                 (rs, rowNum) -> new UserContext.Session(
                         rs.getDate("day").toLocalDate(),
@@ -123,7 +145,9 @@ public class AiContextRepository {
                         rs.getBigDecimal("volume").doubleValue(),
                         (Integer) rs.getObject("perceived_exertion", Integer.class)
                 ),
-                userId
+                userId,
+                days,
+                limit
         );
     }
 
