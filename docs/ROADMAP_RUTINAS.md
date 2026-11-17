@@ -33,8 +33,8 @@ Propuesta de experiencia de uso para crear, editar y entrenar, publicada como ar
 | ---- | --------- | ------ |
 | R1 · Entrenar | Una sola lista de series, peso sugerido, avance automático, saltar / hacer después, técnica, terminar con pendientes, resumen con cambios a la rutina, pantalla encendida | ✅ 2026-11-17 |
 | R2 · Rutina actual | `current_routine_id`, ciclo de días en Hoy, Rutinas y detalle | ✅ 2026-11-17 |
-| R3 · Editar en sitio | Modo edición en el detalle, hoja de ejercicio, arrastrar | Pendiente |
-| R4 · Crear | Una sola puerta con vista previa, asistente de 3 pasos, sugerencias por día | Pendiente |
+| R3 · Editar en sitio | Modo edición en el detalle, hoja de ejercicio, arrastrar | ✅ 2026-11-17 |
+| R4 · Crear | Una sola puerta con vista previa, asistente de 3 pasos, sugerencias por día | ✅ 2026-11-17 |
 
 ### Avance de R1 (2026-11-17, rama `main`)
 
@@ -55,6 +55,44 @@ Frontend:
 - Probado en Expo web (390×844) contra el backend en Docker: sugerencia y aplicación, descanso con ajuste de peso, avance automático, saltar, técnica, corregir, lista, terminar con pendientes, resumen y guardado (la sesión no incluye el ejercicio saltado y la rutina quedó con la serie agregada).
 
 Pendiente de R1: probar en un teléfono (vibración, pantalla encendida y hojas en iOS).
+
+### Avance de R4 (2026-11-17, rama `main`)
+
+Sin cambios de backend.
+
+Frontend:
+
+- "Nueva rutina" es la única puerta: recomendada para ti ("Ver rutina"), plantillas con filtro por cantidad de días, con IA y desde cero. Duplicar una propia queda en el menú "⋯" de esa rutina.
+- Vista previa (detalle en modo plantilla): avisos de si encaja con el perfil (equipo que falta, duración contra tu tiempo, ejercicios que cargan una zona con molestia, otro objetivo; `profileFit.ts`, reusa las reglas del plan del onboarding). "Usar esta rutina" la copia y la deja como actual; "Personalizar" abre el editor en modo crear.
+- El editor de R3 ahora también crea (`RoutineEditor` con `routineId = null`, ruta `RoutineEdit`): plantilla o resultado de la IA, con "Usar como rutina actual" (activado por defecto) y confirmación al salir sin guardar.
+- IA: "Usar esta rutina" (la guarda como AI y queda actual) y "Personalizar" (editor en modo crear). Antes abría el paso 4 del asistente.
+- Desde cero en 3 pasos (`RoutineBuilderScreen` reescrito): estructura (días y minutos del perfil, split recomendado, nombre y músculos de cada día; objetivo y nivel plegados en "Ajustes"), ejercicios (el mismo `DraftDaysEditor` del editor) y revisar (nombre en un solo lugar, series por semana, avisos, "Usar como rutina actual", "Guardar y empezar"). Retomar un borrador es una tarjeta (antes un Alert, que no funcionaba en web). Confirmaciones con `ConfirmSheet`.
+- "Completar con sugerencias" (`suggestExercisesForDay`, reglas locales): un ejercicio por músculo del día (grandes primero) y un segundo hasta llenar los minutos de la sesión (3 a 8), con el equipo del perfil, sin ejercicios avanzados para principiantes (primero máquinas y mancuernas), sin los que cargan una zona con molestia y prefiriendo no repetir los de otros días. Si el día no tiene músculos marcados (o las plantillas traen una descripción), usa los músculos de sus ejercicios.
+- `DraftDaysEditor` (días y ejercicios) lo comparten el editor y el asistente. `useExerciseCatalog` comparte el catálogo; `useFitProfile` lee el perfil.
+- Al crear una rutina por cualquier camino, "Volver" lleva a la lista de rutinas (`openCreatedRoutine`).
+- Se borraron `DraftExerciseCard` y los textos del asistente viejo.
+- 12 tests nuevos (190 en total). Lint: 6 errores, todos anteriores (uno menos: el del asistente viejo).
+- Probado en Expo web contra el backend en Docker, con un perfil de principiante con mancuernas y máquinas, 45 min y molestia de rodilla: avisos de la vista previa, personalizar y descartar, filtro de plantillas, usar plantilla (queda actual y "Volver" va a Rutinas), desde cero con sugerencias en los 3 días (máquinas, sin barra ni ejercicios de rodilla) y guardar.
+
+Pendiente de R4: probar en un teléfono y probar "Usar esta rutina" / "Personalizar" con una generación real de la IA (no se generó para no gastar cuota).
+
+### Avance de R3 (2026-11-17, rama `main`)
+
+Sin cambios de backend: `PUT /routines/{id}` ya sincroniza por id.
+
+Frontend:
+
+- "Editar" en el detalle ya no abre el asistente de 4 pasos: la misma pantalla pasa a modo edición (`RoutineEditor`). Nombre, días con su cantidad de ejercicios y "+ Día", ejercicios como filas compactas, "+ Agregar ejercicio", ajustes plegados (objetivo, nivel, minutos) y "Guardar cambios" fijo abajo (activo solo si hay cambios).
+- Hoja del ejercicio (`ExerciseEditSheet`): series, atajos de reps (4–6 … 15–20) y de descanso (0:45 … 3:00) con "Otro" para el valor exacto, nota para cuando entrenes, reemplazar (el selector de ejercicios tiene modo de selección única), subir/bajar y quitar.
+- Ordenar arrastrando el asa (`EditableExerciseList`, con `PanResponder`: funciona en teléfono y en web); las demás filas se corren para mostrar dónde cae y la fila no sale de la lista. Subir/bajar queda como alternativa.
+- Opciones del día (`DayOptionsSheet`): nombre, duplicar, copiar ejercicios de otro día (antes era un Alert), mover antes/después y quitar.
+- Quitar un ejercicio o un día ofrece "Deshacer". Descartar con cambios pide confirmación, también al salir con el gesto o el botón atrás (`beforeRemove`). Aviso si hay un entrenamiento de esa rutina en curso. Aviso de días sin ejercicios (se quitan al guardar).
+- Borrador: acciones nuevas `moveExerciseTo`, `replaceExercise` (conserva la fila), `duplicateDay`, `restoreDay`, nota en `updateExercise` (hasta 300 caracteres) y `draftSignature` para saber si hay cambios.
+- `BottomSheet` sube con el teclado en iOS.
+- 10 tests nuevos (178 en total). Lint sin errores nuevos (7, todos anteriores).
+- Probado en Expo web contra el backend en Docker: atajos, nota, arrastrar, duplicar día, quitar y deshacer, agregar, descartar y guardar. En la base, los días y ejercicios existentes conservaron su id; el día duplicado y el ejercicio agregado son filas nuevas.
+
+Pendiente de R3: probar en un teléfono el arrastre y el gesto atrás con cambios sin guardar (en la web el historial del navegador no pasa por la navegación de la app).
 
 ### Avance de R2 (2026-11-17, rama `main`)
 
