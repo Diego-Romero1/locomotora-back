@@ -3,25 +3,21 @@ package com.locomotora.demo.routine.service;
 import com.locomotora.demo.common.ApiException;
 import com.locomotora.demo.common.CurrentUser;
 import com.locomotora.demo.routine.dto.LastPerformanceResponse;
-import com.locomotora.demo.routine.dto.RoutineDayResponse;
 import com.locomotora.demo.routine.dto.RoutineResponse;
 import com.locomotora.demo.routine.dto.TodayResponse;
 import com.locomotora.demo.routine.dto.WorkoutSessionResponse;
 import com.locomotora.demo.routine.repository.TrainingStatsRepository;
-import com.locomotora.demo.routine.repository.TrainingStatsRepository.RoutineCandidate;
 import com.locomotora.demo.routine.repository.WorkoutSessionWriteRepository;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Stream;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -33,16 +29,16 @@ public class TrainingService {
 
     private final TrainingStatsRepository statsRepository;
     private final WorkoutSessionWriteRepository sessionRepository;
-    private final RoutineReadService routineReadService;
+    private final CurrentRoutineService currentRoutineService;
 
     public TrainingService(
             TrainingStatsRepository statsRepository,
             WorkoutSessionWriteRepository sessionRepository,
-            RoutineReadService routineReadService
+            CurrentRoutineService currentRoutineService
     ) {
         this.statsRepository = statsRepository;
         this.sessionRepository = sessionRepository;
-        this.routineReadService = routineReadService;
+        this.currentRoutineService = currentRoutineService;
     }
 
     public List<LastPerformanceResponse> lastPerformance(List<UUID> exerciseIds) {
@@ -66,8 +62,11 @@ public class TrainingService {
         ZoneId zone = parseZone(timeZone);
         LocalDate today = now.atZone(zone).toLocalDate();
 
-        Optional<RoutineResponse> routine = pickActiveRoutine(userId).map(routineReadService::getRoutine);
-        String nextDayId = routine.flatMap(r -> nextDay(userId, r)).map(UUID::toString).orElse(null);
+        // La rutina actual (elegida o deducida) con su ciclo: el dia que toca viene calculado.
+        Optional<UUID> currentId = currentRoutineService.resolve(userId);
+        Optional<RoutineResponse> routine = currentId
+                .map(id -> currentRoutineService.decorate(currentRoutineService.readRoutine(id), userId, currentId));
+        String nextDayId = routine.map(RoutineResponse::nextDayId).orElse(null);
         int target = targetDays(userId, routine);
 
         LocalDate weekStart = TrainingCalendar.weekStart(today);
@@ -89,27 +88,6 @@ public class TrainingService {
                 TrainingCalendar.weekStreak(trainedDates, today, target),
                 lastSession
         );
-    }
-
-    /**
-     * La rutina "actual" es la mas reciente entre la ultima entrenada y la ultima creada o editada:
-     * si se arma una rutina nueva, pasa a ser la de Hoy; si no, sigue la que se viene entrenando.
-     */
-    private Optional<UUID> pickActiveRoutine(UUID userId) {
-        return Stream.of(
-                        statsRepository.findLastTrainedActiveRoutine(userId),
-                        statsRepository.findLatestUpdatedActiveRoutine(userId))
-                .flatMap(Optional::stream)
-                .max(Comparator.comparing(RoutineCandidate::at))
-                .map(RoutineCandidate::routineId);
-    }
-
-    private Optional<UUID> nextDay(UUID userId, RoutineResponse routine) {
-        List<UUID> dayIds = routine.days().stream()
-                .sorted(Comparator.comparingInt(RoutineDayResponse::dayIndex))
-                .map(day -> UUID.fromString(day.id()))
-                .toList();
-        return TrainingCalendar.nextDayId(dayIds, statsRepository.findLastTrainedDayId(userId, UUID.fromString(routine.id())));
     }
 
     private int targetDays(UUID userId, Optional<RoutineResponse> routine) {

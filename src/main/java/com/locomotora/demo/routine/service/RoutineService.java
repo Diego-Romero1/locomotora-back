@@ -125,10 +125,12 @@ public class RoutineService {
     }
 
     public void deleteRoutine(UUID routineId) {
-        int updated = routineWriteRepository.softDelete(routineId, CurrentUser.id());
+        UUID userId = CurrentUser.id();
+        int updated = routineWriteRepository.softDelete(routineId, userId);
         if (updated == 0) {
             throw new ApiException(HttpStatus.NOT_FOUND, "Routine not found");
         }
+        routineWriteRepository.clearCurrentRoutine(userId, routineId);
     }
 
     private List<RoutineDayRequest> normalizeDays(RoutineRequest request) {

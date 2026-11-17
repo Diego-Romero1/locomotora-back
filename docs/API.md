@@ -59,6 +59,7 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `POST`   | `/routines/{id}/duplicate?suffix=`  | Copia una rutina propia con todos sus dias                      |
 | `PUT`    | `/routines/{id}`                    | Actualiza rutina (sincroniza dias y ejercicios por id)          |
 | `DELETE` | `/routines/{id}`                    | Soft delete (`is_active = false`)                               |
+| `PUT`    | `/routines/{id}/current`            | R2: elige la rutina actual (la de Hoy). Devuelve la rutina      |
 | `GET`    | `/routine-categories`               | Categorias (Fuerza, Hipertrofia, Cardio, Movilidad, Recovery)   |
 | `GET`    | `/routines/templates?goal=`         | Plantillas globales                                             |
 | `GET`    | `/routines/templates/{id}`          | Detalle de plantilla                                            |
@@ -162,6 +163,12 @@ Reglas (`RoutineService`):
 - `PUT` sincroniza por `id`: un dia o ejercicio con `id` existente de esta rutina se actualiza (conserva la fila y su historial); sin `id`, con un `id` ajeno o repetido, se crea uno nuevo; lo que no viene en el payload se borra. Un ejercicio puede cambiar de dia conservando su `id`. `target_weight_kg` y `tempo` no viajan en el request y se conservan.
 - Las plantillas globales no se pueden editar (400).
 
+### Rutina actual y ciclo de dias (R2)
+
+- `current`, `lastTrainedAt` y `nextDayId` (y `lastTrainedAt` por dia) vienen en `GET /routines`, `GET /routines/{id}`, las respuestas de crear, editar y duplicar, y en la rutina de `GET /today`. Las plantillas no los traen (`current = false`, nulls).
+- **Rutina actual:** la elegida con `PUT /routines/{id}/current` (`user_profiles.current_routine_id`, V15). Si no hay una elegida, o se borro, se deduce como antes: la mas reciente entre la ultima entrenada y la ultima creada o editada. `GET /today`, la lista y el detalle usan la misma regla. `PUT` sobre una rutina ajena o borrada: 404 y no guarda nada.
+- **Ciclo:** `nextDayId` es el dia que sigue (por `dayIndex`) al ultimo entrenado de esa rutina; si nunca se entreno, el primero; despues del ultimo, vuelve al primero.
+
 ### `POST /routines/{id}/duplicate?suffix=(copia)`
 
 Copia una rutina propia (activa) con sus dias y ejercicios, sin compartir ids. El titulo lleva el sufijo (por defecto ` (copia)`), recortado para no pasar 180 caracteres. Conserva rangos de reps y el origen (`AI` o `TEMPLATE`; si no, `MANUAL`). 201 con la rutina nueva; 404 si no es del usuario.
@@ -208,12 +215,18 @@ Cada ejercicio incluye `equipment` (codigo del catalogo, por ejemplo `BARBELL` o
           "repsMax": 8,
           "restSeconds": 120,
           "primaryMuscleGroup": "Pecho",
-          "notes": null
+          "notes": null,
+          "equipment": "BARBELL",
+          "instructions": "Tecnica del catalogo (R1: la app la muestra en \"Tecnica\" al entrenar, aun sin conexion)"
         }
-      ]
+      ],
+      "lastTrainedAt": "2026-11-11T19:00:00Z"
     }
   ],
-  "exercises": []
+  "exercises": [],
+  "current": true,
+  "lastTrainedAt": "2026-11-11T19:00:00Z",
+  "nextDayId": "id del dia que toca"
 }
 ```
 

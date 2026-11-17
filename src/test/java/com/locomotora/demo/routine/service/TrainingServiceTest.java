@@ -15,6 +15,7 @@ import com.locomotora.demo.routine.dto.LastPerformanceResponse;
 import com.locomotora.demo.routine.dto.RoutineDayResponse;
 import com.locomotora.demo.routine.dto.RoutineResponse;
 import com.locomotora.demo.routine.dto.TodayResponse;
+import com.locomotora.demo.routine.repository.RoutineWriteRepository;
 import com.locomotora.demo.routine.repository.TrainingStatsRepository;
 import com.locomotora.demo.routine.repository.TrainingStatsRepository.RoutineCandidate;
 import com.locomotora.demo.routine.repository.WorkoutSessionWriteRepository;
@@ -51,12 +52,15 @@ class TrainingServiceTest {
     private WorkoutSessionWriteRepository sessionRepository;
     @Mock
     private RoutineReadService routineReadService;
+    @Mock
+    private RoutineWriteRepository routineWriteRepository;
 
     private TrainingService service;
 
     @BeforeEach
     void setUp() {
-        service = new TrainingService(statsRepository, sessionRepository, routineReadService);
+        service = new TrainingService(
+                statsRepository, sessionRepository, new CurrentRoutineService(statsRepository, routineReadService, routineWriteRepository));
         TestingAuthenticationToken authentication = new TestingAuthenticationToken(userId.toString(), null);
         authentication.setAuthenticated(true);
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -74,7 +78,8 @@ class TrainingServiceTest {
         when(statsRepository.findLatestUpdatedActiveRoutine(userId))
                 .thenReturn(Optional.of(new RoutineCandidate(trainedRoutine, Instant.parse("2026-10-01T10:00:00Z"))));
         when(routineReadService.getRoutine(trainedRoutine)).thenReturn(routine(trainedRoutine, 2));
-        when(statsRepository.findLastTrainedDayId(userId, trainedRoutine)).thenReturn(Optional.of(dayOne));
+        when(statsRepository.findLastTrainedByDay(userId, trainedRoutine))
+                .thenReturn(Map.of(dayOne, Instant.parse("2026-11-09T19:00:00Z")));
         when(statsRepository.findTrainedDates(eq(userId), anyString(), any())).thenReturn(List.of(LocalDate.of(2026, 11, 9)));
 
         TodayResponse today = service.today("America/Argentina/Buenos_Aires", now);
@@ -95,13 +100,28 @@ class TrainingServiceTest {
         when(statsRepository.findLatestUpdatedActiveRoutine(userId))
                 .thenReturn(Optional.of(new RoutineCandidate(newRoutine, Instant.parse("2026-11-10T12:00:00Z"))));
         when(routineReadService.getRoutine(newRoutine)).thenReturn(routine(newRoutine, 4));
-        when(statsRepository.findLastTrainedDayId(userId, newRoutine)).thenReturn(Optional.empty());
 
         TodayResponse today = service.today(null, now);
 
         assertEquals(newRoutine.toString(), today.routine().id());
         assertEquals(dayOne.toString(), today.nextDayId());
         assertEquals(4, today.week().targetDays());
+    }
+
+    @Test
+    void theChosenRoutineIsTodaysEvenIfANewerOneWasCreated() {
+        when(statsRepository.findChosenCurrentRoutine(userId)).thenReturn(Optional.of(trainedRoutine));
+        when(routineReadService.getRoutine(trainedRoutine)).thenReturn(routine(trainedRoutine, 2));
+        when(statsRepository.findLastTrainedByDay(userId, trainedRoutine))
+                .thenReturn(Map.of(dayTwo, Instant.parse("2026-11-10T19:00:00Z")));
+
+        TodayResponse today = service.today("UTC", now);
+
+        assertEquals(trainedRoutine.toString(), today.routine().id());
+        assertEquals(true, today.routine().current());
+        // Despues del ultimo dia vuelve al primero.
+        assertEquals(dayOne.toString(), today.nextDayId());
+        verify(statsRepository, never()).findLatestUpdatedActiveRoutine(any());
     }
 
     @Test

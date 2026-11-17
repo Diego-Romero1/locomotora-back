@@ -36,6 +36,7 @@ public final class OnboardingRules {
     public static void validate(OnboardingRequest request) {
         String goal = Objectives.canonicalOrRaw(request.goalType());
         require(Objectives.CANONICAL.contains(goal), "goalType");
+        validateBirthDate(request.birthDate(), LocalDate.now());
         require(LEVELS.contains(upper(request.experienceLevel())), "experienceLevel");
         checkOptional(request.sex(), SEXES, "sex");
         checkOptional(request.activityLevel(), ACTIVITY_LEVELS, "activityLevel");
@@ -51,6 +52,7 @@ public final class OnboardingRules {
         if (request.name() != null) {
             require(!request.name().isBlank(), "name");
         }
+        validateBirthDate(request.birthDate(), LocalDate.now());
         if (request.goalType() != null) {
             require(Objectives.CANONICAL.contains(Objectives.canonicalOrRaw(request.goalType())), "goalType");
         }
@@ -111,15 +113,16 @@ public final class OnboardingRules {
                 || photo.startsWith("https://")), "profilePhotoUrl");
     }
 
-    /**
-     * Fecha de nacimiento aproximada a partir de la edad (mitad del ano). Si la fecha guardada ya
-     * da esa edad, se conserva para no pisar una fecha real.
-     */
-    public static LocalDate birthDateFor(int age, LocalDate current, LocalDate today) {
-        if (current != null && Period.between(current, today).getYears() == age) {
-            return current;
+    public static final int MIN_AGE = 13;
+    public static final int MAX_AGE = 100;
+
+    /** La edad que resulta de la fecha de nacimiento tiene que estar entre 13 y 100 anos. */
+    public static void validateBirthDate(LocalDate birthDate, LocalDate today) {
+        if (birthDate == null) {
+            return;
         }
-        return today.minusYears(age).minusMonths(6);
+        int age = Period.between(birthDate, today).getYears();
+        require(!birthDate.isAfter(today) && age >= MIN_AGE && age <= MAX_AGE, "birthDate");
     }
 
     public static Integer ageOf(LocalDate birthDate, LocalDate today) {

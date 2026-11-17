@@ -116,6 +116,28 @@ public class RoutineWriteRepository {
         );
     }
 
+    /** Elige la rutina actual (crea la fila del perfil si una cuenta vieja no la tiene). */
+    public void setCurrentRoutine(UUID userId, UUID routineId) {
+        jdbcTemplate.update(
+                """
+                INSERT INTO user_profiles (user_id, current_routine_id)
+                VALUES (?, ?)
+                ON CONFLICT (user_id) DO UPDATE SET current_routine_id = EXCLUDED.current_routine_id, updated_at = now()
+                """,
+                userId,
+                routineId
+        );
+    }
+
+    /** Al borrar (soft delete) la rutina actual, Hoy vuelve a deducirla. */
+    public void clearCurrentRoutine(UUID userId, UUID routineId) {
+        jdbcTemplate.update(
+                "UPDATE user_profiles SET current_routine_id = NULL WHERE user_id = ? AND current_routine_id = ?",
+                userId,
+                routineId
+        );
+    }
+
     public Set<UUID> findDayIds(UUID routineId) {
         return new HashSet<>(jdbcTemplate.query(
                 "SELECT id FROM routine_days WHERE routine_id = ?",

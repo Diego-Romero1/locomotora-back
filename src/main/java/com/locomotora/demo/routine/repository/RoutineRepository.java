@@ -141,7 +141,7 @@ public class RoutineRepository {
     public List<ExerciseResponse> findExercisesForDay(UUID dayId) {
         return jdbcTemplate.query(
                 """
-                SELECT re.id, re.exercise_id, e.name, e.primary_muscle_group, e.equipment,
+                SELECT re.id, re.exercise_id, e.name, e.primary_muscle_group, e.equipment, e.instructions,
                        re.sets, re.target_reps, re.reps_min, re.reps_max, re.rest_seconds, re.notes
                 FROM routine_exercises re
                 JOIN exercises e ON e.id = re.exercise_id
@@ -270,7 +270,8 @@ public class RoutineRepository {
                 rs.getInt("rest_seconds"),
                 rs.getString("primary_muscle_group"),
                 rs.getString("notes"),
-                rs.getString("equipment")
+                rs.getString("equipment"),
+                rs.getString("instructions")
         );
     }
 

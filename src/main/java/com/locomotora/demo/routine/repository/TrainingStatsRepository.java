@@ -151,19 +151,37 @@ public class TrainingStatsRepository {
         ).stream().findFirst();
     }
 
-    /** Dia del ultimo entrenamiento de esa rutina (puede no existir o haberse borrado). */
-    public Optional<UUID> findLastTrainedDayId(UUID userId, UUID routineId) {
+    /** Rutina actual elegida por el usuario, si sigue activa y es suya. */
+    public Optional<UUID> findChosenCurrentRoutine(UUID userId) {
         return jdbcTemplate.query(
                 """
-                SELECT routine_day_id FROM workout_sessions
-                WHERE user_id = ? AND routine_id = ? AND status = 'COMPLETED' AND routine_day_id IS NOT NULL
-                ORDER BY completed_at DESC
-                LIMIT 1
+                SELECT up.current_routine_id
+                FROM user_profiles up
+                JOIN routines r ON r.id = up.current_routine_id AND r.user_id = up.user_id AND r.is_active
+                WHERE up.user_id = ?
                 """,
-                (rs, rowNum) -> rs.getObject("routine_day_id", UUID.class),
+                (rs, rowNum) -> rs.getObject("current_routine_id", UUID.class),
+                userId
+        ).stream().findFirst();
+    }
+
+    /** Ultima sesion completada de cada dia de la rutina. Los dias borrados no aparecen. */
+    public Map<UUID, Instant> findLastTrainedByDay(UUID userId, UUID routineId) {
+        Map<UUID, Instant> result = new HashMap<>();
+        jdbcTemplate.query(
+                """
+                SELECT routine_day_id, max(completed_at) AS last_at
+                FROM workout_sessions
+                WHERE user_id = ? AND routine_id = ? AND status = 'COMPLETED' AND routine_day_id IS NOT NULL
+                GROUP BY routine_day_id
+                """,
+                rs -> {
+                    result.put(rs.getObject("routine_day_id", UUID.class), rs.getTimestamp("last_at").toInstant());
+                },
                 userId,
                 routineId
-        ).stream().findFirst();
+        );
+        return result;
     }
 
     public Optional<UUID> findLastSessionId(UUID userId) {

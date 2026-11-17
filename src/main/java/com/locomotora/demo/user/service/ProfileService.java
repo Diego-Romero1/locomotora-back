@@ -106,7 +106,6 @@ public class ProfileService {
         OnboardingRules.validate(request);
         UUID userId = CurrentUser.id();
         profileRepository.ensureProfile(userId);
-        OnboardingProfileSnapshot current = profileRepository.findOnboardingProfile(userId);
 
         if (request.name() != null) {
             profileRepository.updateName(userId, request.name().trim());
@@ -117,9 +116,7 @@ public class ProfileService {
         putIfPresent(columns, "session_duration_minutes", request.sessionDurationMinutes());
         putIfPresent(columns, "height_cm", request.heightCm());
         putIfPresent(columns, "weight_kg", request.weightKg());
-        if (request.age() != null) {
-            columns.put("birth_date", OnboardingRules.birthDateFor(request.age(), current.birthDate(), LocalDate.now()));
-        }
+        putIfPresent(columns, "birth_date", request.birthDate());
         putIfPresent(columns, "sex", OnboardingRules.upper(request.sex()));
         putIfPresent(columns, "activity_level", OnboardingRules.upper(request.activityLevel()));
         putIfPresent(columns, "training_location", OnboardingRules.upper(request.trainingLocation()));
@@ -180,15 +177,13 @@ public class ProfileService {
         OnboardingRules.validate(request);
         UUID userId = CurrentUser.id();
         profileRepository.ensureProfile(userId);
-        OnboardingProfileSnapshot current = profileRepository.findOnboardingProfile(userId);
-        LocalDate today = LocalDate.now();
         profileRepository.updateOnboardingProfile(userId, new ProfileRepository.OnboardingProfileUpdate(
                 request.heightCm(),
                 request.weightKg(),
                 OnboardingRules.upper(request.experienceLevel()),
                 request.trainingDaysPerWeek(),
                 request.sessionDurationMinutes(),
-                OnboardingRules.birthDateFor(request.age(), current.birthDate(), today),
+                request.birthDate(),
                 OnboardingRules.upper(normalizeValue(request.sex())),
                 OnboardingRules.upper(normalizeValue(request.activityLevel())),
                 OnboardingRules.upper(normalizeValue(request.trainingLocation())),
@@ -217,6 +212,7 @@ public class ProfileService {
                 profileRepository.findEquipment(userId),
                 profileRepository.findLimitations(userId),
                 profile.onboardingCompleted(),
+                profile.birthDate() == null ? null : profile.birthDate().toString(),
                 OnboardingRules.ageOf(profile.birthDate(), LocalDate.now()),
                 profile.sex(),
                 profile.activityLevel(),

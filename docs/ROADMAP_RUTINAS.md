@@ -1,6 +1,6 @@
 # Plan de implementación — Rutinas: crear, entrenar y registrar
 
-Actualizado: 2026-11-12
+Actualizado: 2026-11-17
 
 > Prerrequisito: leer [`SYSTEM_OVERVIEW.md`](SYSTEM_OVERVIEW.md). Los códigos H1, H2… refieren a los hallazgos de ese documento.
 > Tamaños: **S** = menos de 1 día, **M** = 1 a 3 días, **L** = más de 3 días (una persona).
@@ -24,6 +24,58 @@ Decisiones aprobadas junto con el plan:
 - **Cuatro pestañas** (Hoy, Rutinas, Progreso, Perfil); el coach IA pasa a "Crear con IA" y a una tarjeta en Hoy. Hecho en la Fase 2.
 - **Racha semanal** (semanas seguidas cumpliendo los dias objetivo). Se adelanto a la Fase 2 porque la pantalla Hoy la muestra.
 - **Series de calentamiento** (`set_type`): opcional, despues de la Fase 3.
+
+## Rediseño de Rutinas R1–R4 (aprobado el 2026-11-16)
+
+Propuesta de experiencia de uso para crear, editar y entrenar, publicada como artefacto ("Rediseño de Rutinas"). Se aprobó completa, con este orden: R1 Entrenar, R2 Rutina actual, R3 Editar en sitio, R4 Crear.
+
+| Fase | Contenido | Estado |
+| ---- | --------- | ------ |
+| R1 · Entrenar | Una sola lista de series, peso sugerido, avance automático, saltar / hacer después, técnica, terminar con pendientes, resumen con cambios a la rutina, pantalla encendida | ✅ 2026-11-17 |
+| R2 · Rutina actual | `current_routine_id`, ciclo de días en Hoy, Rutinas y detalle | ✅ 2026-11-17 |
+| R3 · Editar en sitio | Modo edición en el detalle, hoja de ejercicio, arrastrar | Pendiente |
+| R4 · Crear | Una sola puerta con vista previa, asistente de 3 pasos, sugerencias por día | Pendiente |
+
+### Avance de R1 (2026-11-17, rama `main`)
+
+Backend:
+
+- `instructions` del catálogo en cada ejercicio de la rutina (`ExerciseResponse`, rutinas y plantillas). Sin cambios en el envío de la sesión.
+
+Frontend:
+
+- Estado de la sesión v3 (`workoutSession.ts`), con migración desde v1 y v2: día en el ciclo y el que sigue, nota y técnica por ejercicio, series del plan, saltado, reemplazo recordado, descanso con `advanceTo`.
+- Acciones nuevas: saltar (o terminar antes) y deshacer, hacer después (reubica el descanso), aplicar el peso sugerido. Al completar un ejercicio el descanso apunta al siguiente pendiente y, al terminar o saltarlo, la pantalla pasa sola; sin descanso configurado pasa enseguida. Elegir otro ejercicio a mano cancela el salto. Corregir una serie hecha no arrastra el peso a las pendientes.
+- `progressionSuggestion()`: doble progresión con las series de mayor peso de la vez pasada (sube 2,5 kg, o 1 kg con mancuernas; repite; o busca más reps). Se aplica con un toque.
+- `routineChanges.ts`: reemplazos y series distintas al plan; el resumen ofrece "Guardar en la rutina" y lo aplica con `PUT /routines/{id}` conservando ids.
+- Pantalla dividida en piezas: `WorkoutHeader` (día, tiempo, barra por series), `SetList`, `SuggestionCard`, `RestTimerSheet` (ejercicio terminado o próxima serie con su peso), `WorkoutSheets` (menú, técnica, terminar), `WorkoutSummary` (comparación con la vez pasada con la misma cantidad de series, esfuerzo en 5 opciones guardado como RPE 3/5/7/9/10, próximo día). `ExerciseListSheet` muestra estados, deshacer salto y terminar. Botón principal abajo; vibración corta al registrar.
+- `expo-keep-awake` (dependencia nueva): la pantalla no se apaga durante el entrenamiento.
+- Corregido en `Screen`: en web, pasar de "cargando" a contenido dejaba el detalle de rutina en blanco (se mezclaban `flex` y `flexGrow`).
+- 27 tests nuevos (161 en total). Backend: 154 tests.
+- Probado en Expo web (390×844) contra el backend en Docker: sugerencia y aplicación, descanso con ajuste de peso, avance automático, saltar, técnica, corregir, lista, terminar con pendientes, resumen y guardado (la sesión no incluye el ejercicio saltado y la rutina quedó con la serie agregada).
+
+Pendiente de R1: probar en un teléfono (vibración, pantalla encendida y hojas en iOS).
+
+### Avance de R2 (2026-11-17, rama `main`)
+
+Backend:
+
+- `V15__current_routine.sql`: `user_profiles.current_routine_id` (FK con `ON DELETE SET NULL`; borrar una rutina, que es un soft delete, también limpia la elección).
+- `CurrentRoutineService`: resuelve la rutina actual (la elegida, o la regla anterior como respaldo) y agrega a cada rutina propia `current`, `lastTrainedAt`, `nextDayId` y `lastTrainedAt` por día. Lo usan `/today`, `GET /routines`, `GET /routines/{id}` y las respuestas de crear, editar y duplicar. `PUT /routines/{id}/current` elige la actual.
+- `TrainingService` ya no calcula la rutina ni el día por su cuenta (se quitó `findLastTrainedDayId`).
+- 8 tests nuevos (162 en total).
+
+Frontend:
+
+- `features/routines/routineCycle.ts`: estados del ciclo (hecho en esta vuelta, toca, pendiente), fechas relativas y minutos estimados por día. `DayCycleStrip` (tira compartida) y `DayPickerSheet` (elegir otro día).
+- Hoy: tira del ciclo, "Día 2 de 4 · 6 ejercicios · ~55 min", "Hacer otro día" en una hoja (antes llevaba al detalle) y "Ver rutina".
+- Rutinas: sin pestañas ni filtro de categorías. Arriba la rutina actual con su ciclo y "Empezar <día>"; debajo las demás con cuándo se usaron. Plantillas, recomendada e IA siguen en "Nueva rutina".
+- Detalle: barra propia (volver, Editar, "⋯" con usar como actual, duplicar y eliminar con confirmación), insignia "Rutina actual" o "Usar como rutina actual", tira del ciclo para elegir el día, última marca por ejercicio, técnica y "Ver progreso" al tocar un ejercicio, botón fijo "Empezar <día> · ~N min". Se refresca al volver.
+- `BottomSheet` pasa a `components/ui`. Se borraron los textos que solo usaba la lista vieja.
+- 7 tests nuevos (168 en total). Lint: 7 errores (eran 9), todos anteriores.
+- Probado en Expo web contra el backend en Docker: con dos rutinas, la recién creada era la de Hoy (regla vieja); al elegir la otra como actual, Hoy, Rutinas y el detalle pasaron a mostrarla, con su ciclo y la última marca de cada ejercicio.
+
+Pendiente de R2: probar en un teléfono.
 
 ### Avance de la Fase 1 (2026-11-11, rama `main`)
 

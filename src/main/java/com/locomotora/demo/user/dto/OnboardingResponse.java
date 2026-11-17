@@ -14,6 +14,8 @@ public record OnboardingResponse(
         List<String> equipment,
         List<LimitationItem> limitations,
         boolean onboardingCompleted,
+        /* Fecha de nacimiento (yyyy-MM-dd) y la edad calculada a partir de ella. */
+        String birthDate,
         Integer age,
         String sex,
         String activityLevel,

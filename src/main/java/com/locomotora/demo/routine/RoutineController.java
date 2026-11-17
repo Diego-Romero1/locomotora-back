@@ -9,6 +9,7 @@ import com.locomotora.demo.routine.dto.RoutineRequest;
 import com.locomotora.demo.routine.dto.RoutineResponse;
 import com.locomotora.demo.routine.dto.WorkoutLogRequest;
 import com.locomotora.demo.routine.dto.WorkoutLogResponse;
+import com.locomotora.demo.routine.service.CurrentRoutineService;
 import com.locomotora.demo.routine.service.ExerciseProgressService;
 import com.locomotora.demo.routine.service.ExerciseService;
 import com.locomotora.demo.routine.service.RoutineReadService;
@@ -35,14 +36,17 @@ public class RoutineController {
     private final WorkoutLogService workoutLogService;
     private final ExerciseProgressService exerciseProgressService;
     private final ExerciseService exerciseService;
+    private final CurrentRoutineService currentRoutineService;
 
     public RoutineController(
             RoutineReadService routineReadService,
             RoutineService routineService,
             WorkoutLogService workoutLogService,
             ExerciseProgressService exerciseProgressService,
-            ExerciseService exerciseService
+            ExerciseService exerciseService,
+            CurrentRoutineService currentRoutineService
     ) {
+        this.currentRoutineService = currentRoutineService;
         this.exerciseService = exerciseService;
         this.routineReadService = routineReadService;
         this.routineService = routineService;
@@ -57,7 +61,7 @@ public class RoutineController {
 
     @GetMapping("/routines")
     public List<RoutineResponse> routines(@RequestParam(required = false) UUID categoryId) {
-        return routineReadService.routines(categoryId);
+        return currentRoutineService.routines(categoryId);
     }
 
     @GetMapping("/routine-categories")
@@ -87,17 +91,17 @@ public class RoutineController {
 
     @GetMapping("/routines/{id}")
     public RoutineResponse getRoutine(@PathVariable UUID id) {
-        return routineReadService.getRoutine(id);
+        return currentRoutineService.getRoutine(id);
     }
 
     @PostMapping("/routines")
     public RoutineResponse createRoutine(@Valid @RequestBody RoutineRequest request) {
-        return routineService.createRoutine(request);
+        return currentRoutineService.decorate(routineService.createRoutine(request));
     }
 
     @PutMapping("/routines/{id}")
     public RoutineResponse updateRoutine(@PathVariable UUID id, @Valid @RequestBody RoutineRequest request) {
-        return routineService.updateRoutine(id, request);
+        return currentRoutineService.decorate(routineService.updateRoutine(id, request));
     }
 
     @PostMapping("/routines/{id}/duplicate")
@@ -105,7 +109,14 @@ public class RoutineController {
             @PathVariable UUID id,
             @RequestParam(required = false) String suffix
     ) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(routineService.duplicateRoutine(id, suffix));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(currentRoutineService.decorate(routineService.duplicateRoutine(id, suffix)));
+    }
+
+    /** R2: elige la rutina de Hoy. Devuelve la rutina con {@code current = true}. */
+    @PutMapping("/routines/{id}/current")
+    public RoutineResponse setCurrentRoutine(@PathVariable UUID id) {
+        return currentRoutineService.setCurrent(id);
     }
 
     @DeleteMapping("/routines/{id}")

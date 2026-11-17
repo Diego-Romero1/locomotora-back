@@ -22,10 +22,16 @@ import org.junit.jupiter.api.Test;
 class OnboardingRulesTest {
     private static final Validator VALIDATOR = Validation.buildDefaultValidatorFactory().getValidator();
 
+    /** Fecha de nacimiento para una edad dada (cumpleanos ya pasado este ano). */
+    private static LocalDate bornYearsAgo(int years) {
+        return LocalDate.now().minusYears(years).minusDays(10);
+    }
+
     private static OnboardingRequest request(String goal, List<String> equipment, List<LimitationItem> limitations,
             Integer age, List<String> healthFlags) {
         return new OnboardingRequest(goal, "INTERMEDIATE", 4, 60, new BigDecimal("178"), new BigDecimal("80"),
-                null, equipment, limitations, age, "FEMALE", "MODERATE", "FULL_GYM", healthFlags);
+                null, equipment, limitations, age == null ? null : bornYearsAgo(age), "FEMALE", "MODERATE",
+                "FULL_GYM", healthFlags);
     }
 
     private static OnboardingRequest valid() {
@@ -41,11 +47,10 @@ class OnboardingRulesTest {
 
     @Test
     void requiredFieldsAndRangesAreChecked() {
-        assertEquals(1, VALIDATOR.validate(request("BUILD_MUSCLE", List.of("BODYWEIGHT"), List.of(), 12, List.of())).size());
         assertEquals(1, VALIDATOR.validate(request("BUILD_MUSCLE", List.of(), List.of(), 30, List.of())).size());
         assertEquals(1, VALIDATOR.validate(request("BUILD_MUSCLE", List.of("BODYWEIGHT"), List.of(), 30, null)).size());
         OnboardingRequest tiny = new OnboardingRequest("BUILD_MUSCLE", "BEGINNER", 3, 45, new BigDecimal("17"),
-                new BigDecimal("80"), null, List.of("BODYWEIGHT"), List.of(), 30, null, null, null, List.of());
+                new BigDecimal("80"), null, List.of("BODYWEIGHT"), List.of(), bornYearsAgo(30), null, null, null, List.of());
         assertEquals(1, VALIDATOR.validate(tiny).size());
     }
 
@@ -73,14 +78,24 @@ class OnboardingRulesTest {
     }
 
     @Test
-    void birthDateComesFromAgeButKeepsARealDate() {
+    void ageIsCalculatedFromBirthDate() {
         LocalDate today = LocalDate.of(2026, 11, 16);
-        LocalDate real = LocalDate.of(1990, 3, 2);
-        assertEquals(real, OnboardingRules.birthDateFor(36, real, today));
-        LocalDate approx = OnboardingRules.birthDateFor(30, real, today);
-        assertEquals(30, OnboardingRules.ageOf(approx, today));
-        assertEquals(30, OnboardingRules.ageOf(OnboardingRules.birthDateFor(30, null, today), today));
+        assertEquals(36, OnboardingRules.ageOf(LocalDate.of(1990, 3, 2), today));
+        assertEquals(35, OnboardingRules.ageOf(LocalDate.of(1990, 12, 1), today));
         assertNull(OnboardingRules.ageOf(null, today));
+    }
+
+    @Test
+    void birthDateMustGiveAnAgeBetween13And100() {
+        LocalDate today = LocalDate.of(2026, 11, 16);
+        OnboardingRules.validateBirthDate(LocalDate.of(2013, 11, 16), today);
+        OnboardingRules.validateBirthDate(LocalDate.of(1926, 11, 17), today);
+        assertThrows(ApiException.class, () -> OnboardingRules.validateBirthDate(LocalDate.of(2013, 11, 17), today));
+        assertThrows(ApiException.class, () -> OnboardingRules.validateBirthDate(LocalDate.of(1920, 1, 1), today));
+        assertThrows(ApiException.class, () -> OnboardingRules.validateBirthDate(LocalDate.of(2030, 1, 1), today));
+        assertThrows(ApiException.class, () -> OnboardingRules.validate(
+                request("BUILD_MUSCLE", List.of("BODYWEIGHT"), List.of(), 12, List.of())));
+        assertEquals(1, VALIDATOR.validate(request("BUILD_MUSCLE", List.of("BODYWEIGHT"), List.of(), null, List.of())).size());
     }
 
     @Test
