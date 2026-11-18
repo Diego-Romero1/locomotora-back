@@ -66,7 +66,8 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `GET`    | `/routines/recommendation`          | Plantilla recomendada segun perfil                              |
 | `POST`   | `/routines/templates/{id}/use`      | Clona una plantilla a la cuenta del usuario                     |
 | `POST`   | `/routines/recommendation/use`      | Clona la plantilla recomendada                                  |
-| `GET`    | `/exercises`                        | Catalogo global + ejercicios propios del usuario (`custom`)     |
+| `GET`    | `/exercises`                        | Catalogo liviano: global + propios del usuario (`custom`), ETag |
+| `GET`    | `/exercises/{id}`                   | Detalle de un ejercicio visible, con descripcion y tecnica      |
 | `POST`   | `/exercises`                        | Crea un ejercicio propio (solo lo ve quien lo crea)             |
 | `POST`   | `/exercises/{id}/logs`              | Registro suelto de un ejercicio (fuera de rutina)               |
 | `GET`    | `/exercises/last-performance?ids=`  | La vez pasada y la mejor serie de cada ejercicio                |
@@ -175,8 +176,9 @@ Copia una rutina propia (activa) con sus dias y ejercicios, sin compartir ids. E
 
 ### Ejercicios propios: `GET /exercises`, `POST /exercises`
 
-- `GET /exercises` devuelve el catalogo global mas los ejercicios propios del usuario. Cada item trae `custom: true|false`.
-- `POST /exercises` con `{ "name": "Remo con banda", "primaryMuscleGroup": "Espalda", "equipment": "BAND" }` crea un ejercicio que solo ve ese usuario. `equipment` opcional: `BARBELL`, `DUMBBELL`, `MACHINE`, `CABLE`, `BODYWEIGHT`, `FREE_WEIGHT`, `SMITH_MACHINE`, `BAND`, `KETTLEBELL` u `OTHER`. Si el usuario ya ve un ejercicio con ese nombre (sin distinguir mayusculas ni espacios repetidos), responde 200 con ese en vez de duplicarlo; si lo crea, 201.
+- `GET /exercises` devuelve el catalogo global (~890 ejercicios) mas los ejercicios propios del usuario, sin `description` ni `instructions` (vienen en `null`). Cada item trae `custom`, `stressZones`, `muscleGroup` (grupo para navegar: Pecho, Espalda, Hombros, Bíceps, Tríceps, Antebrazos, Abdomen, Glúteos, Piernas, Estiramientos o Cardio y pliometría), `secondaryMuscles`, `nameEn`, `exerciseType` (STRENGTH, STRETCHING, CARDIO, PLYOMETRICS, POWERLIFTING, OLYMPIC, STRONGMAN), `mechanic` (COMPOUND, ISOLATION o null), `core` (ejercicio habitual; los propios cuentan como core) y `thumbUrl` (null hasta tener imagenes). `primaryMuscleGroup` es uno de los 16 musculos: Pecho, Espalda, Lumbares, Trapecio, Hombros, Cuello, Bíceps, Tríceps, Antebrazos, Abdomen, Glúteos, Cuádriceps, Isquiotibiales, Pantorrillas, Aductores, Abductores. La respuesta lleva un ETag debil y va comprimida con gzip si el cliente lo acepta; con `If-None-Match` igual responde 304.
+- `GET /exercises/{id}` devuelve el mismo item con `description` e `instructions` (pasos numerados en los ejercicios nuevos). 404 si no existe o es un ejercicio propio de otro usuario.
+- `POST /exercises` con `{ "name": "Remo con banda", "primaryMuscleGroup": "Espalda", "equipment": "BAND" }` crea un ejercicio que solo ve ese usuario. `equipment` opcional: `BARBELL`, `DUMBBELL`, `MACHINE`, `CABLE`, `BODYWEIGHT`, `FREE_WEIGHT`, `SMITH_MACHINE`, `EZ_BAR`, `BAND`, `KETTLEBELL` u `OTHER`. Si el usuario ya ve un ejercicio con ese nombre (sin distinguir mayusculas ni espacios repetidos), responde 200 con ese en vez de duplicarlo; si lo crea, 201.
 - Un ejercicio propio de otro usuario no se puede usar en rutinas ni en sesiones: `POST /workout-sessions` responde 400.
 
 ### Respuesta de rutina

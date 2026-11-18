@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class ExerciseService {
     static final Set<String> EQUIPMENT = Set.of(
-            "BARBELL", "DUMBBELL", "MACHINE", "CABLE", "BODYWEIGHT", "FREE_WEIGHT", "SMITH_MACHINE", "BAND", "KETTLEBELL", "OTHER");
+            "BARBELL", "DUMBBELL", "MACHINE", "CABLE", "BODYWEIGHT", "FREE_WEIGHT", "SMITH_MACHINE", "BAND", "KETTLEBELL", "EZ_BAR", "OTHER");
 
     private final RoutineRepository routineRepository;
 

@@ -69,9 +69,15 @@ public class RoutineController {
         return routineReadService.routineCategories();
     }
 
+    /** Catalogo liviano (sin tecnica). Lleva ETag: si no cambio, responde 304 sin cuerpo. */
     @GetMapping("/exercises")
     public List<ExerciseCatalogItemResponse> exercises() {
         return routineReadService.exerciseCatalog();
+    }
+
+    @GetMapping("/exercises/{id}")
+    public ExerciseCatalogItemResponse exercise(@PathVariable UUID id) {
+        return routineReadService.exercise(id);
     }
 
     /** Ejercicio propio. 201 si se creo; 200 con el existente si ya habia uno con ese nombre. */

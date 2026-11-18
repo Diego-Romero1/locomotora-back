@@ -7,6 +7,7 @@ import com.locomotora.demo.ai.repository.AiContextRepository;
 import com.locomotora.demo.ai.service.UserContext;
 import com.locomotora.demo.common.ApiException;
 import com.locomotora.demo.routine.dto.ExerciseCatalogItemResponse;
+import com.locomotora.demo.routine.dto.ExerciseGroups;
 import com.locomotora.demo.routine.dto.HistoryDtos.ExerciseHistory;
 import com.locomotora.demo.routine.dto.RoutineResponse;
 import com.locomotora.demo.routine.repository.RoutineRepository;
@@ -31,10 +32,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class AiToolRegistry {
     public static final int MAX_RESULT_CHARS = 2500;
-    static final List<String> MUSCLES = List.of(
-            "Pecho", "Espalda", "Hombros", "Bíceps", "Tríceps", "Cuádriceps", "Isquiotibiales", "Glúteos", "Pantorrillas", "Abdomen");
+    static final List<String> MUSCLES = ExerciseGroups.MUSCLES;
     static final List<String> EQUIPMENT = List.of(
-            "BODYWEIGHT", "DUMBBELL", "BARBELL", "FREE_WEIGHT", "MACHINE", "CABLE", "SMITH_MACHINE");
+            "BODYWEIGHT", "DUMBBELL", "BARBELL", "EZ_BAR", "FREE_WEIGHT", "KETTLEBELL", "BAND", "MACHINE", "CABLE",
+            "SMITH_MACHINE");
     private static final Logger log = LoggerFactory.getLogger(AiToolRegistry.class);
     private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -134,7 +135,11 @@ public class AiToolRegistry {
         Set<String> allowed = onlyMine ? ExerciseCatalogFilter.allowedEquipment(contextRepository.equipment(userId)) : null;
 
         List<Map<String, Object>> found = new ArrayList<>();
-        for (ExerciseCatalogItemResponse exercise : routineRepository.findExerciseCatalog(userId)) {
+        // Primero los ejercicios "core": con ~900 en el catalogo, los 15 resultados deben ser los habituales.
+        List<ExerciseCatalogItemResponse> catalog = routineRepository.findExerciseCatalog(userId).stream()
+                .sorted(java.util.Comparator.comparing((ExerciseCatalogItemResponse exercise) -> !exercise.core()))
+                .toList();
+        for (ExerciseCatalogItemResponse exercise : catalog) {
             if (muscle != null && !ExerciseCatalogFilter.normalize(exercise.primaryMuscleGroup()).equals(ExerciseCatalogFilter.normalize(muscle))) {
                 continue;
             }
@@ -285,6 +290,10 @@ public class AiToolRegistry {
             case "MACHINE" -> "máquina";
             case "CABLE" -> "polea";
             case "SMITH_MACHINE" -> "máquina Smith";
+            case "EZ_BAR" -> "barra Z";
+            case "KETTLEBELL" -> "kettlebell";
+            case "BAND" -> "banda elástica";
+            case "OTHER" -> "otro implemento";
             default -> code.toLowerCase(java.util.Locale.ROOT);
         };
     }

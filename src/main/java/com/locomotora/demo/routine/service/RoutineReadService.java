@@ -59,6 +59,12 @@ public class RoutineReadService {
         return routineRepository.findExerciseCatalog(CurrentUser.id());
     }
 
+    /** Detalle de un ejercicio visible para el usuario, con descripcion y tecnica. */
+    public ExerciseCatalogItemResponse exercise(UUID id) {
+        return routineRepository.findVisibleExercise(id, CurrentUser.id())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Exercise not found"));
+    }
+
     public RoutineResponse getRoutine(UUID id) {
         UUID userId = CurrentUser.id();
         boolean categoriesAvailable = routineRepository.routineCategoriesAvailable();

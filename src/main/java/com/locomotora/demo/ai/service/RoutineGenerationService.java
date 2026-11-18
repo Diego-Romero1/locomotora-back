@@ -82,12 +82,14 @@ public class RoutineGenerationService {
         ExerciseCatalogFilter.Result filtered = ExerciseCatalogFilter.forUser(
                 routineRepository.findExerciseCatalog(userId), context.equipment());
         // Y saca lo que carga las zonas lesionadas (si queda un catalogo razonable).
-        List<ExerciseCatalogItemResponse> catalog =
+        List<ExerciseCatalogItemResponse> safe =
                 ExerciseCatalogFilter.withoutStress(filtered.exercises(), context.injuredZones()).exercises();
+        Plan plan = plan(request, context);
+        // Y lo recorta para el prompt (el catalogo entero no entra en el limite de tokens).
+        List<ExerciseCatalogItemResponse> catalog = ExerciseCatalogFilter.forPrompt(safe, plan.focusMuscles());
         if (catalog.isEmpty()) {
             throw new ApiException(HttpStatus.CONFLICT, "Exercise catalog is empty");
         }
-        Plan plan = plan(request, context);
         Set<SafetyGuard.Risk> risks = SafetyGuard.detect(request.prompt());
 
         Completion completion;

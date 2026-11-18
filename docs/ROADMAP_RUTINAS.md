@@ -1,6 +1,6 @@
 # Plan de implementación — Rutinas: crear, entrenar y registrar
 
-Actualizado: 2026-11-17
+Actualizado: 2026-11-18
 
 > Prerrequisito: leer [`SYSTEM_OVERVIEW.md`](SYSTEM_OVERVIEW.md). Los códigos H1, H2… refieren a los hallazgos de ese documento.
 > Tamaños: **S** = menos de 1 día, **M** = 1 a 3 días, **L** = más de 3 días (una persona).
@@ -75,6 +75,43 @@ Frontend:
 - Probado en Expo web contra el backend en Docker, con un perfil de principiante con mancuernas y máquinas, 45 min y molestia de rodilla: avisos de la vista previa, personalizar y descartar, filtro de plantillas, usar plantilla (queda actual y "Volver" va a Rutinas), desde cero con sugerencias en los 3 días (máquinas, sin barra ni ejercicios de rodilla) y guardar.
 
 Pendiente de R4: probar en un teléfono y probar "Usar esta rutina" / "Personalizar" con una generación real de la IA (no se generó para no gastar cuota).
+
+## Catálogo de ejercicios C1–C3 (propuesta 5, 2026-11-17)
+
+Propuesta "Catálogo" en el artefacto de rutinas: catálogo amplio por grupo muscular, lista con texto grande y vista previa. Fases: C1 datos, C2 dónde vive el catálogo en la app y su lista, C3 imágenes. Decisiones tomadas por defecto (sin respuesta del usuario): datos de free-exercise-db traducidos por Claude, importar los 876, 16 músculos. Las imágenes de free-exercise-db no se usan (origen sin licencia clara).
+
+| Fase | Contenido | Estado |
+| ---- | --------- | ------ |
+| C1 · Datos | V16 con 891 ejercicios globales, traducción, `is_core`, zonas de carga, lista liviana + detalle, tope del catálogo para la IA, 16 músculos | ✅ 2026-11-17 |
+| C2 · Catálogo en la app | Rutinas › Ejercicios con grupos (mapa muscular y contador), lista con texto grande y filtros, detalle con "Agregar a una rutina", la misma fila en los selectores, catálogo guardado en el teléfono | ✅ 2026-11-18 |
+| C3 · Imágenes | Fuente con licencia clara, miniaturas (`thumb_url`) | Pendiente |
+
+### Avance de C1 (2026-11-17, rama `main`)
+
+- `tools/exercise-catalog/`: fuente vendorizada (`SOURCE.md` con commit y licencia), `existing_map.json` (los 109 ejercicios de las migraciones → id de la fuente, con nombres en español para los que estaban en inglés), `translations/*.json` (780 ejercicios: nombre y 2 a 4 pasos con "tú") y `build_catalog.py`, que valida (traducciones completas, nombres únicos contra el catálogo actual y entre sí, músculos y equipos mapeados) y genera `V16__exercise_catalog.sql`. Para cambiar el catálogo se edita la fuente o las traducciones y se genera una migración nueva; V16 no se toca.
+- V16: columnas `source`, `external_id`, `name_en`, `exercise_type` (STRENGTH, STRETCHING, CARDIO, PLYOMETRICS, POWERLIFTING, OLYMPIC, STRONGMAN), `mechanic`, `force_type`, `is_core` y las de media (`image_url`, `thumb_url`, `media_license`, `media_author`, `media_source_url`, vacías hasta C3). Los ejercicios actuales conservan su id (rutinas e historial) y se enriquecen; los nuevos usan un uuid determinista y `ON CONFLICT DO NOTHING`. `category` pasa a ser la etiqueta visible por tipo (Hipertrofia, Fuerza, Halterofilia, Strongman, Movilidad, Pliometría, Cardio).
+- 16 músculos (`ExerciseGroups.MUSCLES`): se suman Lumbares, Trapecio, Cuello, Antebrazos, Aductores y Abductores. Grupo de navegación (`muscleGroup`): Lumbares y Trapecio en Espalda, Cuello en Hombros, piernas juntas en Piernas, y aparte Estiramientos y Cardio y pliometría.
+- `is_core`: los 109 actuales más 44 nuevos que cubren los músculos y el equipo nuevos (153). Zonas de carga de los nuevos por reglas sobre el nombre en inglés, coherentes con V13; los estiramientos no cargan zonas.
+- API: `GET /exercises` liviano (sin `description` ni `instructions`, con ETag débil y gzip: ~47 KB comprimido, 304 si no cambió) y `GET /exercises/{id}` con el detalle. Equipo nuevo `EZ_BAR`.
+- IA: `ExerciseCatalogFilter.forPrompt` deja fuera estiramientos y cardio y manda como mucho 120 ejercicios (primero los core; si el usuario pide grupos, el resto de esos grupos, compuestos antes). `search_exercises` devuelve primero los core. El equipo del perfil cubre KETTLEBELL, BAND y EZ_BAR.
+- Frontend: tipos nuevos, `useExerciseDetail` trae la técnica al abrir el detalle o la hoja de técnica (reemplazos en el entrenamiento), Inicio agrupa por `muscleGroup` en orden fijo con los habituales primero, el selector ordena propios → habituales → resto y busca también por nombre en inglés, la sugerencia por día prefiere habituales y compuestos y no usa estiramientos ni cardio.
+- Tests: `ExerciseCatalogMigrationTest` (Testcontainers: migra a V15, guarda ids y aplica V16), `ExerciseCatalogFilterTest`, y en el frontend sugerencias y grupos de Inicio. Backend 167 tests, frontend 192.
+
+Pendiente de C1: generar una rutina real con la IA para medir los tokens del prompt (no se generó para no gastar cuota).
+
+### Avance de C2 (2026-11-18, rama `main`)
+
+Decisiones de la propuesta aplicadas con la recomendación: el catálogo vive en Rutinas con el selector "Mis rutinas | Ejercicios" (sale de Hoy) y la vista previa es un mapa muscular propio (`react-native-body-highlighter` 3.2.0, MIT).
+
+- Catálogo único en el teléfono (`useExerciseCatalog`): una sola copia en memoria para toda la app, guardada en AsyncStorage por usuario con su ETag y revalidada una vez por apertura (`If-None-Match` → 304). Sin red se usa la copia guardada (selector, reemplazo al entrenar, catálogo). `TabNavigator` ya no lo descarga por su cuenta. Backend: CORS expone `ETag`.
+- Mapa muscular (`MuscleMap`): principal en el color de la app y secundarios más suaves; en miniaturas, recorte con zoom a torso, cintura o piernas según el músculo. Los 16 músculos se traducen a zonas del dibujo (`muscleMap.ts`; Abductores usa glúteo porque el dibujo no los tiene).
+- Pantallas: Rutinas › Ejercicios (buscador sin acentos y en inglés + una tarjeta por grupo con su zona y cantidad, y "Todos"), `ExerciseList` (filtro por músculo en los grupos con varios, por equipo y "Míos"), `ExerciseDetail` (mapa de frente y espalda, equipo, nivel y tipo, pasos numerados, "Ver mi progreso" y "Agregar a una rutina"). Las rutas pasan el grupo o el id, ya no la lista entera.
+- "Agregar a una rutina": rutina propia → día → se suma al final con las series y reps del objetivo (`addExerciseToRoutine`, mismo reducer del editor) y `PUT /routines/{id}`. No repite un ejercicio en el mismo día.
+- La misma fila (`ExerciseRow`: mapa, nombre a 17 px y equipo · nivel · tipo) en el catálogo, el selector del editor y el reemplazo al entrenar; la hoja de técnica muestra el mapa.
+- Se quitó la sección de ejercicios de Hoy y el registro suelto de una serie desde el detalle (el endpoint `POST /exercises/{id}/logs` sigue).
+- Tests: agregar a una rutina, mapa muscular, búsqueda y orden, grupos y pasos (frontend 201). Jest usa el mock oficial de AsyncStorage.
+
+Pendiente de C2: probar en un teléfono (rendimiento del mapa en listas largas y toques sobre las miniaturas).
 
 ### Avance de R3 (2026-11-17, rama `main`)
 

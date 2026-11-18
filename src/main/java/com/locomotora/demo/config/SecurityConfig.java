@@ -51,6 +51,8 @@ public class SecurityConfig {
         configuration.setAllowedOriginPatterns(Arrays.stream(originPatterns.split(",")).map(String::trim).toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
+        // La app web guarda el catalogo con su ETag para revalidarlo (If-None-Match → 304).
+        configuration.setExposedHeaders(List.of("ETag"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

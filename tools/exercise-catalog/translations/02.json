@@ -55,7 +55,7 @@
   "Dumbbell_Squat": ["Sentadilla con mancuernas", "De pie con una mancuerna en cada mano a los costados.", "Baja con la espalda recta y la mirada al frente.", "Sube empujando con los talones."],
   "Dumbbell_Squat_To_A_Bench": ["Sentadilla con mancuernas a banco", "De pie con un banco detrás y una mancuerna en cada mano.", "Baja hasta rozar el banco.", "Sube empujando con los talones."],
   "Dumbbell_Step_Ups": ["Subidas al cajón con mancuernas", "De pie frente a un cajón con una mancuerna en cada mano.", "Apoya un pie y sube extendiendo cadera y rodilla.", "Baja y alterna las piernas."],
-  "Dumbbell_Tricep_Extension_-Pronated_Grip": ["Extensión de tríceps acostado con mancuernas", "Acostado en banco plano con las mancuernas sobre los hombros, palmas al frente.", "Baja las mancuernas cerca de las orejas sin mover los brazos.", "Extiende los codos para volver."],
+  "Dumbbell_Tricep_Extension_-Pronated_Grip": ["Extensión de tríceps acostado con mancuernas en pronación", "Acostado en banco plano con las mancuernas sobre los hombros, palmas al frente.", "Baja las mancuernas cerca de las orejas sin mover los brazos.", "Extiende los codos para volver."],
   "Dynamic_Back_Stretch": ["Estiramiento dinámico de espalda", "De pie con los brazos rectos.", "Balancea los brazos al frente y arriba 5 a 10 veces, cada vez más alto."],
   "Dynamic_Chest_Stretch": ["Estiramiento dinámico de pecho", "De pie con los brazos extendidos al frente.", "Llévalos hacia atrás lo más que puedas y vuelve, como un aplauso exagerado.", "Repite 5 a 10 veces aumentando la velocidad."],
   "Elbow_Circles": ["Círculos de codos", "Con las manos en los hombros y los codos a la altura de los hombros.", "Dibuja círculos lentos con los codos."],
@@ -77,6 +77,6 @@
   "Flat_Bench_Leg_Pull-In": ["Recogimiento de piernas en banco", "Acostado con las piernas fuera del banco, sujetándote de los costados.", "Lleva las rodillas hacia el pecho.", "Vuelve a estirar despacio."],
   "Flat_Bench_Lying_Leg_Raise": ["Elevación de piernas acostado en banco", "Acostado con las piernas extendidas fuera del banco.", "Sube las piernas casi rectas hasta 90°.", "Baja despacio sin tocar el suelo."],
   "Flexor_Incline_Dumbbell_Curls": ["Curl inclinado con muñecas atrás", "Sentado en banco inclinado a 45° con las mancuernas colgando.", "Sube las mancuernas manteniendo las muñecas hacia atrás.", "Baja despacio."],
-  "Floor_Glute-Ham_Raise": ["Curl nórdico", "De rodillas con los pies sujetos y el torso erguido.", "Baja hacia adelante extendiendo las rodillas sin doblar la cadera.", "Apóyate con las manos y vuelve usando los isquiotibiales."],
+  "Floor_Glute-Ham_Raise": ["Curl nórdico en el suelo", "De rodillas con los pies sujetos y el torso erguido.", "Baja hacia adelante extendiendo las rodillas sin doblar la cadera.", "Apóyate con las manos y vuelve usando los isquiotibiales."],
   "Floor_Press": ["Press en el suelo con barra", "Acostado en el suelo dentro del rack, saca la barra.", "Bájala hasta que los brazos toquen el suelo, codos pegados.", "Pausa y empuja."]
 }

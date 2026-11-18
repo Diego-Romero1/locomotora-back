@@ -2,6 +2,7 @@ package com.locomotora.demo.routine.repository;
 
 import com.locomotora.demo.common.JsonCodes;
 import com.locomotora.demo.routine.dto.ExerciseCatalogItemResponse;
+import com.locomotora.demo.routine.dto.ExerciseGroups;
 import com.locomotora.demo.routine.dto.ExerciseResponse;
 import com.locomotora.demo.routine.dto.RoutineCategoryResponse;
 import com.locomotora.demo.routine.model.RoutineDayHeader;
@@ -153,12 +154,21 @@ public class RoutineRepository {
         );
     }
 
-    /** Catalogo global mas los ejercicios propios del usuario. */
+    /** Columnas del catalogo sin los textos largos (description, instructions). */
+    private static final String CATALOG_COLUMNS = """
+            id, name, category, primary_muscle_group, equipment, difficulty,
+            created_by_user_id IS NOT NULL AS custom, stress_zones::text AS stress_zones,
+            secondary_muscle_groups::text AS secondary_muscle_groups, name_en, exercise_type, mechanic,
+            is_core, thumb_url""";
+
+    /**
+     * Catalogo global mas los ejercicios propios del usuario, liviano: sin descripcion ni tecnica
+     * (son ~900 ejercicios). El detalle sale de {@link #findVisibleExercise}.
+     */
     public List<ExerciseCatalogItemResponse> findExerciseCatalog(UUID userId) {
         return jdbcTemplate.query(
-                """
-                SELECT id, name, category, primary_muscle_group, equipment, difficulty, description, instructions,
-                       created_by_user_id IS NOT NULL AS custom, stress_zones::text AS stress_zones
+                "SELECT " + CATALOG_COLUMNS + ", NULL AS description, NULL AS instructions\n"
+                        + """
                 FROM exercises
                 WHERE is_active = true AND (created_by_user_id IS NULL OR created_by_user_id = ?)
                 ORDER BY COALESCE(primary_muscle_group, 'ZZZ'), name
@@ -168,11 +178,24 @@ public class RoutineRepository {
         );
     }
 
+    /** Un ejercicio que el usuario puede ver (global o propio), con descripcion y tecnica. */
+    public Optional<ExerciseCatalogItemResponse> findVisibleExercise(UUID exerciseId, UUID userId) {
+        return jdbcTemplate.query(
+                "SELECT " + CATALOG_COLUMNS + ", description, instructions\n"
+                        + """
+                FROM exercises
+                WHERE id = ? AND is_active = true AND (created_by_user_id IS NULL OR created_by_user_id = ?)
+                """,
+                this::mapExerciseCatalogItem,
+                exerciseId,
+                userId
+        ).stream().findFirst();
+    }
+
     public Optional<ExerciseCatalogItemResponse> findVisibleExerciseByName(String name, UUID userId) {
         return jdbcTemplate.query(
-                """
-                SELECT id, name, category, primary_muscle_group, equipment, difficulty, description, instructions,
-                       created_by_user_id IS NOT NULL AS custom, stress_zones::text AS stress_zones
+                "SELECT " + CATALOG_COLUMNS + ", description, instructions\n"
+                        + """
                 FROM exercises
                 WHERE lower(name) = lower(?) AND (created_by_user_id IS NULL OR created_by_user_id = ?)
                 ORDER BY created_by_user_id NULLS FIRST
@@ -190,7 +213,9 @@ public class RoutineRepository {
                 INSERT INTO exercises (name, primary_muscle_group, equipment, created_by_user_id)
                 VALUES (?, ?, ?, ?)
                 RETURNING id, name, category, primary_muscle_group, equipment, difficulty, description, instructions,
-                          true AS custom, stress_zones::text AS stress_zones
+                          true AS custom, stress_zones::text AS stress_zones,
+                          secondary_muscle_groups::text AS secondary_muscle_groups, name_en, exercise_type, mechanic,
+                          is_core, thumb_url
                 """,
                 this::mapExerciseCatalogItem,
                 name,
@@ -276,17 +301,28 @@ public class RoutineRepository {
     }
 
     private ExerciseCatalogItemResponse mapExerciseCatalogItem(ResultSet rs, int rowNum) throws SQLException {
+        String primary = rs.getString("primary_muscle_group");
+        String type = rs.getString("exercise_type");
+        boolean custom = rs.getBoolean("custom");
         return new ExerciseCatalogItemResponse(
                 rs.getObject("id", UUID.class).toString(),
                 rs.getString("name"),
                 rs.getString("category"),
-                rs.getString("primary_muscle_group"),
+                primary,
                 rs.getString("equipment"),
                 rs.getString("difficulty"),
                 rs.getString("description"),
                 rs.getString("instructions"),
-                rs.getBoolean("custom"),
-                JsonCodes.parse(rs.getString("stress_zones"))
+                custom,
+                JsonCodes.parse(rs.getString("stress_zones")),
+                ExerciseGroups.groupOf(primary, type),
+                JsonCodes.parse(rs.getString("secondary_muscle_groups")),
+                rs.getString("name_en"),
+                type,
+                rs.getString("mechanic"),
+                // Un ejercicio propio cuenta como "core": el usuario lo agrego para usarlo.
+                custom || rs.getBoolean("is_core"),
+                rs.getString("thumb_url")
         );
     }
 
