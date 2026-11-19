@@ -84,7 +84,7 @@ Propuesta "Catálogo" en el artefacto de rutinas: catálogo amplio por grupo mus
 | ---- | --------- | ------ |
 | C1 · Datos | V16 con 891 ejercicios globales, traducción, `is_core`, zonas de carga, lista liviana + detalle, tope del catálogo para la IA, 16 músculos | ✅ 2026-11-17 |
 | C2 · Catálogo en la app | Rutinas › Ejercicios con grupos (mapa muscular y contador), lista con texto grande y filtros, detalle con "Agregar a una rutina", la misma fila en los selectores, catálogo guardado en el teléfono | ✅ 2026-11-18 |
-| C3 · Imágenes | Fuente con licencia clara, miniaturas (`thumb_url`) | Pendiente |
+| C3 · Imágenes | Ilustraciones animadas de wger (Everkinetic, CC BY-SA 3.0) en 48 ejercicios: filas, detalle y técnica, con atribución | ✅ 2026-11-18 |
 
 ### Avance de C1 (2026-11-17, rama `main`)
 
@@ -112,6 +112,28 @@ Decisiones de la propuesta aplicadas con la recomendación: el catálogo vive en
 - Tests: agregar a una rutina, mapa muscular, búsqueda y orden, grupos y pasos (frontend 201). Jest usa el mock oficial de AsyncStorage.
 
 Pendiente de C2: probar en un teléfono (rendimiento del mapa en listas largas y toques sobre las miniaturas).
+
+### Avance de C3 (2026-11-18, rama `main`)
+
+Decisión del usuario: usar las ilustraciones de wger. Las de free-exercise-db quedaron descartadas (salen de Bodybuilding.com sin licencia). Videos propios: analizado aparte (grabación + personaje con IA), sin aprobar.
+
+- `tools/exercise-media/`: copia de la API de imágenes de wger (`source/wger-images.json`), `wger_map.json` (39 ejercicios de wger → 48 del catálogo, 34 de ellos habituales) y `build_media.py` (Pillow). Descarga los originales, quita el fondo blanco (la línea queda con transparencia), recorta todos los cuadros de un ejercicio con el mismo encuadre cuadrado y genera WebP de 512 px (80 cuadros, ~2 MB), la migración V17 y `ATTRIBUTION.md`. Solo estilo de línea Everkinetic (más el press de hombros en máquina de wger.de, del mismo estilo); excluidos el curl con mancuernas (tosco) y los dudosos.
+- V17: `media_frames` (jsonb, cuadros en orden) y, para los 48, `image_url`/`thumb_url` (primer cuadro), autor, licencia `CC-BY-SA-3.0` y página de origen. Rutas relativas (`/exercise-media/...`).
+- Backend: sirve `/exercise-media/**` como estáticos públicos con caché de 30 días; `GET /exercises` y el detalle traen `mediaFrames`, `mediaAuthor`, `mediaLicense` y `mediaSourceUrl`.
+- App: `ExerciseIllustration` alterna los cuadros una vez por segundo con un reloj compartido (un solo intervalo para toda la lista; quieto con "reducir movimiento") y tiñe la línea con el color de texto del tema (`expo-image` `tintColor`). Se usa arriba del detalle (el mapa pasa a una tarjeta "Músculos") y en la hoja de técnica; las filas de las listas siguen con el mapa muscular, sin imágenes ni animación, para no cargar listas largas. `MediaCredit` muestra la atribución con enlaces a wger y a la licencia.
+- Tests: la migración verifica los 48, que cada cuadro exista entre los estáticos y la atribución; frontend con URL de media y licencias (204 tests).
+
+Pendiente de C3: probar en un teléfono y sumar más ilustraciones si wger publica pares nuevos (correr `build_media.py` y una migración nueva).
+
+### "Detalles con video" (2026-11-19, rama `main`)
+
+Pedido del usuario: en el detalle de cada ejercicio, una sugerencia de la IA con más detalles de técnica y un video corto de YouTube que sea exactamente ese ejercicio.
+
+- Backend: `GET /exercises/{id}/guide` (`ExerciseGuideService`). Consejos con JSON estricto (resumen, 3–5 claves, 2–4 errores comunes, respiración) y búsqueda en la YouTube Data API (`YouTubeClient`: cortos, embebibles, públicos, sin directos); la IA elige entre los candidatos y solo vale con confianza alta; si duda, no hay video. Todo se guarda por ejercicio en `exercise_guides` (V18). Clave nueva: `YOUTUBE_API_KEY`.
+- App: tarjeta "Sugerencia de la IA · Detalles con video" en el detalle y pantalla `ExerciseGuide` con el reproductor oficial de YouTube (WebView en el teléfono, iframe en la web; dependencia nueva `react-native-webview`), las claves, los errores y la respiración. Sin video seguro, lo dice y ofrece "Buscar en YouTube".
+- Tests: `YouTubeClientTest` (filtros, orden, errores sin filtrar la clave) y `ExerciseGuideServiceTest` (primera vez, confianza media rechazada con búsqueda en inglés, guardado, sin clave, fallas); frontend con el embed y la duración. Backend 180, frontend 207.
+
+Pendiente: cargar `YOUTUBE_API_KEY` y probar la búsqueda real; probar el reproductor en un teléfono (Android puede dar error 153 de YouTube si el embed no lleva origen; por eso se carga con `EMBED_ORIGIN`).
 
 ### Avance de R3 (2026-11-17, rama `main`)
 

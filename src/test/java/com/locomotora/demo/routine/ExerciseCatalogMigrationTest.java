@@ -90,6 +90,20 @@ class ExerciseCatalogMigrationTest {
             assertThat(count(statement, "SELECT count(*) FROM exercises WHERE is_core")).isBetween(120, 200);
             assertThat(count(statement, "SELECT count(*) FROM exercises WHERE exercise_type = 'STRETCHING' "
                     + "AND stress_zones <> '[]'::jsonb")).isZero();
+
+            // V17: ilustraciones de wger. Cada fila con cuadros tiene al menos 2, con atribucion, y cada
+            // archivo existe entre los recursos estaticos que sirve el backend.
+            assertThat(count(statement, "SELECT count(*) FROM exercises WHERE media_frames <> '[]'::jsonb"))
+                    .isEqualTo(48);
+            assertThat(count(statement, "SELECT count(*) FROM exercises WHERE media_frames <> '[]'::jsonb AND "
+                    + "(jsonb_array_length(media_frames) < 2 OR media_author IS NULL OR media_license <> 'CC-BY-SA-3.0' "
+                    + "OR media_source_url IS NULL OR thumb_url <> media_frames->>0)")).isZero();
+            for (String frame : values(statement, "SELECT DISTINCT jsonb_array_elements_text(media_frames) FROM exercises")) {
+                assertThat(getClass().getResource("/static" + frame)).as(frame).isNotNull();
+            }
+            assertThat(count(statement, "SELECT count(*) FROM exercises WHERE name = 'Press de banca plano' "
+                    + "AND media_frames = '[\"/exercise-media/wger-73-1.webp\", \"/exercise-media/wger-73-2.webp\"]'::jsonb"))
+                    .isEqualTo(1);
         }
     }
 

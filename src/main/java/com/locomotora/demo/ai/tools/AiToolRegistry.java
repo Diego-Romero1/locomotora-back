@@ -278,7 +278,7 @@ public class AiToolRegistry {
     }
 
     /** Nombre legible del equipo: el modelo lo repite tal cual en la respuesta. */
-    static String equipmentLabel(String code) {
+    public static String equipmentLabel(String code) {
         if (code == null || code.isBlank()) {
             return "sin equipo indicado";
         }

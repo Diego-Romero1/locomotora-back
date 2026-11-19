@@ -1,5 +1,6 @@
 package com.locomotora.demo.ai.controller;
 
+import com.locomotora.demo.ai.dto.ExerciseGuideResponse;
 import com.locomotora.demo.ai.dto.AiModelsResponse;
 import com.locomotora.demo.ai.dto.AiPreferencesRequest;
 import com.locomotora.demo.ai.dto.ChatRequest;
@@ -9,6 +10,7 @@ import com.locomotora.demo.ai.dto.GeneratedRoutineResponse;
 import com.locomotora.demo.ai.dto.MessageResponse;
 import com.locomotora.demo.ai.dto.RecommendationResponse;
 import com.locomotora.demo.ai.dto.RoutineGenerationRequest;
+import com.locomotora.demo.ai.service.ExerciseGuideService;
 import com.locomotora.demo.ai.service.AiConversationService;
 import com.locomotora.demo.ai.service.AiService;
 import com.locomotora.demo.ai.service.AiSettingsService;
@@ -31,17 +33,29 @@ public class AiController {
     private final AiConversationService aiConversationService;
     private final AiSettingsService aiSettingsService;
     private final RoutineGenerationService routineGenerationService;
+    private final ExerciseGuideService exerciseGuideService;
 
     public AiController(
             AiService aiService,
             AiConversationService aiConversationService,
             AiSettingsService aiSettingsService,
-            RoutineGenerationService routineGenerationService
+            RoutineGenerationService routineGenerationService,
+            ExerciseGuideService exerciseGuideService
     ) {
         this.aiService = aiService;
         this.aiConversationService = aiConversationService;
         this.aiSettingsService = aiSettingsService;
         this.routineGenerationService = routineGenerationService;
+        this.exerciseGuideService = exerciseGuideService;
+    }
+
+    /**
+     * "Detalles con video": consejos de tecnica generados con IA y un video corto de YouTube que muestra
+     * exactamente el ejercicio. Se guarda por ejercicio: solo la primera vez llama a la IA y a YouTube.
+     */
+    @GetMapping("/exercises/{id}/guide")
+    public ExerciseGuideResponse exerciseGuide(@PathVariable java.util.UUID id) {
+        return exerciseGuideService.guide(id);
     }
 
     /** Modelos de IA disponibles y el que usa el usuario para el coach y para rutinas. */

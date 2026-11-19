@@ -14,7 +14,8 @@ class ExerciseCatalogFilterTest {
     private static ExerciseCatalogItemResponse item(String name, String muscle, String equipment, String type,
             String mechanic, boolean core) {
         return new ExerciseCatalogItemResponse(name, name, null, muscle, equipment, "BEGINNER", null, null, false,
-                List.of(), ExerciseGroups.groupOf(muscle, type), List.of(), null, type, mechanic, core, null);
+                List.of(), ExerciseGroups.groupOf(muscle, type), List.of(), null, type, mechanic, core, null,
+                List.of(), null, null, null);
     }
 
     @Test

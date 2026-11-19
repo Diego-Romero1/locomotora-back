@@ -159,7 +159,7 @@ public class RoutineRepository {
             id, name, category, primary_muscle_group, equipment, difficulty,
             created_by_user_id IS NOT NULL AS custom, stress_zones::text AS stress_zones,
             secondary_muscle_groups::text AS secondary_muscle_groups, name_en, exercise_type, mechanic,
-            is_core, thumb_url""";
+            is_core, thumb_url, media_frames::text AS media_frames, media_author, media_license, media_source_url""";
 
     /**
      * Catalogo global mas los ejercicios propios del usuario, liviano: sin descripcion ni tecnica
@@ -215,7 +215,8 @@ public class RoutineRepository {
                 RETURNING id, name, category, primary_muscle_group, equipment, difficulty, description, instructions,
                           true AS custom, stress_zones::text AS stress_zones,
                           secondary_muscle_groups::text AS secondary_muscle_groups, name_en, exercise_type, mechanic,
-                          is_core, thumb_url
+                          is_core, thumb_url, media_frames::text AS media_frames, media_author, media_license,
+                          media_source_url
                 """,
                 this::mapExerciseCatalogItem,
                 name,
@@ -322,7 +323,11 @@ public class RoutineRepository {
                 rs.getString("mechanic"),
                 // Un ejercicio propio cuenta como "core": el usuario lo agrego para usarlo.
                 custom || rs.getBoolean("is_core"),
-                rs.getString("thumb_url")
+                rs.getString("thumb_url"),
+                JsonCodes.parse(rs.getString("media_frames")),
+                rs.getString("media_author"),
+                rs.getString("media_license"),
+                rs.getString("media_source_url")
         );
     }
 

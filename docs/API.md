@@ -68,6 +68,7 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `POST`   | `/routines/recommendation/use`      | Clona la plantilla recomendada                                  |
 | `GET`    | `/exercises`                        | Catalogo liviano: global + propios del usuario (`custom`), ETag |
 | `GET`    | `/exercises/{id}`                   | Detalle de un ejercicio visible, con descripcion y tecnica      |
+| `GET`    | `/exercises/{id}/guide`             | "Detalles con video": consejos de tecnica con IA y video corto  |
 | `POST`   | `/exercises`                        | Crea un ejercicio propio (solo lo ve quien lo crea)             |
 | `POST`   | `/exercises/{id}/logs`              | Registro suelto de un ejercicio (fuera de rutina)               |
 | `GET`    | `/exercises/last-performance?ids=`  | La vez pasada y la mejor serie de cada ejercicio                |
@@ -543,3 +544,25 @@ Todo es opcional: lo que falta sale del perfil. Respuesta (no se guarda; la app 
 ### Prueba manual
 
 Ver `docs/PRUEBA_IA.md`.
+
+### "Detalles con video": `GET /exercises/{id}/guide`
+
+Consejos de técnica generados con IA y un video corto de YouTube que muestra exactamente el ejercicio. Es contenido general del ejercicio: se genera una vez y se guarda en `exercise_guides` (V18), así que solo el primer pedido llama a la IA y a YouTube (y cuenta como un mensaje del coach para ese usuario).
+
+```json
+{
+  "exerciseId": "…", "exerciseName": "Press de banca plano",
+  "tips": { "summary": "…", "cues": ["…"], "mistakes": ["…"], "breathing": "…" },
+  "video": { "youtubeId": "…", "title": "…", "channel": "…", "durationSeconds": 84,
+             "watchUrl": "https://www.youtube.com/watch?v=…", "thumbnailUrl": "https://i.ytimg.com/vi/…/hqdefault.jpg" },
+  "videoStatus": "FOUND",
+  "searchUrl": "https://www.youtube.com/results?search_query=…",
+  "aiAvailable": true
+}
+```
+
+- `videoStatus`: `FOUND`; `NOT_FOUND` (ningún candidato era exactamente este ejercicio; se vuelve a buscar a los 30 días); `UNAVAILABLE` (YouTube no está configurado o falló; se reintenta en el próximo pedido).
+- Búsqueda: YouTube Data API v3, videos públicos, embebibles y de 15 s a 5 min; primero en español (`<nombre> técnica correcta`), si no en inglés (`<name_en> proper form`). La IA recibe título, canal, duración y comienzo de la descripción de hasta 8 candidatos y solo se acepta su elección con confianza alta (mismo equipo y variante).
+- Configuración: `YOUTUBE_API_KEY` (variable de entorno, `locomotora.youtube.api-key`). Sin clave responde con `tips` y `searchUrl`, sin video. Cuota gratis: 10.000 unidades por día; cada ejercicio nuevo gasta 101 o 202 (una o dos búsquedas).
+- Errores: 404 si el ejercicio no existe o es propio de otro usuario; 429 si el usuario pasó su límite diario del coach o la IA está saturada; 503 si la IA no responde y todavía no hay consejos guardados.
+
