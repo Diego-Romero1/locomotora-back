@@ -58,6 +58,25 @@ public class AiController {
         return exerciseGuideService.guide(id);
     }
 
+    /**
+     * El video no cargo en la app. El backend confirma con YouTube que de verdad no esta y, si es asi, pasa a
+     * la siguiente alternativa (o busca otro). Ver notice en la respuesta.
+     */
+    @PostMapping("/exercises/{id}/guide/video-unavailable")
+    public ExerciseGuideResponse exerciseVideoUnavailable(
+            @PathVariable java.util.UUID id,
+            @Valid @RequestBody VideoUnavailableRequest request
+    ) {
+        return exerciseGuideService.reportUnavailable(id, request.videoId());
+    }
+
+    /** videoId: el video que no cargo; errorCode: el codigo del reproductor (solo para el registro). */
+    public record VideoUnavailableRequest(
+            @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max = 20) String videoId,
+            Integer errorCode
+    ) {
+    }
+
     /** Modelos de IA disponibles y el que usa el usuario para el coach y para rutinas. */
     @GetMapping("/ai/models")
     public AiModelsResponse models() {

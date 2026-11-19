@@ -41,7 +41,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  * y un servidor falso de GroqCloud: la app completa, por HTTP, de punta a punta.
  */
 @Testcontainers
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "locomotora.jobs.enabled=false")
 class AiGroqIntegrationTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String QWEN = "qwen/qwen3.8-27b";

@@ -115,6 +115,19 @@ public class AiRepository {
         return total == null ? 0 : total;
     }
 
+    /** Tokens del ultimo dia de una tarea del sistema (sin usuario), como el llenado del catalogo. */
+    public long sumSystemTokensLastDay(String feature) {
+        Long total = jdbcTemplate.queryForObject(
+                """
+                SELECT COALESCE(sum(input_tokens + output_tokens), 0) FROM ai_usage
+                WHERE user_id IS NULL AND feature = ? AND created_at > now() - interval '1 day'
+                """,
+                Long.class,
+                feature
+        );
+        return total == null ? 0 : total;
+    }
+
     public boolean conversationBelongsTo(UUID conversationId, UUID userId) {
         Boolean owned = jdbcTemplate.queryForObject(
                 "SELECT EXISTS (SELECT 1 FROM ai_conversations WHERE id = ? AND user_id = ?)",

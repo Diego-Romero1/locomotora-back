@@ -135,6 +135,19 @@ Pedido del usuario: en el detalle de cada ejercicio, una sugerencia de la IA con
 
 Pendiente: cargar `YOUTUBE_API_KEY` y probar la búsqueda real; probar el reproductor en un teléfono (Android puede dar error 153 de YouTube si el embed no lleva origen; por eso se carga con `EMBED_ORIGIN`).
 
+### Videos del catálogo · V1 (2026-11-19, rama `main`)
+
+Plan aprobado ("Videos del catálogo"): buscar por adelantado un video por ejercicio, el mismo para todos, sin revisión humana, y ofrecer "Cargar otro video" solo si el video no carga.
+
+- V19: `ai_usage` acepta uso del sistema (`CATALOG`, sin usuario) y las búsquedas de reemplazo (`VIDEO_SEARCH`); `exercise_guides` suma alternativas, videos fallidos, origen y fecha de refresco; `youtube_quota_usage` lleva la cuota del día.
+- Backend: el juez de la IA ordena hasta 3 videos; reglas fijas (`VideoRules`) descartan recopilaciones y otro equipo, inclinación o lado antes de la IA; proceso diario `CatalogVideoJob` (llenado por prioridad dentro de la cuota y refresco semanal); `POST /exercises/{id}/guide/video-unavailable` verifica con YouTube y pasa a la alternativa o busca otro (5 por usuario y día); al pedido solo se buscan videos de ejercicios propios.
+- App: el reproductor usa la API de iframes de YouTube (WebView en el teléfono, script en la web) y avisa los errores; con 2, 5, 100, 101 o 150 aparece "Cargar otro video"; con 153, "Abrir en YouTube". Estado "Todavía estamos buscando…" para los ejercicios en cola.
+- `tools/exercise-videos/export_videos.py`: exporta lo encontrado a una migración (solo ids) para otra base.
+- Tests: reglas, juez ordenado, llenado (cuota, tope de tokens, espera por límite de Groq), refresco, reemplazo y exportación probada; backend 197, frontend 208. Probado en la web con un video roto a propósito: aparece el botón y pasa a la alternativa.
+- En marcha desde el 19 nov con la clave del usuario: el primer arranque llenó 4 habituales con videos correctos y se frenó por el límite por minuto de Groq; ahora espera 20 s entre ejercicios y un minuto si Groq lo pide.
+
+Pendiente: exportar V20 cuando estén los 153 habituales (≈ día 2) y V21 con el resto (≈ día 13); probar el reproductor en un teléfono.
+
 ### Avance de R3 (2026-11-17, rama `main`)
 
 Sin cambios de backend: `PUT /routines/{id}` ya sincroniza por id.

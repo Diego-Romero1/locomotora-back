@@ -83,6 +83,27 @@ class YouTubeClientTest {
     }
 
     @Test
+    void availabilityLookupCostsOneUnitPer50AndIgnoresDuration() {
+        List<int[]> spent = new java.util.ArrayList<>();
+        RestClient.Builder builder = RestClient.builder().baseUrl(YouTubeClient.BASE_URL);
+        MockRestServiceServer local = MockRestServiceServer.bindTo(builder).build();
+        YouTubeClient counting = new YouTubeClient("yt-test", builder.build(), (units, searches) -> spent.add(new int[] {units, searches}));
+        local.expect(requestTo(startsWith(YouTubeClient.BASE_URL + "/videos")))
+                .andExpect(queryParam("id", "aaa,bbb,ccc"))
+                .andRespond(withSuccess("{\"items\":[" + String.join(",",
+                        video("aaa", "Largo pero disponible", "PT12M", true, "none"),
+                        video("bbb", "Ya no se puede embeber", "PT1M", false, "none")) + "]}", MediaType.APPLICATION_JSON));
+
+        java.util.Map<String, YouTubeClient.Video> available = counting.available(List.of("aaa", "bbb", "ccc"));
+
+        // ccc no vino (borrado o privado) y bbb no se puede embeber; aaa sigue aunque dure 12 minutos.
+        assertThat(available).containsOnlyKeys("aaa");
+        assertThat(spent).hasSize(1);
+        assertThat(spent.get(0)).containsExactly(1, 0);
+        local.verify();
+    }
+
+    @Test
     void parsesIsoDurations() {
         assertThat(YouTubeClient.parseDuration("PT1M24S")).isEqualTo(84);
         assertThat(YouTubeClient.parseDuration("PT45S")).isEqualTo(45);

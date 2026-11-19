@@ -69,6 +69,7 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `GET`    | `/exercises`                        | Catalogo liviano: global + propios del usuario (`custom`), ETag |
 | `GET`    | `/exercises/{id}`                   | Detalle de un ejercicio visible, con descripcion y tecnica      |
 | `GET`    | `/exercises/{id}/guide`             | "Detalles con video": consejos de tecnica con IA y video corto  |
+| `POST`   | `/exercises/{id}/guide/video-unavailable` | El video no cargo: verifica y pasa a otro                 |
 | `POST`   | `/exercises`                        | Crea un ejercicio propio (solo lo ve quien lo crea)             |
 | `POST`   | `/exercises/{id}/logs`              | Registro suelto de un ejercicio (fuera de rutina)               |
 | `GET`    | `/exercises/last-performance?ids=`  | La vez pasada y la mejor serie de cada ejercicio                |
@@ -547,7 +548,7 @@ Ver `docs/PRUEBA_IA.md`.
 
 ### "Detalles con video": `GET /exercises/{id}/guide`
 
-Consejos de técnica generados con IA y un video corto de YouTube que muestra exactamente el ejercicio. Es contenido general del ejercicio: se genera una vez y se guarda en `exercise_guides` (V18), así que solo el primer pedido llama a la IA y a YouTube (y cuenta como un mensaje del coach para ese usuario).
+Consejos de técnica generados con IA y un video corto de YouTube que muestra exactamente el ejercicio, el mismo para todos los usuarios. Se guarda por ejercicio en `exercise_guides` (V18, V19). Los videos del catálogo los busca por adelantado un proceso diario del backend (`CatalogVideoJob`); al pedido solo se buscan para ejercicios propios del usuario. Si faltan los consejos, el pedido los genera y cuenta como un mensaje del coach.
 
 ```json
 {
@@ -561,8 +562,25 @@ Consejos de técnica generados con IA y un video corto de YouTube que muestra ex
 }
 ```
 
-- `videoStatus`: `FOUND`; `NOT_FOUND` (ningún candidato era exactamente este ejercicio; se vuelve a buscar a los 30 días); `UNAVAILABLE` (YouTube no está configurado o falló; se reintenta en el próximo pedido).
-- Búsqueda: YouTube Data API v3, videos públicos, embebibles y de 15 s a 5 min; primero en español (`<nombre> técnica correcta`), si no en inglés (`<name_en> proper form`). La IA recibe título, canal, duración y comienzo de la descripción de hasta 8 candidatos y solo se acepta su elección con confianza alta (mismo equipo y variante).
-- Configuración: `YOUTUBE_API_KEY` (variable de entorno, `locomotora.youtube.api-key`). Sin clave responde con `tips` y `searchUrl`, sin video. Cuota gratis: 10.000 unidades por día; cada ejercicio nuevo gasta 101 o 202 (una o dos búsquedas).
+- `videoStatus`: `FOUND`; `NOT_FOUND` (ningún candidato era exactamente este ejercicio; se vuelve a buscar a los 30 días); `PENDING` (el proceso diario todavía no llegó a este ejercicio); `UNAVAILABLE` (YouTube no está configurado o falló).
+- `video.title` y `video.channel` pueden venir `null` unos días en videos cargados por migración: los trae el refresco.
+- Búsqueda: YouTube Data API v3, videos públicos, embebibles y de 15 s a 5 min; primero en español (`<nombre> técnica correcta`), si no en inglés (`<name_en> proper form`). Antes de la IA, reglas fijas descartan títulos de recopilaciones, con otro equipo, otra inclinación o una sola mano cuando el ejercicio no lo es (`VideoRules`). La IA ordena hasta 3 videos que muestran exactamente el ejercicio, solo con confianza alta: el primero queda como video y los otros como alternativas.
+- Proceso diario (`CatalogVideoJob`, cada 30 min): llena por prioridad (habituales, los que están en rutinas, fuerza antes que estiramientos) con hasta `locomotora.youtube.daily-search-budget` búsquedas por día (95; el día de YouTube termina a medianoche del Pacífico), un ejercicio cada 20 s por el límite de tokens por minuto de Groq y un tope de tokens propio (`fill.daily-token-cap`). El uso de IA se registra sin usuario (`CATALOG`). Cada 6 h refresca los videos con más de 7 días: confirma que siguen disponibles, actualiza título, canal y duración, pasa a una alternativa si el principal se cayó y vuelve a la cola si no queda ninguna.
+- Configuración: `YOUTUBE_API_KEY`. Sin clave, solo consejos y `searchUrl`.
+
+### Video que no carga: `POST /exercises/{id}/guide/video-unavailable`
+
+Cuerpo `{ "videoId": "…", "errorCode": 150 }` (el código del reproductor de YouTube; la app solo lo manda con 2, 5, 100, 101 o 150; el 153 es configuración propia y no reemplaza el video). Devuelve la guía con `notice`:
+
+- `STILL_AVAILABLE`: YouTube confirma que el video está bien (1 unidad de cuota); no se cambia para nadie.
+- `REPLACED`: pasó a la siguiente alternativa para todos (sin costo) o, si no quedaban, encontró otro video con una búsqueda nueva que excluye los que fallaron.
+- `NO_OTHER`: no hay otro video que muestre exactamente el ejercicio.
+- `LIMIT`: el usuario ya hizo `locomotora.youtube.user-daily-replacements` búsquedas hoy (5).
+
+Si el video reportado ya no es el actual (otro usuario lo reemplazó), devuelve el actual con `REPLACED`.
+
+### Exportar los videos a una migración
+
+`tools/exercise-videos/export_videos.py` (ver su README) genera una migración con los ids encontrados para que otra base arranque con los mismos videos sin gastar su cuota.
 - Errores: 404 si el ejercicio no existe o es propio de otro usuario; 429 si el usuario pasó su límite diario del coach o la IA está saturada; 503 si la IA no responde y todavía no hay consejos guardados.
 
