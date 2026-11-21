@@ -35,7 +35,39 @@ Propuesta de experiencia de uso para crear, editar y entrenar, publicada como ar
 | R2 · Rutina actual | `current_routine_id`, ciclo de días en Hoy, Rutinas y detalle | ✅ 2026-11-17 |
 | R3 · Editar en sitio | Modo edición en el detalle, hoja de ejercicio, arrastrar | ✅ 2026-11-17 |
 | R4 · Crear | Una sola puerta con vista previa, asistente de 3 pasos, sugerencias por día | ✅ 2026-11-17 |
+| E1 · Elegir con el catálogo (propuesta 7, aprobada el 2026-11-21) | El selector del editor, el asistente y el reemplazo al entrenar pasan a ser el catálogo de Rutinas › Ejercicios (grupos, lista, detalle y video) | ✅ 2026-11-21 |
+| E2 · Aviso de repetidos (propuesta 7) | Preguntar antes de repetir un ejercicio en el mismo día; avisar si está en otro día | ✅ 2026-11-21 |
+| E3 · Editar el entrenamiento en curso (propuesta 7) | Agregar, quitar y reordenar mientras entrenas, y guardarlo en la rutina | Pendiente |
 | R5 · Pantalla Hoy (propuesta 6, aprobada el 2026-11-21) | Vueltas (el día que se deja pasar queda pendiente), saludo según la hora y frase que rota, una sola tarjeta de rutina, progreso con acciones, preguntas para el coach | ✅ 2026-11-21 |
+
+### Avance de E2 · Aviso de repetidos (2026-11-21, rama `main`)
+
+Sin cambios de backend (repetir un ejercicio en un día ya estaba permitido). Frontend:
+
+- `duplicates.ts` (puro, con tests): `draftDuplicateContext()` arma lo que ya tiene la rutina (el día destino con posición y prescripción, y los otros días); `duplicateTag()` da la etiqueta de una fila; `findDuplicates()` y `withoutDuplicates()` separan los repetidos del mismo día. Se compara por id del catálogo.
+- La sesión de elegir lleva `duplicates`. En el modo elegir, cada fila muestra "Ya está en Torso A" (naranja) o "En Torso B" (gris), y el detalle lo repite arriba del botón.
+- `usePickFinish()` termina el modo elegir desde el catálogo, un grupo o el detalle. Si hay repetidos en el mismo día, antes muestra `DuplicateSheet`: "Agregar igual" / "No agregarlo", o con varios "Agregar los N igual" / "Solo los nuevos". Al reemplazar ofrece "Reemplazar igual" / "Elegir otro". Nunca bloquea.
+- Lo usan el editor y el asistente (agregar y reemplazar) y el reemplazo durante el entrenamiento (contra los ejercicios de la sesión).
+- "Agregar a una rutina" deja de bloquear el día que ya tiene el ejercicio: lo marca "Ya está en este día" y, al tocarlo, pregunta "Agregar igual" / "Elegir otro día" (`addExerciseToRoutine(..., { allowDuplicate })`).
+- Tests nuevos: `duplicates.test.ts` y el caso de repetir en `addToRoutine.test.ts` (230 en total). Lint: los mismos 5 errores de antes.
+- Probado en Expo web: la etiqueta en la lista, la hoja con un repetido y uno nuevo ("Solo el nuevo" agrega uno), y "Agregar a una rutina" con la pregunta. No se guardó nada en la base.
+
+### Avance de E1 · Elegir ejercicios con el catálogo (2026-11-21, rama `main`)
+
+Sin cambios de backend. Frontend:
+
+- Modo elegir en las pantallas del catálogo. La ruta nueva `ExercisePick` muestra las mismas tarjetas de grupos y el buscador de Rutinas › Ejercicios, con un atajo a los músculos del día ("Músculos de Torso A") o, al reemplazar, al mismo músculo. `ExerciseList` y `ExerciseDetail` aceptan `pickId`, y `ExerciseList` también `muscles` y `title`.
+- `exercisePick.ts` guarda la sesión de elegir (modo agregar o reemplazar, destino, músculos, excluidos, lo elegido y a quién devolverlo) en un almacén propio, porque el callback no viaja por la navegación. `useExercisePicker()` la abre desde cualquier pantalla, y `leavePickFlow()` sale de todas las pantallas del modo elegir de una vez.
+- En la lista, tocar la fila abre el detalle y el botón redondo de `ExerciseRow` (`accessory="add"` o `"swap"`) agrega o reemplaza con un toque. `PickBar` muestra lo elegido abajo, con "Agregar a Torso A". En el detalle, el botón dice "Agregar a Torso A" (o "Agregar N a…") o "Reemplazar por este", más "Elegir y seguir buscando". Cerrar con algo elegido pide confirmación (`ConfirmSheet`).
+- Al reemplazar no se ofrecen estiramientos, cardio ni pliometría (salvo buscándolos), como antes.
+- "Crear ejercicio propio" pasó a `CreateOwnExerciseSheet`, al final de la búsqueda del catálogo y de cada lista en modo elegir.
+- Se usa en el editor y el asistente (`DraftDaysEditor`: agregar y reemplazar) y en el entrenamiento (reemplazar desde la lista del día y desde el menú ⋯).
+- "Técnica" (al entrenar y en el detalle de la rutina) suma "Ver detalle y video", que abre el detalle del catálogo.
+- Se borraron `ExercisePickerSheet`, `ReplacePicker` (de `ExerciseListSheet`) y sus textos.
+- Tests: `exercisePick.test.ts` (224 en total). Lint: los mismos 5 errores de antes.
+- Probado en Expo web con el backend en Docker: agregar 3 ejercicios desde "Músculos de…" y el detalle, reemplazar en el editor y en el entrenamiento, y "Ver detalle y video" desde Técnica.
+
+Pendiente de E1: probarlo en un teléfono, en especial las pantallas del catálogo abiertas encima del entrenamiento, que es un modal a pantalla completa en iOS.
 
 ### Avance de R5 · Pantalla Hoy (2026-11-21, rama `main`)
 
