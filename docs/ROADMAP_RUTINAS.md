@@ -37,8 +37,23 @@ Propuesta de experiencia de uso para crear, editar y entrenar, publicada como ar
 | R4 · Crear | Una sola puerta con vista previa, asistente de 3 pasos, sugerencias por día | ✅ 2026-11-17 |
 | E1 · Elegir con el catálogo (propuesta 7, aprobada el 2026-11-21) | El selector del editor, el asistente y el reemplazo al entrenar pasan a ser el catálogo de Rutinas › Ejercicios (grupos, lista, detalle y video) | ✅ 2026-11-21 |
 | E2 · Aviso de repetidos (propuesta 7) | Preguntar antes de repetir un ejercicio en el mismo día; avisar si está en otro día | ✅ 2026-11-21 |
-| E3 · Editar el entrenamiento en curso (propuesta 7) | Agregar, quitar y reordenar mientras entrenas, y guardarlo en la rutina | Pendiente |
+| E3 · Editar el entrenamiento en curso (propuesta 7) | Agregar, quitar y reordenar mientras entrenas, y guardarlo en la rutina; el editor aplica sus cambios al entrenamiento abierto | ✅ 2026-11-21 |
 | R5 · Pantalla Hoy (propuesta 6, aprobada el 2026-11-21) | Vueltas (el día que se deja pasar queda pendiente), saludo según la hora y frase que rota, una sola tarjeta de rutina, progreso con acciones, preguntas para el coach | ✅ 2026-11-21 |
+
+### Avance de E3 · Editar el entrenamiento en curso (2026-11-21, rama `main`)
+
+Sin cambios de backend (usa `PUT /routines/{id}`, que conserva los ids). Frontend:
+
+- Estado del entrenamiento v4 (se migran las versiones 1 a 3): `addedInSession` por ejercicio, `removedToday`, `reorderedToday` y `saveEditsToRoutine` (encendido por defecto).
+- Reducer: `addExercises` (al final, con 3 × 8–12 y 1:30), `removeExercise` y `moveExercise` (solo ejercicios sin series hechas; lo registrado no se quita ni cambia de lugar), `setSaveEditsToRoutine`, `routineSynced` y `mergeRoutineDay`. `withExercises()` conserva por clave el ejercicio actual y el descanso. `exerciseFromRoutine()` se separó de `createWorkout`.
+- `routineChanges.ts`: cambios nuevos `added`, `removed` y `reordered` (`structuralChanges()`). `applyRoutineChanges()` los aplica sobre el día de la rutina: quita, reordena según la sesión y agrega cada ejercicio después del que lo precede. `linkAddedExercises()` vincula lo agregado con los ejercicios nuevos de la rutina después de guardar.
+- Lista del día con modo editar (`ExerciseListSheet`): "Editar" en la lista o "Editar ejercicios del día" en el menú ⋯. Muestra lo empezado bloqueado, subir/bajar/quitar en lo demás, "Agregar ejercicio" (catálogo de E1 con el aviso de repetidos de E2) y el interruptor "Guardar también en la rutina".
+- "Listo" con el interruptor encendido guarda al momento en la rutina y muestra "Rutina actualizada". Apagado, el aviso dice "Cambios solo por hoy". Sin conexión, el aviso lo explica y el resumen ofrece los cambios en "Cambios en la rutina" (agregado, quitado, nuevo orden).
+- Editor de Rutinas con un entrenamiento abierto de esa rutina: el aviso suma "Aplicar también al de hoy" (encendido). Al guardar, `mergeRoutineDay` actualiza lo que no se empezó (plan, quitados, nuevos al final) y carga "la vez pasada" de los nuevos. Lo empezado, lo agregado hoy, lo reemplazado hoy y lo quitado hoy se respetan.
+- Tests: `workoutSessionE3.test.ts` (8 casos; 241 en total). Lint: los mismos 5 errores de antes.
+- Probado en Expo web con una rutina de prueba, que después se restauró: agregar y subir con guardado en la rutina (verificado en el servidor), quitar solo por hoy, aplicar desde el editor al entrenamiento abierto y el resumen con "quitado". No se guardó ninguna sesión.
+
+Pendiente de E3: probarlo en un teléfono.
 
 ### Avance de E2 · Aviso de repetidos (2026-11-21, rama `main`)
 
