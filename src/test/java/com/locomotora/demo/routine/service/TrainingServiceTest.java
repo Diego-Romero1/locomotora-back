@@ -18,7 +18,10 @@ import com.locomotora.demo.routine.dto.TodayResponse;
 import com.locomotora.demo.routine.repository.RoutineWriteRepository;
 import com.locomotora.demo.routine.repository.TrainingStatsRepository;
 import com.locomotora.demo.routine.repository.TrainingStatsRepository.RoutineCandidate;
+import com.locomotora.demo.routine.repository.WorkoutHistoryRepository;
 import com.locomotora.demo.routine.repository.WorkoutSessionWriteRepository;
+import com.locomotora.demo.routine.service.TrainingCalendar.DaySession;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -54,13 +57,16 @@ class TrainingServiceTest {
     private RoutineReadService routineReadService;
     @Mock
     private RoutineWriteRepository routineWriteRepository;
+    @Mock
+    private WorkoutHistoryRepository historyRepository;
 
     private TrainingService service;
 
     @BeforeEach
     void setUp() {
         service = new TrainingService(
-                statsRepository, sessionRepository, new CurrentRoutineService(statsRepository, routineReadService, routineWriteRepository));
+                statsRepository, sessionRepository, new CurrentRoutineService(statsRepository, routineReadService, routineWriteRepository),
+                historyRepository);
         TestingAuthenticationToken authentication = new TestingAuthenticationToken(userId.toString(), null);
         authentication.setAuthenticated(true);
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -78,8 +84,8 @@ class TrainingServiceTest {
         when(statsRepository.findLatestUpdatedActiveRoutine(userId))
                 .thenReturn(Optional.of(new RoutineCandidate(trainedRoutine, Instant.parse("2026-10-01T10:00:00Z"))));
         when(routineReadService.getRoutine(trainedRoutine)).thenReturn(routine(trainedRoutine, 2));
-        when(statsRepository.findLastTrainedByDay(userId, trainedRoutine))
-                .thenReturn(Map.of(dayOne, Instant.parse("2026-11-09T19:00:00Z")));
+        when(statsRepository.findDaySessions(userId, trainedRoutine))
+                .thenReturn(List.of(new DaySession(dayOne, Instant.parse("2026-11-09T19:00:00Z"))));
         when(statsRepository.findTrainedDates(eq(userId), anyString(), any())).thenReturn(List.of(LocalDate.of(2026, 11, 9)));
 
         TodayResponse today = service.today("America/Argentina/Buenos_Aires", now);
@@ -112,14 +118,16 @@ class TrainingServiceTest {
     void theChosenRoutineIsTodaysEvenIfANewerOneWasCreated() {
         when(statsRepository.findChosenCurrentRoutine(userId)).thenReturn(Optional.of(trainedRoutine));
         when(routineReadService.getRoutine(trainedRoutine)).thenReturn(routine(trainedRoutine, 2));
-        when(statsRepository.findLastTrainedByDay(userId, trainedRoutine))
-                .thenReturn(Map.of(dayTwo, Instant.parse("2026-11-10T19:00:00Z")));
+        when(statsRepository.findDaySessions(userId, trainedRoutine))
+                .thenReturn(List.of(
+                        new DaySession(dayOne, Instant.parse("2026-11-09T19:00:00Z")),
+                        new DaySession(dayTwo, Instant.parse("2026-11-10T19:00:00Z"))));
 
         TodayResponse today = service.today("UTC", now);
 
         assertEquals(trainedRoutine.toString(), today.routine().id());
         assertEquals(true, today.routine().current());
-        // Despues del ultimo dia vuelve al primero.
+        // Vuelta completa: vuelve al primero.
         assertEquals(dayOne.toString(), today.nextDayId());
         verify(statsRepository, never()).findLatestUpdatedActiveRoutine(any());
     }
@@ -134,6 +142,30 @@ class TrainingServiceTest {
         assertNull(today.nextDayId());
         assertEquals(5, today.week().targetDays());
         assertEquals(0, today.weekStreak());
+    }
+
+    @Test
+    void progressCountsMonthsVolumeWeeksAndTheLastRecord() {
+        when(statsRepository.findProfileTrainingDays(userId)).thenReturn(Optional.of(2));
+        when(statsRepository.findTrainedDates(eq(userId), anyString(), any()))
+                .thenReturn(List.of(LocalDate.of(2026, 11, 2), LocalDate.of(2026, 11, 4), LocalDate.of(2026, 11, 9)));
+        when(statsRepository.countMonthWorkouts(eq(userId), any(), any()))
+                .thenReturn(new TrainingStatsRepository.MonthCounts(5, 8));
+        when(historyRepository.findWeeklyTotals(eq(userId), anyString(), any())).thenReturn(List.of(
+                new WorkoutHistoryRepository.WeekRow(LocalDate.of(2026, 11, 9), 1, 1, 12, new BigDecimal("4200"))));
+        TodayResponse.LastRecord record = new TodayResponse.LastRecord("e1", "Sentadilla", new BigDecimal("85"), 8, "2026-11-09T19:00:00Z");
+        when(statsRepository.findLastRecord(userId)).thenReturn(Optional.of(record));
+
+        TodayResponse.Progress progress = service.today("UTC", now).progress();
+
+        // 8 semanas, de la mas vieja a la actual (la del 9 nov todavia no llega a 2 dias).
+        assertEquals(List.of(false, false, false, false, false, false, true, false), progress.weeksMet());
+        assertEquals(5, progress.monthWorkouts());
+        assertEquals(8, progress.previousMonthWorkouts());
+        assertEquals(8, progress.weeklyVolumeKg().size());
+        assertEquals(new BigDecimal("4200"), progress.weeklyVolumeKg().get(7));
+        assertEquals(BigDecimal.ZERO, progress.weeklyVolumeKg().get(0));
+        assertEquals(record, progress.lastRecord());
     }
 
     @Test

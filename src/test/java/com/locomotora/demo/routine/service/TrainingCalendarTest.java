@@ -1,11 +1,17 @@
 package com.locomotora.demo.routine.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 class TrainingCalendarTest {
@@ -18,16 +24,72 @@ class TrainingCalendarTest {
     private final LocalDate today = LocalDate.of(2026, 11, 11);
 
     @Test
-    void nextDayFollowsTheLastTrainedAndWrapsAround() {
-        assertEquals(Optional.of(lowerA), TrainingCalendar.nextDayId(days, Optional.of(upperA)));
-        assertEquals(Optional.of(upperA), TrainingCalendar.nextDayId(days, Optional.of(upperB)));
+    void nextDayFollowsTheOrderAndARoundStartsAgainWhenAllAreDone() {
+        assertEquals(Optional.of(lowerA), TrainingCalendar.cycle(days, sessions(upperA)).nextDayId());
+        TrainingCalendar.Cycle complete = TrainingCalendar.cycle(days, sessions(upperA, lowerA, upperB));
+        assertEquals(Optional.of(upperA), complete.nextDayId());
+        assertTrue(complete.doneInRound().isEmpty());
+        assertNull(complete.roundStartedAt());
     }
 
     @Test
-    void nextDayIsTheFirstWhenNeverTrainedOrDayWasDeleted() {
-        assertEquals(Optional.of(upperA), TrainingCalendar.nextDayId(days, Optional.empty()));
-        assertEquals(Optional.of(upperA), TrainingCalendar.nextDayId(days, Optional.of(UUID.randomUUID())));
-        assertEquals(Optional.empty(), TrainingCalendar.nextDayId(List.of(), Optional.of(upperA)));
+    void neverTrainedStartsAtDayOneAndEmptyRoutineHasNoDay() {
+        assertEquals(Optional.of(upperA), TrainingCalendar.cycle(days, List.of()).nextDayId());
+        assertEquals(Optional.empty(), TrainingCalendar.cycle(List.of(), sessions(upperA)).nextDayId());
+    }
+
+    @Test
+    void doingAnotherDayLeavesTheDueOnePendingAndItStaysNext() {
+        // Tocaba upperA y se hizo upperB: upperA queda pendiente y sigue tocando.
+        TrainingCalendar.Cycle cycle = TrainingCalendar.cycle(days, sessions(upperB));
+        assertEquals(Optional.of(upperA), cycle.nextDayId());
+        assertEquals(Set.of(upperB), cycle.doneInRound().keySet());
+        assertEquals(Map.of(upperA, at(1)), cycle.pendingSince());
+        assertEquals(at(1), cycle.roundStartedAt());
+
+        // Al hacerlo deja de estar pendiente y toca lowerA, que nunca se salto.
+        TrainingCalendar.Cycle next = TrainingCalendar.cycle(days, sessions(upperB, upperA));
+        assertEquals(Optional.of(lowerA), next.nextDayId());
+        assertTrue(next.pendingSince().isEmpty());
+    }
+
+    @Test
+    void repeatingADayAlreadyDoneChangesNothing() {
+        TrainingCalendar.Cycle cycle = TrainingCalendar.cycle(days, sessions(upperA, upperA));
+        assertEquals(Optional.of(lowerA), cycle.nextDayId());
+        assertEquals(Set.of(upperA), cycle.doneInRound().keySet());
+        assertEquals(at(1), cycle.doneInRound().get(upperA));
+        assertTrue(cycle.pendingSince().isEmpty());
+    }
+
+    @Test
+    void deletedDaysAreIgnoredAndNewDaysCountAsMissing() {
+        UUID deleted = UUID.randomUUID();
+        TrainingCalendar.Cycle cycle = TrainingCalendar.cycle(days, sessions(deleted, upperA));
+        assertEquals(Optional.of(lowerA), cycle.nextDayId());
+        assertEquals(Set.of(upperA), cycle.doneInRound().keySet());
+
+        UUID added = UUID.randomUUID();
+        List<UUID> longer = List.of(upperA, lowerA, upperB, added);
+        // Con un dia nuevo, la vuelta de 3 ya no esta completa: falta el nuevo.
+        assertEquals(Optional.of(added), TrainingCalendar.cycle(longer, sessions(upperA, lowerA, upperB)).nextDayId());
+    }
+
+    @Test
+    void weeksMetGoesFromOldestToCurrent() {
+        List<LocalDate> trained = List.of(d(10, 26), d(10, 28), d(11, 2), d(11, 9), d(11, 10));
+        assertEquals(List.of(true, false, true), TrainingCalendar.weeksMet(trained, today, 2, 3));
+    }
+
+    /** Un entrenamiento por dia, empezando el 1 de noviembre. */
+    private static List<TrainingCalendar.DaySession> sessions(UUID... dayIds) {
+        return IntStream.range(0, dayIds.length)
+                .mapToObj(i -> new TrainingCalendar.DaySession(dayIds[i], at(i + 1)))
+                .toList();
+    }
+
+    private static Instant at(int day) {
+        return Instant.parse("2026-11-%02dT19:00:00Z".formatted(day));
     }
 
     @Test

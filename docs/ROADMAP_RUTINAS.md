@@ -1,6 +1,6 @@
 # Plan de implementación — Rutinas: crear, entrenar y registrar
 
-Actualizado: 2026-11-18
+Actualizado: 2026-11-21
 
 > Prerrequisito: leer [`SYSTEM_OVERVIEW.md`](SYSTEM_OVERVIEW.md). Los códigos H1, H2… refieren a los hallazgos de ese documento.
 > Tamaños: **S** = menos de 1 día, **M** = 1 a 3 días, **L** = más de 3 días (una persona).
@@ -35,6 +35,31 @@ Propuesta de experiencia de uso para crear, editar y entrenar, publicada como ar
 | R2 · Rutina actual | `current_routine_id`, ciclo de días en Hoy, Rutinas y detalle | ✅ 2026-11-17 |
 | R3 · Editar en sitio | Modo edición en el detalle, hoja de ejercicio, arrastrar | ✅ 2026-11-17 |
 | R4 · Crear | Una sola puerta con vista previa, asistente de 3 pasos, sugerencias por día | ✅ 2026-11-17 |
+| R5 · Pantalla Hoy (propuesta 6, aprobada el 2026-11-21) | Vueltas (el día que se deja pasar queda pendiente), saludo según la hora y frase que rota, una sola tarjeta de rutina, progreso con acciones, preguntas para el coach | ✅ 2026-11-21 |
+
+### Avance de R5 · Pantalla Hoy (2026-11-21, rama `main`)
+
+Backend (sin migraciones):
+
+- Vueltas: `TrainingCalendar.cycle()` recorre los entrenamientos de la rutina en orden. Cada día se hace una vez por vuelta, toca el primero que falta y, cuando se hace otro en su lugar, el que tocaba queda pendiente (`pendingSince`). Al completar todos los días empieza otra vuelta. Los días borrados se ignoran y uno nuevo entra como faltante. Reemplaza a `nextDayId` (el día siguiente al último entrenado), que hacía saltar el día que se cambiaba.
+- `CurrentRoutineService` usa `findDaySessions` (en lugar de `findLastTrainedByDay`). Cada día trae `doneInRound` y `pendingSince`, y la rutina `roundStartedAt`.
+- `/today` suma `week.sessions` (fecha y título del día de cada entrenamiento de la semana) y `progress`: semanas cumplidas de las últimas 8 (`TrainingCalendar.weeksMet`), entrenos del mes y del anterior, volumen de las últimas 8 semanas (`findWeeklyTotals`) y el último récord (la serie más reciente que superó la mejor fuerza estimada previa de su ejercicio, con una función de ventana).
+- Arreglo: Postgres 17 del contenedor no reconoce alias de zona como `America/Buenos_Aires`, que manda Chrome, y `/today` respondía 500 (ya pasaba antes de R5). `PostgresZones` pasa el nombre que Postgres conoce con las mismas reglas (`America/Argentina/Buenos_Aires`), o UTC. Se usa en `findTrainedDates`, `findWeekSessions` y `findWeeklyTotals`.
+- Tests nuevos: vueltas (cambiar de día, repetir, vuelta completa, días agregados y borrados), progreso de `/today` y zonas. 206 tests en total.
+
+Frontend:
+
+- Hoy (`HomeScreen`): "Buenos días / Buenas tardes / Buenas noches, Nombre" según la hora (5–12, 12–20, 20–5), sin emoji. Debajo, una frase corta que cambia cada vez que Hoy toma el foco, sin repetir la anterior. Hay 24 frases generales y 4 del momento (día pendiente, ya entrenaste, semana cumplida, noche), cada una como mucho una vez por día (`greeting.ts`, `useHomePhrase`).
+- `RoutineTodayCard` reemplaza a `TodayCard`. En una sola tarjeta van la semana (7 días con el nombre del día de rutina hecho), "Hoy toca" o "Hoy elegiste" (con "Pendiente desde ayer" en naranja), y el resto de la rutina (verde hecho, gris falta, naranja pendiente). También tiene los estados "En curso" (continuar o descartar) y "Hoy · listo" (mañana toca, entrenar otra vez).
+- `ChooseDaySheet` reemplaza a `DayPickerSheet`: elegir otro día cambia la tarjeta sin empezar el entrenamiento, y el que tocaba queda pendiente para mañana, con "Volver a…". La elección se guarda en el teléfono hasta la medianoche (`useTodayChoice`).
+- `ProgressTiles`: Racha (barras de 8 semanas) → Progreso › Resumen; Este mes (con la diferencia con el mes anterior) → Historial; Volumen (línea de 8 semanas) → Resumen; Último récord → progreso del ejercicio. Debajo, el último entrenamiento → detalle. Sin historial, una tarjeta que lo explica.
+- `CoachSuggestions`: 2 preguntas por reglas locales (día que toca, lesión del perfil, ya entrenaste, sin rutina). Abren Coach con la pregunta escrita, sin enviarla (parámetro `prompt`). Progreso acepta `section`.
+- `cycleDays` usa `doneInRound` del servidor, así Rutinas y el detalle coinciden con Hoy. `WorkoutStatusCard` acepta `showActive`: el entrenamiento en curso de la rutina actual se ve dentro de la tarjeta.
+- Se quitaron la fila Racha/Entrenos/Días activos, el tip fijo del coach, la llamada a `/progress/summary` desde Hoy y los textos viejos.
+- 2 archivos de tests nuevos (220 en total). Lint: los mismos 5 errores de antes, ninguno nuevo.
+- Probado en Expo web contra el backend en Docker con datos reales: un día pendiente, cambiar a otro día y volver, "Hoy · listo", las tarjetas de progreso (Historial y progreso del ejercicio), y la pregunta del coach escrita en Coach.
+
+Pendiente de R5: probarlo en un teléfono.
 
 ### Avance de R1 (2026-11-17, rama `main`)
 

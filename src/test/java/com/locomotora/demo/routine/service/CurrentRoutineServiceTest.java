@@ -17,9 +17,9 @@ import com.locomotora.demo.routine.dto.RoutineResponse;
 import com.locomotora.demo.routine.repository.RoutineWriteRepository;
 import com.locomotora.demo.routine.repository.TrainingStatsRepository;
 import com.locomotora.demo.routine.repository.TrainingStatsRepository.RoutineCandidate;
+import com.locomotora.demo.routine.service.TrainingCalendar.DaySession;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -83,29 +83,51 @@ class CurrentRoutineServiceTest {
     }
 
     @Test
-    void decorateMarksEachDayAndTheDayThatComesNext() {
-        // B se entreno ultimo: toca C. A tiene una fecha mas vieja.
-        when(statsRepository.findLastTrainedByDay(userId, chosen)).thenReturn(Map.of(
-                dayA, Instant.parse("2026-11-09T19:00:00Z"),
-                dayB, Instant.parse("2026-11-11T19:00:00Z")));
+    void decorateMarksEachDayTheRoundAndTheDayThatComesNext() {
+        // A y B hechos en orden: toca C.
+        when(statsRepository.findDaySessions(userId, chosen)).thenReturn(List.of(
+                new DaySession(dayA, Instant.parse("2026-11-09T19:00:00Z")),
+                new DaySession(dayB, Instant.parse("2026-11-11T19:00:00Z"))));
 
         RoutineResponse result = service.decorate(routine(chosen, false), userId, Optional.of(chosen));
 
         assertTrue(result.current());
         assertEquals(dayC.toString(), result.nextDayId());
         assertEquals("2026-11-11T19:00:00Z", result.lastTrainedAt());
+        assertEquals("2026-11-09T19:00:00Z", result.roundStartedAt());
         assertEquals("2026-11-09T19:00:00Z", day(result, dayA).lastTrainedAt());
-        assertEquals("2026-11-11T19:00:00Z", day(result, dayB).lastTrainedAt());
+        assertTrue(day(result, dayA).doneInRound());
+        assertTrue(day(result, dayB).doneInRound());
+        assertFalse(day(result, dayC).doneInRound());
         assertNull(day(result, dayC).lastTrainedAt());
     }
 
     @Test
-    void afterTheLastDayTheCycleStartsAgainAndANeverTrainedRoutineStartsAtDayOne() {
-        when(statsRepository.findLastTrainedByDay(userId, chosen))
-                .thenReturn(Map.of(dayC, Instant.parse("2026-11-11T19:00:00Z")));
-        assertEquals(dayA.toString(), service.decorate(routine(chosen, false), userId, Optional.empty()).nextDayId());
+    void doingAnotherDayKeepsTheDueOnePendingAndNext() {
+        // Tocaba A y se hizo C: A sigue tocando, marcada como pendiente desde ese dia.
+        when(statsRepository.findDaySessions(userId, chosen)).thenReturn(List.of(
+                new DaySession(dayC, Instant.parse("2026-11-16T19:00:00Z"))));
 
-        when(statsRepository.findLastTrainedByDay(userId, trained)).thenReturn(Map.of());
+        RoutineResponse result = service.decorate(routine(chosen, false), userId, Optional.of(chosen));
+
+        assertEquals(dayA.toString(), result.nextDayId());
+        assertEquals("2026-11-16T19:00:00Z", day(result, dayA).pendingSince());
+        assertNull(day(result, dayB).pendingSince());
+        assertTrue(day(result, dayC).doneInRound());
+    }
+
+    @Test
+    void afterTheLastDayTheCycleStartsAgainAndANeverTrainedRoutineStartsAtDayOne() {
+        when(statsRepository.findDaySessions(userId, chosen)).thenReturn(List.of(
+                new DaySession(dayA, Instant.parse("2026-11-09T19:00:00Z")),
+                new DaySession(dayB, Instant.parse("2026-11-10T19:00:00Z")),
+                new DaySession(dayC, Instant.parse("2026-11-11T19:00:00Z"))));
+        RoutineResponse wrapped = service.decorate(routine(chosen, false), userId, Optional.empty());
+        assertEquals(dayA.toString(), wrapped.nextDayId());
+        assertNull(wrapped.roundStartedAt());
+        assertFalse(day(wrapped, dayA).doneInRound());
+
+        when(statsRepository.findDaySessions(userId, trained)).thenReturn(List.of());
         RoutineResponse fresh = service.decorate(routine(trained, false), userId, Optional.of(chosen));
         assertEquals(dayA.toString(), fresh.nextDayId());
         assertNull(fresh.lastTrainedAt());
@@ -116,7 +138,7 @@ class CurrentRoutineServiceTest {
     void templatesAreReturnedAsTheyAre() {
         RoutineResponse template = routine(chosen, true);
         assertSame(template, service.decorate(template, userId, Optional.of(chosen)));
-        verify(statsRepository, never()).findLastTrainedByDay(any(), any());
+        verify(statsRepository, never()).findDaySessions(any(), any());
     }
 
     @Test

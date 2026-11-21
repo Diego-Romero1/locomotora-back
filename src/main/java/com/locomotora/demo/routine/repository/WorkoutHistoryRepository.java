@@ -408,8 +408,8 @@ public class WorkoutHistoryRepository {
                         rs.getInt("completed_sets"),
                         rs.getBigDecimal("volume")
                 ),
-                zoneId,
-                zoneId,
+                PostgresZones.resolve(jdbcTemplate, zoneId),
+                PostgresZones.resolve(jdbcTemplate, zoneId),
                 userId,
                 Timestamp.from(since)
         );

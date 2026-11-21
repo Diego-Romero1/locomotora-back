@@ -2,20 +2,27 @@ package com.locomotora.demo.routine.dto;
 
 import java.util.List;
 
-/** {@code lastTrainedAt}: ultima sesion completada de este dia (ISO-8601), o null si nunca se entreno. */
+/**
+ * Dia de una rutina. Los ultimos tres campos solo vienen en las rutinas del usuario:
+ * {@code lastTrainedAt} = ultima sesion completada de este dia (ISO-8601) o null;
+ * {@code doneInRound} = ya se hizo en la vuelta actual (R5);
+ * {@code pendingSince} = tocaba y se hizo otro dia en su lugar: desde cuando esta pendiente (ISO-8601) o null.
+ */
 public record RoutineDayResponse(
         String id,
         int dayIndex,
         String title,
         String focus,
         List<ExerciseResponse> exercises,
-        String lastTrainedAt
+        String lastTrainedAt,
+        boolean doneInRound,
+        String pendingSince
 ) {
     public RoutineDayResponse(String id, int dayIndex, String title, String focus, List<ExerciseResponse> exercises) {
-        this(id, dayIndex, title, focus, exercises, null);
+        this(id, dayIndex, title, focus, exercises, null, false, null);
     }
 
-    public RoutineDayResponse withLastTrainedAt(String value) {
-        return new RoutineDayResponse(id, dayIndex, title, focus, exercises, value);
+    public RoutineDayResponse withTraining(String lastTrained, boolean done, String pending) {
+        return new RoutineDayResponse(id, dayIndex, title, focus, exercises, lastTrained, done, pending);
     }
 }

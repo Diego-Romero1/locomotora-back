@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import com.locomotora.demo.routine.dto.TodayResponse.LastRecord;
+import com.locomotora.demo.routine.dto.TodayResponse.WeekSession;
+import com.locomotora.demo.routine.service.TrainingCalendar.DaySession;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -166,22 +169,103 @@ public class TrainingStatsRepository {
     }
 
     /** Ultima sesion completada de cada dia de la rutina. Los dias borrados no aparecen. */
-    public Map<UUID, Instant> findLastTrainedByDay(UUID userId, UUID routineId) {
-        Map<UUID, Instant> result = new HashMap<>();
-        jdbcTemplate.query(
+    /** Entrenamientos completados de cada dia de la rutina, del mas viejo al mas nuevo (para las vueltas). */
+    public List<DaySession> findDaySessions(UUID userId, UUID routineId) {
+        return jdbcTemplate.query(
                 """
-                SELECT routine_day_id, max(completed_at) AS last_at
+                SELECT routine_day_id, completed_at
                 FROM workout_sessions
                 WHERE user_id = ? AND routine_id = ? AND status = 'COMPLETED' AND routine_day_id IS NOT NULL
-                GROUP BY routine_day_id
+                ORDER BY completed_at, id
                 """,
-                rs -> {
-                    result.put(rs.getObject("routine_day_id", UUID.class), rs.getTimestamp("last_at").toInstant());
-                },
+                (rs, rowNum) -> new DaySession(
+                        rs.getObject("routine_day_id", UUID.class),
+                        rs.getTimestamp("completed_at").toInstant()),
                 userId,
                 routineId
         );
-        return result;
+    }
+
+    /** Entrenamientos entre dos instantes, con su fecha local y el titulo del dia (snapshot o actual). */
+    public List<WeekSession> findWeekSessions(UUID userId, String zoneId, Instant from, Instant until) {
+        return jdbcTemplate.query(
+                """
+                SELECT (ws.completed_at AT TIME ZONE ?)::date AS day, ws.routine_day_id,
+                       COALESCE(ws.day_title, rd.title, ws.routine_title, r.title) AS day_title
+                FROM workout_sessions ws
+                LEFT JOIN routine_days rd ON rd.id = ws.routine_day_id
+                LEFT JOIN routines r ON r.id = ws.routine_id
+                WHERE ws.user_id = ? AND ws.status = 'COMPLETED' AND ws.kind <> 'QUICK_LOG'
+                  AND ws.completed_at >= ? AND ws.completed_at < ?
+                ORDER BY ws.completed_at
+                """,
+                (rs, rowNum) -> {
+                    UUID dayId = rs.getObject("routine_day_id", UUID.class);
+                    return new WeekSession(
+                            rs.getObject("day", LocalDate.class).toString(),
+                            dayId == null ? null : dayId.toString(),
+                            rs.getString("day_title"));
+                },
+                PostgresZones.resolve(jdbcTemplate, zoneId),
+                userId,
+                Timestamp.from(from),
+                Timestamp.from(until)
+        );
+    }
+
+    public record MonthCounts(int current, int previous) {
+    }
+
+    /** Entrenamientos del mes actual y del anterior (los limites ya vienen en la zona del telefono). */
+    public MonthCounts countMonthWorkouts(UUID userId, Instant previousMonthStart, Instant monthStart) {
+        return jdbcTemplate.queryForObject(
+                """
+                SELECT count(*) FILTER (WHERE completed_at >= ?) AS current,
+                       count(*) FILTER (WHERE completed_at < ?) AS previous
+                FROM workout_sessions
+                WHERE user_id = ? AND status = 'COMPLETED' AND kind <> 'QUICK_LOG' AND completed_at >= ?
+                """,
+                (rs, rowNum) -> new MonthCounts(rs.getInt("current"), rs.getInt("previous")),
+                Timestamp.from(monthStart),
+                Timestamp.from(monthStart),
+                userId,
+                Timestamp.from(previousMonthStart)
+        );
+    }
+
+    /**
+     * La serie mas reciente que supero la mejor fuerza estimada previa de su ejercicio (la primera vez que se
+     * hace un ejercicio no cuenta como record). Misma formula que el historial.
+     */
+    public Optional<LastRecord> findLastRecord(UUID userId) {
+        return jdbcTemplate.query(
+                """
+                SELECT exercise_id, name, weight_kg, reps, completed_at
+                FROM (
+                    SELECT wel.exercise_id, e.name, wel.weight_kg, wel.reps, ws.completed_at,
+                           %1$s AS e1rm,
+                           max(%1$s) OVER (
+                               PARTITION BY wel.exercise_id
+                               ORDER BY ws.completed_at, wel.set_number, wel.id
+                               ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                           ) AS prior_best
+                    FROM workout_exercise_logs wel
+                    JOIN workout_sessions ws ON ws.id = wel.workout_session_id
+                    JOIN exercises e ON e.id = wel.exercise_id
+                    WHERE ws.user_id = ? AND ws.status = 'COMPLETED' AND %2$s
+                ) sets
+                WHERE prior_best IS NOT NULL AND e1rm > prior_best
+                ORDER BY completed_at DESC, e1rm DESC
+                LIMIT 1
+                """.formatted(WorkoutHistoryRepository.E1RM, WorkoutHistoryRepository.MEASURABLE),
+                (rs, rowNum) -> new LastRecord(
+                        rs.getObject("exercise_id", UUID.class).toString(),
+                        rs.getString("name"),
+                        rs.getBigDecimal("weight_kg"),
+                        rs.getInt("reps"),
+                        rs.getTimestamp("completed_at").toInstant().toString()),
+                userId
+        ).stream().findFirst();
     }
 
     public Optional<UUID> findLastSessionId(UUID userId) {
@@ -207,7 +291,7 @@ public class TrainingStatsRepository {
                 ORDER BY day
                 """,
                 (rs, rowNum) -> rs.getObject("day", LocalDate.class),
-                zoneId,
+                PostgresZones.resolve(jdbcTemplate, zoneId),
                 userId,
                 Timestamp.from(since)
         );

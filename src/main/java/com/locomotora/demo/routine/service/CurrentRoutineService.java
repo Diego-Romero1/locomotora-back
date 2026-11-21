@@ -6,8 +6,10 @@ import com.locomotora.demo.routine.dto.RoutineResponse;
 import com.locomotora.demo.routine.repository.RoutineWriteRepository;
 import com.locomotora.demo.routine.repository.TrainingStatsRepository;
 import com.locomotora.demo.routine.repository.TrainingStatsRepository.RoutineCandidate;
+import com.locomotora.demo.routine.service.TrainingCalendar.DaySession;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -83,29 +85,36 @@ public class CurrentRoutineService {
     }
 
     /**
-     * Agrega a la rutina cuando se entreno cada dia, cual toca (el que sigue al ultimo entrenado, en orden
-     * de dia) y si es la actual. Las plantillas se devuelven tal cual.
+     * Agrega a la rutina cuando se entreno cada dia, la vuelta actual (hechos, pendiente y el que toca: R5)
+     * y si es la actual. Las plantillas se devuelven tal cual.
      */
     public RoutineResponse decorate(RoutineResponse routine, UUID userId, Optional<UUID> currentId) {
         if (routine.isTemplate()) {
             return routine;
         }
         UUID routineId = UUID.fromString(routine.id());
-        Map<UUID, Instant> lastByDay = statsRepository.findLastTrainedByDay(userId, routineId);
-        List<RoutineDayResponse> days = routine.days().stream()
-                .map(day -> day.withLastTrainedAt(iso(lastByDay.get(UUID.fromString(day.id())))))
-                .toList();
-        List<UUID> orderedDayIds = days.stream()
+        List<DaySession> sessions = statsRepository.findDaySessions(userId, routineId);
+        Map<UUID, Instant> lastByDay = new HashMap<>();
+        sessions.forEach(session -> lastByDay.merge(session.dayId(), session.completedAt(),
+                (a, b) -> a.isAfter(b) ? a : b));
+        List<UUID> orderedDayIds = routine.days().stream()
                 .sorted(Comparator.comparingInt(RoutineDayResponse::dayIndex))
                 .map(day -> UUID.fromString(day.id()))
                 .toList();
-        Optional<Map.Entry<UUID, Instant>> latest = lastByDay.entrySet().stream().max(Map.Entry.comparingByValue());
-        String nextDayId = TrainingCalendar.nextDayId(orderedDayIds, latest.map(Map.Entry::getKey))
-                .map(UUID::toString)
-                .orElse(null);
-        String lastTrainedAt = latest.map(entry -> entry.getValue().toString()).orElse(null);
+        TrainingCalendar.Cycle cycle = TrainingCalendar.cycle(orderedDayIds, sessions);
+        List<RoutineDayResponse> days = routine.days().stream()
+                .map(day -> {
+                    UUID dayId = UUID.fromString(day.id());
+                    return day.withTraining(
+                            iso(lastByDay.get(dayId)),
+                            cycle.doneInRound().containsKey(dayId),
+                            iso(cycle.pendingSince().get(dayId)));
+                })
+                .toList();
+        String nextDayId = cycle.nextDayId().map(UUID::toString).orElse(null);
+        String lastTrainedAt = sessions.isEmpty() ? null : iso(sessions.get(sessions.size() - 1).completedAt());
         boolean isCurrent = currentId.map(routineId::equals).orElse(false);
-        return routine.withTraining(isCurrent, lastTrainedAt, nextDayId, days);
+        return routine.withTraining(isCurrent, lastTrainedAt, nextDayId, iso(cycle.roundStartedAt()), days);
     }
 
     private static String iso(Instant value) {

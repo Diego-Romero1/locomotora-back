@@ -7,14 +7,19 @@ import com.locomotora.demo.routine.dto.RoutineResponse;
 import com.locomotora.demo.routine.dto.TodayResponse;
 import com.locomotora.demo.routine.dto.WorkoutSessionResponse;
 import com.locomotora.demo.routine.repository.TrainingStatsRepository;
+import com.locomotora.demo.routine.repository.WorkoutHistoryRepository;
 import com.locomotora.demo.routine.repository.WorkoutSessionWriteRepository;
+import java.math.BigDecimal;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -26,19 +31,24 @@ public class TrainingService {
     static final int MAX_EXERCISE_IDS = 100;
     /** Cuanto historial se mira para la racha. */
     static final int STREAK_LOOKBACK_WEEKS = 104;
+    /** Semanas que muestran las tarjetas de progreso de Hoy (racha y volumen). */
+    static final int PROGRESS_WEEKS = 8;
 
     private final TrainingStatsRepository statsRepository;
     private final WorkoutSessionWriteRepository sessionRepository;
     private final CurrentRoutineService currentRoutineService;
+    private final WorkoutHistoryRepository historyRepository;
 
     public TrainingService(
             TrainingStatsRepository statsRepository,
             WorkoutSessionWriteRepository sessionRepository,
-            CurrentRoutineService currentRoutineService
+            CurrentRoutineService currentRoutineService,
+            WorkoutHistoryRepository historyRepository
     ) {
         this.statsRepository = statsRepository;
         this.sessionRepository = sessionRepository;
         this.currentRoutineService = currentRoutineService;
+        this.historyRepository = historyRepository;
     }
 
     public List<LastPerformanceResponse> lastPerformance(List<UUID> exerciseIds) {
@@ -81,12 +91,43 @@ public class TrainingService {
                 .flatMap(id -> sessionRepository.findSessionSummary(id, userId))
                 .orElse(null);
 
+        List<TodayResponse.WeekSession> weekSessions = statsRepository.findWeekSessions(
+                userId, zone.getId(), weekStart.atStartOfDay(zone).toInstant(),
+                weekStart.plusWeeks(1).atStartOfDay(zone).toInstant());
+
         return new TodayResponse(
                 routine.orElse(null),
                 nextDayId,
-                new TodayResponse.Week(weekStart.toString(), thisWeek, target),
+                new TodayResponse.Week(weekStart.toString(), thisWeek, target, weekSessions),
                 TrainingCalendar.weekStreak(trainedDates, today, target),
-                lastSession
+                lastSession,
+                progress(userId, zone, today, trainedDates, target)
+        );
+    }
+
+    /** Tarjetas de progreso de Hoy: semanas cumplidas, entrenos del mes, volumen semanal y ultimo record. */
+    private TodayResponse.Progress progress(UUID userId, ZoneId zone, LocalDate today, List<LocalDate> trainedDates, int target) {
+        LocalDate monthStart = today.withDayOfMonth(1);
+        TrainingStatsRepository.MonthCounts months = statsRepository.countMonthWorkouts(
+                userId,
+                monthStart.minusMonths(1).atStartOfDay(zone).toInstant(),
+                monthStart.atStartOfDay(zone).toInstant());
+
+        LocalDate firstWeek = TrainingCalendar.weekStart(today).minusWeeks(PROGRESS_WEEKS - 1L);
+        Map<LocalDate, BigDecimal> volumeByWeek = new HashMap<>();
+        historyRepository.findWeeklyTotals(userId, zone.getId(), firstWeek.atStartOfDay(zone).toInstant())
+                .forEach(row -> volumeByWeek.put(row.weekStart(), row.volume()));
+        List<BigDecimal> volume = new ArrayList<>(PROGRESS_WEEKS);
+        for (int i = 0; i < PROGRESS_WEEKS; i++) {
+            volume.add(volumeByWeek.getOrDefault(firstWeek.plusWeeks(i), BigDecimal.ZERO));
+        }
+
+        return new TodayResponse.Progress(
+                TrainingCalendar.weeksMet(trainedDates, today, target, PROGRESS_WEEKS),
+                months == null ? 0 : months.current(),
+                months == null ? 0 : months.previous(),
+                volume,
+                statsRepository.findLastRecord(userId).orElse(null)
         );
     }
 
