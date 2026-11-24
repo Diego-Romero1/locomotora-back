@@ -40,6 +40,28 @@ Propuesta de experiencia de uso para crear, editar y entrenar, publicada como ar
 | E3 · Editar el entrenamiento en curso (propuesta 7) | Agregar, quitar y reordenar mientras entrenas, y guardarlo en la rutina; el editor aplica sus cambios al entrenamiento abierto | ✅ 2026-11-21 |
 | R5 · Pantalla Hoy (propuesta 6, aprobada el 2026-11-21) | Vueltas (el día que se deja pasar queda pendiente), saludo según la hora y frase que rota, una sola tarjeta de rutina, progreso con acciones, preguntas para el coach | ✅ 2026-11-21 |
 
+### Borradores de rutinas y salir sin perder (2026-11-23, rama `main`)
+
+Pedido: al crear una rutina a mano, salir (atrás, gesto, botón del sistema) pregunta si salir o seguir creando, y lo armado queda como borrador automático para seguir después. Decidido con el usuario: borradores en el teléfono **y** en el servidor, al crear y también al editar una rutina existente.
+
+Backend:
+
+- V20 `routine_drafts`: id generado en el teléfono, `kind` NEW/EDIT, `routine_id` (EDIT, `ON DELETE CASCADE`), resumen (título, paso, días, ejercicios), `payload` jsonb con el borrador de la app tal cual y `client_updated_at`. Los videos del catálogo pasan a exportarse como V21 y V22.
+- `GET /routine-drafts` (el más nuevo primero; no lista los de editar una rutina inactiva), `PUT /routine-drafts/{id}` (crea o actualiza solo si lo que llega es igual o más nuevo y del mismo usuario; devuelve lo guardado) y `DELETE /routine-drafts/{id}`. Validaciones: `kind`, rutina activa del usuario al editar, payload objeto de hasta 256 KB, hasta 30 borradores.
+- Tests: `RoutineDraftServiceTest` (validaciones) y `RoutineDraftRepositoryTest` (Postgres real: gana el más nuevo, no se pisa entre usuarios, listado). 213 tests en total.
+
+Frontend:
+
+- `routineDrafts.ts`: almacén de borradores por usuario (varios), guardado al instante en el teléfono y sincronización (sube lo pendiente, borra lo descartado, trae lo del servidor; gana el más nuevo; `mergeServerDrafts` puro con tests). Migra el borrador único viejo del asistente. Un solo borrador de edición por rutina.
+- `useDraftAutosave`: guarda con un respiro de 400 ms e intercepta la salida (`beforeRemove`) con `LeaveDraftSheet`: "Seguir creando/editando", "Salir y guardar borrador" o "Descartar".
+- Asistente "Desde cero": un borrador por creación (`draftId` en la ruta para retomar); se quitó la tarjeta de "retomar" del paso 1 y `draftStorage.ts`.
+- Editor: borrador al personalizar (plantilla o IA) y al editar una rutina (solo con cambios; si se deshacen, el borrador se borra). Al abrir "Editar" con cambios sin guardar de otra vez, ofrece "Retomar" o "Descartar"; si se empieza a cambiar sin elegir, lo nuevo lo reemplaza.
+- `DraftsSection` en Rutinas ("Borradores") y en Nueva rutina ("Seguir con un borrador"): nombre, tipo (Desde cero, Personalizada, Cambios sin guardar), días y ejercicios, cuándo se guardó y si falta subirlo; "Continuar" vuelve a la misma pantalla (asistente, editor o detalle con `resumeEditDraftId`) y "Descartar" pide confirmación.
+- Tests nuevos: `routineDrafts.test.ts` (247 en total). Lint: los mismos 5 errores de antes.
+- Probado en Expo web contra el backend en Docker: salir del asistente con la hoja, el borrador en Nueva rutina y en Rutinas, retomarlo desde otro navegador (vino del servidor), borrador de cambios al editar, retomarlo y descartarlo. Sin datos de prueba al final.
+
+Pendiente: probarlo en un teléfono (gesto atrás de iOS y botón atrás de Android).
+
 ### Avance de E3 · Editar el entrenamiento en curso (2026-11-21, rama `main`)
 
 Sin cambios de backend (usa `PUT /routines/{id}`, que conserva los ids). Frontend:
@@ -218,7 +240,7 @@ Plan aprobado ("Videos del catálogo"): buscar por adelantado un video por ejerc
 - Tests: reglas, juez ordenado, llenado (cuota, tope de tokens, espera por límite de Groq), refresco, reemplazo y exportación probada; backend 197, frontend 208. Probado en la web con un video roto a propósito: aparece el botón y pasa a la alternativa.
 - En marcha desde el 19 nov con la clave del usuario: el primer arranque llenó 4 habituales con videos correctos y se frenó por el límite por minuto de Groq; ahora espera 20 s entre ejercicios y un minuto si Groq lo pide.
 
-Pendiente: exportar V20 cuando estén los 153 habituales (≈ día 2) y V21 con el resto (≈ día 13); probar el reproductor en un teléfono.
+Pendiente: exportar V21 cuando estén los 153 habituales (≈ día 2) y V22 con el resto (≈ día 13; V20 quedó para los borradores de rutinas); probar el reproductor en un teléfono.
 
 ### Avance de R3 (2026-11-17, rama `main`)
 

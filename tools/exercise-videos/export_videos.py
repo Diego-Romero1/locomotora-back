@@ -3,7 +3,7 @@ los mismos videos sin gastar su cuota de YouTube ni esperar el llenado diario.
 
 Uso (lee el CSV de la consulta de README.md por la entrada estandar):
   docker exec locomotora-postgres psql -U postgres -d locomotora -c "\\copy (...) TO STDOUT WITH CSV" \\
-    | python3 export_videos.py --version 20 --label exercise_videos_core [--core-only]
+    | python3 export_videos.py --version 21 --label exercise_videos_core [--core-only]
 
 Que lleva la migracion (politica de YouTube: sus datos se refrescan cada 30 dias):
   - solo los ids de video (principal y alternativas); titulo, canal y duracion los trae el refresco del backend;
