@@ -46,7 +46,7 @@ class AuthRepositoryGoogleTest {
                 .isEqualTo("https://photo");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM user_profiles WHERE user_id = ?", Integer.class, user.id()))
                 .isEqualTo(1);
-        assertThat(repository.findActiveLoginByEmail("new@test.local").orElseThrow().passwordHash()).isNull();
+        assertThat(repository.findLoginByEmail("new@test.local").orElseThrow().passwordHash()).isNull();
     }
 
     @Test

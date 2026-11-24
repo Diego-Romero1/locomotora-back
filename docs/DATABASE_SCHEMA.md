@@ -36,8 +36,9 @@ Campos principales:
 - `password_hash` (NULL en las cuentas creadas con Google, desde V21)
 - `google_subject` (unico; el `sub` de la cuenta de Google vinculada, desde V21)
 - `name`
-- `role`
-- `status`
+- `role` (`USER`/`ADMIN`/`COACH`; `ADMIN` ve "Actividad de usuarios" y se asigna a mano en la base)
+- `status` (`ACTIVE`/`DISABLED`/`DELETED`; el filtro JWT rechaza los tokens de una cuenta que no esta `ACTIVE`)
+- `last_seen_at` (ultimo ping de la app, desde V22)
 - `created_at`
 - `updated_at`
 
@@ -205,6 +206,7 @@ Campos principales:
 | V11     | `V11__deferrable_exercise_references.sql` | Las FK `routine_exercises.exercise_id` y `workout_exercise_logs.exercise_id` pasan a `DEFERRABLE INITIALLY DEFERRED`, para que borrar un usuario (con sus ejercicios propios en cascada) no falle por el orden de la cascada. |
 | V12     | `V12__ai_settings_and_usage.sql`         | `user_ai_settings` (modelo de IA elegido para el coach y para rutinas; desde el 2026-11-15 solo se permite Qwen y las elecciones viejas vuelven al de por defecto) y `ai_usage` (una fila por llamada al modelo, con tokens; limites diarios y costo). |
 | V21     | `V21__google_sign_in.sql`                | Login con Google: `users.password_hash` pasa a aceptar NULL y se agrega `users.google_subject` (unico). |
+| V22     | `V22__admin_activity.sql`                | Panel de admin: `users.last_seen_at`, `user_daily_activity` (tiempo de uso por usuario y dia local) y `admin_audit_log` (habilitar/inhabilitar cuentas). |
 
 ### Tablas agregadas en V2 y V3
 
@@ -333,6 +335,14 @@ Una fila por usuario: `user_id` (PK), `coach_model`, `routine_model`, `updated_a
 ### `ai_usage` (V12)
 
 `id`, `user_id`, `feature` (`COACH`/`ROUTINE`), `model`, `input_tokens`, `output_tokens`, `created_at`. Indice `(user_id, feature, created_at desc)` para contar el uso de las ultimas 24 h.
+
+### `user_daily_activity` (V22)
+
+PK `(user_id, activity_date)`: `active_seconds` (0–86400), `sessions`, `last_seen_at`. La suma el servidor con `POST /activity/ping`: el tiempo entre dos pings seguidos de hasta 2 minutos; un hueco mayor cuenta una sesion nueva. `activity_date` es el dia local del telefono. Indice por `activity_date`.
+
+### `admin_audit_log` (V22)
+
+`id`, `admin_user_id`, `target_user_id` (ambos `ON DELETE SET NULL`), `action` (`DISABLE_USER`/`ENABLE_USER`), `reason` (hasta 300), `created_at`. Indice `(target_user_id, created_at desc)`.
 
 ### `ai_recommendations`
 

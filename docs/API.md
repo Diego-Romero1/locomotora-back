@@ -98,6 +98,11 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | `DELETE` | `/ai/conversations/{id}`            | Borra una conversacion propia con sus mensajes (204/404)        |
 | `GET`    | `/ai/conversations/{id}/messages`   | Mensajes de una conversacion                                    |
 | `GET`    | `/ai/recommendations`               | Ultimas 50 recomendaciones                                      |
+| `POST`   | `/activity/ping?tz=`                | La app esta abierta: suma tiempo de uso (204)                   |
+| `GET`    | `/admin/stats?tz=`                  | Admin: cifras de usuarios, uso y entrenamientos                 |
+| `GET`    | `/admin/users?q=&status=&page=&tz=` | Admin: lista de usuarios con su actividad                       |
+| `GET`    | `/admin/users/{id}?tz=`             | Admin: detalle de actividad de un usuario                       |
+| `PATCH`  | `/admin/users/{id}/status`          | Admin: habilita o inhabilita una cuenta                         |
 
 ## Autenticacion
 
@@ -123,6 +128,7 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 - Busca primero la cuenta vinculada (`users.google_subject`). Si no hay, busca por email y la vincula. Si tampoco hay, crea la cuenta sin contrasena, con el nombre y la foto de Google y el perfil vacio (pasa por el onboarding).
 - Errores: `401` token invalido, email sin verificar o cuenta no activa; `409` el email ya esta vinculado a otra cuenta de Google; `503` sin `LOCOMOTORA_GOOGLE_CLIENT_IDS`.
 - Una cuenta creada con Google que intenta `POST /login` recibe `401` "This account signs in with Google".
+- Cuenta inhabilitada por un admin: `POST /login` (con la contrasena correcta) y `POST /auth/google` responden `403` "Account is disabled". Con una contrasena incorrecta sigue siendo `401`, asi no se revela el estado de la cuenta.
 
 Respuesta de los tres:
 
@@ -595,4 +601,68 @@ Si el video reportado ya no es el actual (otro usuario lo reemplazó), devuelve 
 
 `tools/exercise-videos/export_videos.py` (ver su README) genera una migración con los ids encontrados para que otra base arranque con los mismos videos sin gastar su cuota.
 - Errores: 404 si el ejercicio no existe o es propio de otro usuario; 429 si el usuario pasó su límite diario del coach o la IA está saturada; 503 si la IA no responde y todavía no hay consejos guardados.
+
+## Actividad de usuarios (admin)
+
+Panel de Perfil → "Actividad de usuarios". Solo lo ve una cuenta con `users.role = 'ADMIN'`; `GET /me` devuelve `isAdmin`. El rol **se asigna a mano en la base** (ninguna migracion ni variable lo asigna):
+
+```sql
+UPDATE users SET role = 'ADMIN', updated_at = now() WHERE email = '<email>';
+```
+
+### Cuentas inhabilitadas
+
+- El filtro JWT revisa en cada peticion el `status` y el `role` actuales de la cuenta (cache en memoria de 60 s). Un token valido de una cuenta que ya no esta `ACTIVE` recibe `401` "Account is disabled", y la app cierra la sesion.
+- Al cambiar una cuenta desde el panel, el cache se borra en el momento. Un cambio hecho a mano en la base tarda hasta 60 s.
+- `/admin/**` exige el rol `ADMIN` (403 si no) y los servicios lo vuelven a revisar.
+
+### `POST /activity/ping?tz=America/Lima`
+
+La app lo manda al abrirse, cada 60 s mientras esta en pantalla y al pasar a segundo plano. El servidor guarda `users.last_seen_at` y suma a `user_daily_activity` (dia local segun `tz`) el tiempo desde el ping anterior si fue hace 2 minutos o menos; si no, cuenta una sesion nueva sin sumar el hueco. La app no informa duraciones. Tope: 24 h por dia. Responde `204`.
+
+### `GET /admin/stats?tz=`
+
+```json
+{
+  "users": { "total": 12, "active": 11, "disabled": 1, "admins": 1, "new7d": 2, "new30d": 5, "google": 4, "password": 9 },
+  "usage": { "active24h": 3, "active7d": 6, "active30d": 9, "seconds7d": 14400, "seconds30d": 52000, "averageSecondsPerUser30d": 5777 },
+  "training": { "workouts30d": 40, "seconds30d": 150000 },
+  "daily": [{ "date": "2026-11-24", "activeUsers": 3, "seconds": 2400 }]
+}
+```
+
+- `users`: cuentas no borradas. `google`/`password`: forma de entrar (una cuenta puede tener las dos).
+- `usage`: desde que existe el ping (V22). `active*` = usuarios con un ping en las ultimas 24 h, 7 y 30 dias.
+- `training`: entrenamientos terminados (sin registros sueltos) de los ultimos 30 dias; una sesion de mas de 6 h se corta en 6 h.
+- `daily`: los ultimos 14 dias, con los dias sin uso en 0.
+
+### `GET /admin/users?q=&status=ACTIVE|DISABLED&page=0&tz=`
+
+Paginas de 30, primero los que usaron la app mas recientemente. `q` busca en nombre y email.
+
+```json
+{
+  "items": [{
+    "id": "...", "name": "Ana", "email": "ana@example.com", "status": "ACTIVE", "role": "USER",
+    "provider": "GOOGLE", "createdAt": "...", "lastActivityAt": "...", "usageSeconds30d": 3600, "workouts30d": 6
+  }],
+  "page": 0, "pageSize": 30, "total": 12
+}
+```
+
+`provider`: `GOOGLE`, `PASSWORD` o `BOTH`. `lastActivityAt`: el ultimo ping o el ultimo entrenamiento, lo mas reciente.
+
+### `GET /admin/users/{id}?tz=`
+
+La fila de la lista mas `onboardingCompleted`, `routines` (activas), `workoutsTotal`, `trainingSecondsTotal`, `trainingSeconds30d`, `lastWorkoutAt`, `sessions30d`, `aiRequests30d`, `daily` (30 dias: `date`, `seconds`, `sessions`), `history` (ultimos 10 cambios: `action`, `reason`, `adminName`, `createdAt`) y `canChangeStatus`. Solo datos de cuenta y actividad: nada de salud, fotos ni contenido de los entrenamientos.
+
+### `PATCH /admin/users/{id}/status`
+
+```json
+{ "status": "DISABLED", "reason": "Spam" }
+```
+
+- `status`: `ACTIVE` o `DISABLED`; `reason` opcional (hasta 300). Devuelve el detalle actualizado.
+- Queda registrado en `admin_audit_log`. Si el estado ya era ese, no cambia nada.
+- Errores: `400` sobre la propia cuenta; `403` sobre otra cuenta admin; `404` si no existe o esta borrada.
 

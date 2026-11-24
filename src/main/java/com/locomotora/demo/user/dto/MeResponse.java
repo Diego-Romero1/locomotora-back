@@ -11,6 +11,8 @@ public record MeResponse(
         List<GoalResponse> goals,
         PreferenceResponse preferences,
         List<OnboardingResponse.LimitationItem> limitations,
-        List<String> equipment
+        List<String> equipment,
+        // Rol ADMIN: la app muestra "Actividad de usuarios" en Perfil.
+        boolean isAdmin
 ) {
 }

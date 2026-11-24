@@ -45,7 +45,8 @@ public class ProfileService {
                 goalRepository.findByUserId(userId),
                 findPreference(userId),
                 profileRepository.findLimitations(userId),
-                profileRepository.findEquipment(userId)
+                profileRepository.findEquipment(userId),
+                CurrentUser.isAdmin()
         );
     }
 

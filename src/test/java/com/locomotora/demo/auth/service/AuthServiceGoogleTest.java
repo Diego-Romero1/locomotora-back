@@ -138,7 +138,8 @@ class AuthServiceGoogleTest {
         when(repository.findAccountByGoogleSubject("google-123")).thenReturn(Optional.of(account("DISABLED", "google-123")));
 
         assertThatThrownBy(() -> service.loginWithGoogle(REQUEST))
-                .satisfies(error -> assertThat(statusOf(error)).isEqualTo(HttpStatus.UNAUTHORIZED));
+                .hasMessage(AuthService.ACCOUNT_DISABLED)
+                .satisfies(error -> assertThat(statusOf(error)).isEqualTo(HttpStatus.FORBIDDEN));
     }
 
     @Test
@@ -152,12 +153,35 @@ class AuthServiceGoogleTest {
 
     @Test
     void aGoogleOnlyAccountCannotSignInWithAPassword() {
-        when(repository.findActiveLoginByEmail("diego@example.com"))
-                .thenReturn(Optional.of(new LoginRow(USER_ID, "diego@example.com", "Diego", null)));
+        when(repository.findLoginByEmail("diego@example.com"))
+                .thenReturn(Optional.of(new LoginRow(USER_ID, "diego@example.com", "Diego", null, "ACTIVE")));
 
         assertThatThrownBy(() -> service.login(new LoginRequest("diego@example.com", "whatever1")))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("Google");
         verify(passwordEncoder, never()).matches(any(), any());
+    }
+
+    @Test
+    void aDisabledAccountWithTheRightPasswordIsToldItIsDisabled() {
+        when(repository.findLoginByEmail("diego@example.com"))
+                .thenReturn(Optional.of(new LoginRow(USER_ID, "diego@example.com", "Diego", "hash", "DISABLED")));
+        when(passwordEncoder.matches("secret123", "hash")).thenReturn(true);
+
+        assertThatThrownBy(() -> service.login(new LoginRequest("diego@example.com", "secret123")))
+                .hasMessage(AuthService.ACCOUNT_DISABLED)
+                .satisfies(error -> assertThat(statusOf(error)).isEqualTo(HttpStatus.FORBIDDEN));
+        verify(jwtService, never()).createToken(any(), anyString());
+    }
+
+    @Test
+    void aDisabledAccountWithAWrongPasswordDoesNotRevealItsState() {
+        when(repository.findLoginByEmail("diego@example.com"))
+                .thenReturn(Optional.of(new LoginRow(USER_ID, "diego@example.com", "Diego", "hash", "DISABLED")));
+        when(passwordEncoder.matches("wrong1234", "hash")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.login(new LoginRequest("diego@example.com", "wrong1234")))
+                .hasMessage("Invalid email or password")
+                .satisfies(error -> assertThat(statusOf(error)).isEqualTo(HttpStatus.UNAUTHORIZED));
     }
 }

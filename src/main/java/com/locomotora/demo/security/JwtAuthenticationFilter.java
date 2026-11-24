@@ -1,6 +1,7 @@
 package com.locomotora.demo.security;
 
 import com.locomotora.demo.common.ApiException;
+import com.locomotora.demo.security.AccountStatusService.AccountState;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,17 +10,23 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    private final JwtService jwtService;
+    static final String DISABLED_MESSAGE = "Account is disabled";
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    private final JwtService jwtService;
+    private final AccountStatusService accountStatusService;
+
+    public JwtAuthenticationFilter(JwtService jwtService, AccountStatusService accountStatusService) {
         this.jwtService = jwtService;
+        this.accountStatusService = accountStatusService;
     }
 
     @Override
@@ -29,9 +36,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             try {
                 UUID userId = jwtService.validateAndGetUserId(header.substring(7));
-                SecurityContextHolder.getContext().setAuthentication(
-                        new UsernamePasswordAuthenticationToken(userId.toString(), null, List.of())
-                );
+                // El token sigue siendo valido aunque la cuenta se haya inhabilitado: se revisa el estado actual.
+                // 401 hace que la app cierre la sesion.
+                AccountState account = accountStatusService.find(userId)
+                        .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Invalid or expired token"));
+                if (!account.isActive()) {
+                    throw new ApiException(HttpStatus.UNAUTHORIZED, DISABLED_MESSAGE);
+                }
+                SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                        userId.toString(),
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_" + account.role()))
+                ));
             } catch (ApiException exception) {
                 SecurityContextHolder.clearContext();
                 response.setStatus(exception.status().value());

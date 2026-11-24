@@ -81,9 +81,10 @@ public class AuthRepository {
         ) == 1;
     }
 
-    public Optional<LoginRow> findActiveLoginByEmail(String email) {
+    /** Cuenta para el login con contrasena (ACTIVE o DISABLED; las borradas no existen para el login). */
+    public Optional<LoginRow> findLoginByEmail(String email) {
         return jdbcTemplate.query(
-                "SELECT id, email, name, password_hash FROM users WHERE email = ? AND status = 'ACTIVE'",
+                "SELECT id, email, name, password_hash, status FROM users WHERE email = ? AND status <> 'DELETED'",
                 this::mapLogin,
                 email.trim().toLowerCase()
         ).stream().findFirst();
@@ -108,7 +109,8 @@ public class AuthRepository {
                 rs.getObject("id", UUID.class),
                 rs.getString("email"),
                 rs.getString("name"),
-                rs.getString("password_hash")
+                rs.getString("password_hash"),
+                rs.getString("status")
         );
     }
 
@@ -126,6 +128,9 @@ public class AuthRepository {
     }
 
     /** {@code passwordHash} es null en las cuentas creadas con Google. */
-    public record LoginRow(UUID id, String email, String name, String passwordHash) {
+    public record LoginRow(UUID id, String email, String name, String passwordHash, String status) {
+        public boolean isActive() {
+            return "ACTIVE".equals(status);
+        }
     }
 }

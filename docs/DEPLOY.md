@@ -61,3 +61,13 @@ Compila la app con `EXPO_PUBLIC_API_URL=https://<servicio>.onrender.com`. Mientr
 4. Hay que **compilar un APK nuevo** (`npm run build:apk`): el login con Google usa un módulo nativo. La versión de la app pasó a 1.1.0, así que las actualizaciones OTA de ahora en adelante solo llegan a ese APK nuevo; el APK 1.0.0 deja de recibirlas.
 
 El botón no aparece en web ni en Expo Go (no tienen el módulo nativo). Para probarlo en desarrollo hace falta un development build (`expo-dev-client`) o el APK.
+
+## Usuario admin
+El panel "Actividad de usuarios" (Perfil) aparece solo para una cuenta con rol `ADMIN`. No hay variable ni migración que lo asigne: después de desplegar la V22, en el SQL Editor de Neon:
+
+```sql
+UPDATE users SET role = 'ADMIN', updated_at = now() WHERE email = '<tu email>';
+```
+
+Se aplica en menos de un minuto (o al reiniciar el servicio). La sección aparece al volver a abrir Perfil. Para quitar el rol, `role = 'USER'`.
+

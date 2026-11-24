@@ -36,6 +36,8 @@ public class SecurityConfig {
                         .requestMatchers("/login", "/auth/register", "/auth/google", "/actuator/health").permitAll()
                         // Ilustraciones del catalogo (archivos estaticos, sin datos de usuarios).
                         .requestMatchers("/exercise-media/**").permitAll()
+                        // Panel de admin: rol ADMIN en la base (los servicios lo vuelven a revisar).
+                        .requestMatchers("/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

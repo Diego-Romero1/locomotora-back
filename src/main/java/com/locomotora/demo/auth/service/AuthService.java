@@ -21,6 +21,9 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class AuthService {
+    /** La app lo reconoce y muestra "Tu cuenta esta deshabilitada". */
+    public static final String ACCOUNT_DISABLED = "Account is disabled";
+
     private final AuthRepository authRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -49,13 +52,17 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
-        LoginRow row = authRepository.findActiveLoginByEmail(request.email())
+        LoginRow row = authRepository.findLoginByEmail(request.email())
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
         if (row.passwordHash() == null) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "This account signs in with Google");
         }
         if (!passwordEncoder.matches(request.password(), row.passwordHash())) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
+        }
+        // Solo despues de comprobar la contrasena: no revela si un email existe.
+        if (!row.isActive()) {
+            throw new ApiException(HttpStatus.FORBIDDEN, ACCOUNT_DISABLED);
         }
         return toResponse(new UserRow(row.id(), row.email(), row.name()));
     }
@@ -103,6 +110,9 @@ public class AuthService {
     }
 
     private AccountRow requireActive(AccountRow account) {
+        if ("DISABLED".equals(account.status())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, ACCOUNT_DISABLED);
+        }
         if (!account.isActive()) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Account is not active");
         }
