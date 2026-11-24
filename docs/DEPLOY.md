@@ -37,6 +37,7 @@ Variables de entorno:
 | `LOCOMOTORA_JWT_SECRET` | aleatorio y largo (`openssl rand -base64 48`) |
 | `GROQ_API_KEY` | tu clave de GroqCloud |
 | `YOUTUBE_API_KEY` | tu clave de YouTube Data API |
+| `LOCOMOTORA_GOOGLE_CLIENT_IDS` | el Web client ID de Google Cloud (login con Google; sin el, `POST /auth/google` responde 503) |
 
 No definas `SERVER_PORT`. Render pasa el puerto en `PORT`, y `application.properties` lo usa.
 
@@ -49,3 +50,14 @@ Compila la app con `EXPO_PUBLIC_API_URL=https://<servicio>.onrender.com`. Mientr
 - **Primera petición lenta:** tras 15 min sin uso, la primera petición espera a que Spring Boot arranque. Con 0,1 CPU y 512 MB (prueba local con `docker run --cpus=0.1 --memory=512m`) tardó unos 4 minutos y usó ~240 MB.
 - **Tareas programadas:** el job que llena los videos (`CatalogVideoJob`) solo corre mientras el servicio está despierto.
 - **Disco efímero:** Render borra los archivos locales en cada reinicio. Todo el estado vive en Postgres.
+
+## Login con Google
+1. En Google Cloud Console, en el mismo proyecto:
+   - **Pantalla de consentimiento OAuth** (Google Auth Platform → Branding/Audience): tipo *External*, nombre de la app, email de soporte, permisos `openid`, `email` y `profile`. Pásala a **In production**; en *Testing* solo entran los usuarios de prueba (máximo 100). Con solo esos permisos no hace falta la verificación de Google; si subes un logo, Google pide verificar la marca (página de inicio y política de privacidad).
+   - **Cliente OAuth tipo "Web application"**: su client ID es el *Web client ID*.
+   - **Cliente OAuth tipo "Android"**: package `com.locomotora.entrenamiento` y el SHA-1 del keystore con el que EAS firma el APK (`npx eas-cli credentials` → Android → preview). Si después se publica en Play Store, otro cliente Android con el SHA-1 de *App signing* de Play Console. Si el SHA-1 no coincide, Google responde `DEVELOPER_ERROR`.
+2. Backend (Render): `LOCOMOTORA_GOOGLE_CLIENT_IDS` = el Web client ID.
+3. App: el Web client ID en `app.json` → `expo.extra.googleWebClientId` (no es secreto). Vacío = el botón no aparece.
+4. Hay que **compilar un APK nuevo** (`npm run build:apk`): el login con Google usa un módulo nativo. La versión de la app pasó a 1.1.0, así que las actualizaciones OTA de ahora en adelante solo llegan a ese APK nuevo; el APK 1.0.0 deja de recibirlas.
+
+El botón no aparece en web ni en Expo Go (no tienen el módulo nativo). Para probarlo en desarrollo hace falta un development build (`expo-dev-client`) o el APK.

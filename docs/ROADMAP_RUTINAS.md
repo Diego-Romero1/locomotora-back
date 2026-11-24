@@ -46,7 +46,7 @@ Pedido: al crear una rutina a mano, salir (atrás, gesto, botón del sistema) pr
 
 Backend:
 
-- V20 `routine_drafts`: id generado en el teléfono, `kind` NEW/EDIT, `routine_id` (EDIT, `ON DELETE CASCADE`), resumen (título, paso, días, ejercicios), `payload` jsonb con el borrador de la app tal cual y `client_updated_at`. Los videos del catálogo pasan a exportarse como V21 y V22.
+- V20 `routine_drafts`: id generado en el teléfono, `kind` NEW/EDIT, `routine_id` (EDIT, `ON DELETE CASCADE`), resumen (título, paso, días, ejercicios), `payload` jsonb con el borrador de la app tal cual y `client_updated_at`. Los videos del catálogo pasan a exportarse como V22 y V23 (V21 quedó para el login con Google).
 - `GET /routine-drafts` (el más nuevo primero; no lista los de editar una rutina inactiva), `PUT /routine-drafts/{id}` (crea o actualiza solo si lo que llega es igual o más nuevo y del mismo usuario; devuelve lo guardado) y `DELETE /routine-drafts/{id}`. Validaciones: `kind`, rutina activa del usuario al editar, payload objeto de hasta 256 KB, hasta 30 borradores.
 - Tests: `RoutineDraftServiceTest` (validaciones) y `RoutineDraftRepositoryTest` (Postgres real: gana el más nuevo, no se pisa entre usuarios, listado). 213 tests en total.
 
@@ -240,7 +240,7 @@ Plan aprobado ("Videos del catálogo"): buscar por adelantado un video por ejerc
 - Tests: reglas, juez ordenado, llenado (cuota, tope de tokens, espera por límite de Groq), refresco, reemplazo y exportación probada; backend 197, frontend 208. Probado en la web con un video roto a propósito: aparece el botón y pasa a la alternativa.
 - En marcha desde el 19 nov con la clave del usuario: el primer arranque llenó 4 habituales con videos correctos y se frenó por el límite por minuto de Groq; ahora espera 20 s entre ejercicios y un minuto si Groq lo pide.
 
-Pendiente: exportar V21 cuando estén los 153 habituales (≈ día 2) y V22 con el resto (≈ día 13; V20 quedó para los borradores de rutinas); probar el reproductor en un teléfono.
+Pendiente: exportar V22 cuando estén los 153 habituales (≈ día 2) y V23 con el resto (≈ día 13; V20 quedó para los borradores de rutinas y V21 para el login con Google); probar el reproductor en un teléfono.
 
 ### Avance de R3 (2026-11-17, rama `main`)
 

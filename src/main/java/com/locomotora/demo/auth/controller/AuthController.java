@@ -1,6 +1,7 @@
 package com.locomotora.demo.auth.controller;
 
 import com.locomotora.demo.auth.dto.AuthResponse;
+import com.locomotora.demo.auth.dto.GoogleLoginRequest;
 import com.locomotora.demo.auth.dto.LoginRequest;
 import com.locomotora.demo.auth.dto.RegisterRequest;
 import com.locomotora.demo.auth.service.AuthService;
@@ -25,5 +26,10 @@ public class AuthController {
     @PostMapping("/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/auth/google")
+    public AuthResponse loginWithGoogle(@Valid @RequestBody GoogleLoginRequest request) {
+        return authService.loginWithGoogle(request);
     }
 }

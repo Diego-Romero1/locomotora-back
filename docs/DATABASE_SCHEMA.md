@@ -33,7 +33,8 @@ Campos principales:
 
 - `id`
 - `email`
-- `password_hash`
+- `password_hash` (NULL en las cuentas creadas con Google, desde V21)
+- `google_subject` (unico; el `sub` de la cuenta de Google vinculada, desde V21)
 - `name`
 - `role`
 - `status`
@@ -203,6 +204,7 @@ Campos principales:
 | V10     | `V10__own_exercises_and_objectives.sql`  | `exercises.created_by_user_id` (NULL = global). El nombre pasa a ser unico entre los globales y, por separado, dentro de los propios de cada usuario. Objetivo `HYPERTROPHY` → `BUILD_MUSCLE` en las rutinas. |
 | V11     | `V11__deferrable_exercise_references.sql` | Las FK `routine_exercises.exercise_id` y `workout_exercise_logs.exercise_id` pasan a `DEFERRABLE INITIALLY DEFERRED`, para que borrar un usuario (con sus ejercicios propios en cascada) no falle por el orden de la cascada. |
 | V12     | `V12__ai_settings_and_usage.sql`         | `user_ai_settings` (modelo de IA elegido para el coach y para rutinas; desde el 2026-11-15 solo se permite Qwen y las elecciones viejas vuelven al de por defecto) y `ai_usage` (una fila por llamada al modelo, con tokens; limites diarios y costo). |
+| V21     | `V21__google_sign_in.sql`                | Login con Google: `users.password_hash` pasa a aceptar NULL y se agrega `users.google_subject` (unico). |
 
 ### Tablas agregadas en V2 y V3
 

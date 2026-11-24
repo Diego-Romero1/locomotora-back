@@ -17,6 +17,8 @@ services:
       # Agente IA (GroqCloud). La clave se toma del entorno del host o de un archivo .env junto a este archivo.
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       YOUTUBE_API_KEY: ${YOUTUBE_API_KEY:-}
+      # Login con Google: Web client ID de Google Cloud (ver docs/DEPLOY.md).
+      LOCOMOTORA_GOOGLE_CLIENT_IDS: ${LOCOMOTORA_GOOGLE_CLIENT_IDS:-}
       LOCOMOTORA_AI_DAILY_TOKEN_BUDGET: ${LOCOMOTORA_AI_DAILY_TOKEN_BUDGET:-150000}
       LOCOMOTORA_CORS_ALLOWED_ORIGIN_PATTERNS: http://localhost:*,http://127.0.0.1:*,http://192.168.*:*,http://10.*:*,https://*.ngrok-free.app
     ports:

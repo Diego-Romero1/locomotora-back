@@ -33,7 +33,7 @@ public class SecurityConfig {
                 .cors(cors -> {})
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/login", "/auth/register", "/actuator/health").permitAll()
+                        .requestMatchers("/login", "/auth/register", "/auth/google", "/actuator/health").permitAll()
                         // Ilustraciones del catalogo (archivos estaticos, sin datos de usuarios).
                         .requestMatchers("/exercise-media/**").permitAll()
                         .anyRequest().authenticated()

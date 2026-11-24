@@ -31,7 +31,7 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 ## Convenciones
 
 - Endpoints privados: `Authorization: Bearer <token>`.
-- Publicos: `POST /login`, `POST /auth/register`, `GET /actuator/health`.
+- Publicos: `POST /login`, `POST /auth/register`, `POST /auth/google`, `GET /actuator/health`.
 - Errores: `{ "timestamp": "...", "status": 400, "message": "..." }`.
 - IDs: UUID en formato string.
 - Fechas: ISO-8601 (`2026-10-09T18:02:00Z`).
@@ -42,6 +42,7 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 | -------- | ----------------------------------- | --------------------------------------------------------------- |
 | `POST`   | `/auth/register`                    | Crea usuario + perfil vacio y devuelve token                    |
 | `POST`   | `/login`                            | Login                                                           |
+| `POST`   | `/auth/google`                      | Entra o crea la cuenta con un ID token de Google                |
 | `GET`    | `/me`                               | Usuario + perfil                                                |
 | `GET`    | `/profile`                          | Perfil fisico                                                   |
 | `PUT`    | `/profile`                          | Actualiza perfil                                                |
@@ -112,7 +113,18 @@ Tambien se aceptan URLs de ngrok (`https://*.ngrok-free.app`).
 { "email": "diego@example.com", "password": "password123" }
 ```
 
-Respuesta de ambos:
+### `POST /auth/google`
+
+```json
+{ "idToken": "<ID token que la app obtiene de Google Sign-In>" }
+```
+
+- Se verifica la firma con las claves publicas de Google, el emisor (`accounts.google.com`), el vencimiento, la audiencia (uno de `LOCOMOTORA_GOOGLE_CLIENT_IDS`) y `email_verified = true`.
+- Busca primero la cuenta vinculada (`users.google_subject`). Si no hay, busca por email y la vincula. Si tampoco hay, crea la cuenta sin contrasena, con el nombre y la foto de Google y el perfil vacio (pasa por el onboarding).
+- Errores: `401` token invalido, email sin verificar o cuenta no activa; `409` el email ya esta vinculado a otra cuenta de Google; `503` sin `LOCOMOTORA_GOOGLE_CLIENT_IDS`.
+- Una cuenta creada con Google que intenta `POST /login` recibe `401` "This account signs in with Google".
+
+Respuesta de los tres:
 
 ```json
 { "token": "...", "user": { "id": "...", "name": "Diego", "email": "diego@example.com" } }
