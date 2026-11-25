@@ -2,6 +2,7 @@ package com.locomotora.demo.routine.service;
 
 import com.locomotora.demo.common.ApiException;
 import com.locomotora.demo.common.CurrentUser;
+import com.locomotora.demo.progress.energy.WorkoutEnergyService;
 import com.locomotora.demo.routine.dto.WorkoutSessionExerciseRequest;
 import com.locomotora.demo.routine.dto.WorkoutSessionRequest;
 import com.locomotora.demo.routine.dto.WorkoutSessionResponse;
@@ -43,9 +44,11 @@ public class WorkoutSessionService {
     private static final Duration MAX_SESSION_LENGTH = Duration.ofHours(12);
 
     private final WorkoutSessionWriteRepository repository;
+    private final WorkoutEnergyService energyService;
 
-    public WorkoutSessionService(WorkoutSessionWriteRepository repository) {
+    public WorkoutSessionService(WorkoutSessionWriteRepository repository, WorkoutEnergyService energyService) {
         this.repository = repository;
+        this.energyService = energyService;
     }
 
     public record Result(WorkoutSessionResponse session, boolean created) {
@@ -77,7 +80,7 @@ public class WorkoutSessionService {
         }
 
         validateExercisesExist(userId, request.exercises());
-        List<SetLog> sets = buildSetLogs(request.exercises(), planned);
+        List<SetLog> sets = buildSetLogs(request.exercises(), planned, startedAt, completedAt);
         if (sets.stream().noneMatch(SetLog::completed)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "The session has no completed sets");
         }
@@ -93,7 +96,8 @@ public class WorkoutSessionService {
                 Timestamp.from(startedAt),
                 Timestamp.from(completedAt),
                 request.perceivedExertion(),
-                blankToNull(request.notes())
+                blankToNull(request.notes()),
+                request.plannedSets()
         );
 
         Optional<UUID> inserted = repository.insertSession(session);
@@ -105,6 +109,7 @@ public class WorkoutSessionService {
         }
 
         repository.insertSetLogs(inserted.get(), sets);
+        energyService.recalculate(inserted.get());
         return new Result(summary(inserted.get(), userId), true);
     }
 
@@ -126,7 +131,9 @@ public class WorkoutSessionService {
         }
     }
 
-    private List<SetLog> buildSetLogs(List<WorkoutSessionExerciseRequest> exercises, Map<UUID, PlannedExercise> planned) {
+    private List<SetLog> buildSetLogs(
+            List<WorkoutSessionExerciseRequest> exercises, Map<UUID, PlannedExercise> planned, Instant startedAt,
+            Instant completedAt) {
         List<SetLog> sets = new ArrayList<>();
         for (int index = 0; index < exercises.size(); index++) {
             WorkoutSessionExerciseRequest exercise = exercises.get(index);
@@ -159,11 +166,30 @@ public class WorkoutSessionService {
                         plan == null ? null : plan.targetRepsMin(),
                         plan == null ? null : plan.targetRepsMax(),
                         plan == null ? null : plan.targetWeightKg(),
-                        plan == null ? null : plan.restSeconds()
+                        plan == null ? null : plan.restSeconds(),
+                        setTime(set.completedAt(), startedAt, completedAt)
                 ));
             }
         }
         return sets;
+    }
+
+    /**
+     * Hora de la serie si es creible: entre 12 h antes del inicio (el inicio se corre por las pausas) y el fin con
+     * margen. Si no, se guarda sin hora y el calculo de kcal reparte los descansos.
+     */
+    static Instant setTime(String value, Instant startedAt, Instant completedAt) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            Instant at = Instant.parse(value);
+            boolean plausible = !at.isBefore(startedAt.minus(MAX_SESSION_LENGTH))
+                    && !at.isAfter(completedAt.plus(FUTURE_TOLERANCE));
+            return plausible ? at : null;
+        } catch (DateTimeParseException exception) {
+            return null;
+        }
     }
 
     private void validateTimes(Instant startedAt, Instant completedAt) {

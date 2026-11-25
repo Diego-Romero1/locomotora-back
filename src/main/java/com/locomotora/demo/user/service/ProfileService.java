@@ -1,6 +1,7 @@
 package com.locomotora.demo.user.service;
 
 import com.locomotora.demo.common.CurrentUser;
+import com.locomotora.demo.progress.energy.WorkoutEnergyService;
 import com.locomotora.demo.routine.service.Objectives;
 import com.locomotora.demo.user.dto.MeResponse;
 import com.locomotora.demo.user.dto.OnboardingRequest;
@@ -26,10 +27,13 @@ import org.springframework.util.StringUtils;
 public class ProfileService {
     private final ProfileRepository profileRepository;
     private final GoalRepository goalRepository;
+    private final WorkoutEnergyService energyService;
 
-    public ProfileService(ProfileRepository profileRepository, GoalRepository goalRepository) {
+    public ProfileService(
+            ProfileRepository profileRepository, GoalRepository goalRepository, WorkoutEnergyService energyService) {
         this.profileRepository = profileRepository;
         this.goalRepository = goalRepository;
+        this.energyService = energyService;
     }
 
     public MeResponse me() {
@@ -136,6 +140,11 @@ public class ProfileService {
         if (request.weightKg() != null) {
             profileRepository.insertWeightIfChanged(userId, request.weightKg());
         }
+        if (request.weightKg() != null || request.heightCm() != null || request.birthDate() != null
+                || request.sex() != null) {
+            // Las sesiones calculadas sin peso o sin perfil completo se recalculan con los datos nuevos.
+            energyService.refreshIncomplete(userId);
+        }
         if (request.goalType() != null) {
             replaceGoalsForOnboarding(userId, Objectives.canonicalOrRaw(request.goalType()));
         }
@@ -191,6 +200,7 @@ public class ProfileService {
                 OnboardingRules.normalizedCodes(request.healthFlags())
         ));
         profileRepository.insertInitialWeight(userId, request.weightKg());
+        energyService.refreshIncomplete(userId);
         replaceGoalsForOnboarding(userId, Objectives.canonicalOrRaw(request.goalType()));
         replacePreference(userId, OnboardingRules.upper(normalizeValue(request.preferredTrainingStyle())));
         replaceEquipment(userId, OnboardingRules.normalizedCodes(request.equipment()));

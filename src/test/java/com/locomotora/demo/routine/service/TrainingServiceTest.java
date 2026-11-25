@@ -152,7 +152,8 @@ class TrainingServiceTest {
         when(statsRepository.countMonthWorkouts(eq(userId), any(), any()))
                 .thenReturn(new TrainingStatsRepository.MonthCounts(5, 8));
         when(historyRepository.findWeeklyTotals(eq(userId), anyString(), any())).thenReturn(List.of(
-                new WorkoutHistoryRepository.WeekRow(LocalDate.of(2026, 11, 9), 1, 1, 12, new BigDecimal("4200"))));
+                new WorkoutHistoryRepository.WeekRow(LocalDate.of(2026, 11, 9), 1, 1, 12, new BigDecimal("4200"),
+                        new BigDecimal("250"), 3000)));
         TodayResponse.LastRecord record = new TodayResponse.LastRecord("e1", "Sentadilla", new BigDecimal("85"), 8, "2026-11-09T19:00:00Z");
         when(statsRepository.findLastRecord(userId)).thenReturn(Optional.of(record));
 
@@ -165,6 +166,8 @@ class TrainingServiceTest {
         assertEquals(8, progress.weeklyVolumeKg().size());
         assertEquals(new BigDecimal("4200"), progress.weeklyVolumeKg().get(7));
         assertEquals(BigDecimal.ZERO, progress.weeklyVolumeKg().get(0));
+        assertEquals(new BigDecimal("250"), progress.weeklyEnergyKcal().get(7));
+        assertEquals(BigDecimal.ZERO, progress.weeklyEnergyKcal().get(0));
         assertEquals(record, progress.lastRecord());
     }
 

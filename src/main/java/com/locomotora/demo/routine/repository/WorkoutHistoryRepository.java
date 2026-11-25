@@ -1,6 +1,8 @@
 package com.locomotora.demo.routine.repository;
 
 import com.locomotora.demo.routine.dto.HistoryDtos.ExercisePoint;
+import com.locomotora.demo.routine.dto.HistoryDtos.MuscleEffort;
+import com.locomotora.demo.routine.dto.HistoryDtos.SessionEnergy;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionListItem;
 import com.locomotora.demo.routine.dto.HistoryDtos.TrainedExercise;
 import java.math.BigDecimal;
@@ -22,15 +24,17 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class WorkoutHistoryRepository {
     /** Fuerza estimada de una serie (Epley; con 1 rep, el peso). Igual que en la app. */
-    static final String E1RM = "(CASE WHEN wel.reps = 1 THEN wel.weight_kg ELSE wel.weight_kg * (1 + wel.reps / 30.0) END)";
+    public static final String E1RM = "(CASE WHEN wel.reps = 1 THEN wel.weight_kg ELSE wel.weight_kg * (1 + wel.reps / 30.0) END)";
     /** Series que cuentan para records y fuerza estimada. */
-    static final String MEASURABLE = "wel.completed AND wel.weight_kg > 0 AND wel.reps > 0";
+    public static final String MEASURABLE = "wel.completed AND wel.weight_kg > 0 AND wel.reps > 0";
 
     private static final String SESSION_COLUMNS = """
             ws.id, ws.kind, ws.routine_id,
             COALESCE(ws.routine_title, r.title) AS routine_title,
             COALESCE(ws.day_title, rd.title) AS day_title,
             ws.started_at, ws.completed_at, ws.perceived_exertion, ws.notes,
+            ws.planned_sets, ws.energy_kcal, ws.energy_work_kcal, ws.body_weight_kg, ws.body_weight_estimated,
+            ws.energy_personalized, ws.energy_model_version,
             (SELECT count(*) FROM workout_exercise_logs wel
               WHERE wel.workout_session_id = ws.id AND wel.completed) AS completed_sets,
             (SELECT count(DISTINCT (wel.exercise_id, COALESCE(wel.exercise_position, 0))) FROM workout_exercise_logs wel
@@ -45,7 +49,7 @@ public class WorkoutHistoryRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public record SessionRow(SessionListItem item, String notes, Instant completedAt) {
+    public record SessionRow(SessionListItem item, String notes, Instant completedAt, SessionEnergy energy) {
     }
 
     /** Pagina de sesiones (sin registros sueltos), de la mas nueva a la mas vieja. */
@@ -141,7 +145,8 @@ public class WorkoutHistoryRepository {
             Integer targetRepsMin,
             Integer targetRepsMax,
             BigDecimal targetWeightKg,
-            Integer restSeconds
+            Integer restSeconds,
+            BigDecimal energyKcal
     ) {
     }
 
@@ -150,7 +155,8 @@ public class WorkoutHistoryRepository {
                 """
                 SELECT wel.id, wel.exercise_id, e.name, e.primary_muscle_group, wel.routine_exercise_id,
                        wel.exercise_position, wel.set_number, wel.reps, wel.weight_kg, wel.completed, wel.notes,
-                       wel.target_reps_min, wel.target_reps_max, wel.target_weight_kg, wel.rest_seconds
+                       wel.target_reps_min, wel.target_reps_max, wel.target_weight_kg, wel.rest_seconds,
+                       wel.energy_kcal
                 FROM workout_exercise_logs wel
                 JOIN exercises e ON e.id = wel.exercise_id
                 WHERE wel.workout_session_id = ?
@@ -171,7 +177,8 @@ public class WorkoutHistoryRepository {
                         (Integer) rs.getObject("target_reps_min"),
                         (Integer) rs.getObject("target_reps_max"),
                         rs.getBigDecimal("target_weight_kg"),
-                        (Integer) rs.getObject("rest_seconds")
+                        (Integer) rs.getObject("rest_seconds"),
+                        rs.getBigDecimal("energy_kcal")
                 ),
                 sessionId
         );
@@ -299,7 +306,8 @@ public class WorkoutHistoryRepository {
                            wel.weight_kg AS best_weight, wel.reps AS best_reps,
                            CASE WHEN %2$s THEN %1$s END AS e1rm,
                            sum(wel.reps * wel.weight_kg) FILTER (WHERE wel.completed) OVER (PARTITION BY ws.id) AS volume,
-                           count(*) FILTER (WHERE wel.completed) OVER (PARTITION BY ws.id) AS set_count
+                           count(*) FILTER (WHERE wel.completed) OVER (PARTITION BY ws.id) AS set_count,
+                           sum(wel.energy_kcal) FILTER (WHERE wel.completed) OVER (PARTITION BY ws.id) AS energy
                     FROM workout_exercise_logs wel
                     JOIN workout_sessions ws ON ws.id = wel.workout_session_id
                     WHERE ws.user_id = ? AND ws.status = 'COMPLETED' AND wel.exercise_id = ? AND wel.completed
@@ -318,7 +326,8 @@ public class WorkoutHistoryRepository {
                             (Integer) rs.getObject("best_reps"),
                             e1rm == null ? null : e1rm.setScale(1, java.math.RoundingMode.HALF_UP),
                             volume == null ? BigDecimal.ZERO : volume,
-                            rs.getInt("set_count")
+                            rs.getInt("set_count"),
+                            rs.getBigDecimal("energy")
                     );
                 },
                 userId,
@@ -383,7 +392,15 @@ public class WorkoutHistoryRepository {
         );
     }
 
-    public record WeekRow(LocalDate weekStart, int sessions, int trainedDays, int completedSets, BigDecimal volume) {
+    public record WeekRow(
+            LocalDate weekStart,
+            int sessions,
+            int trainedDays,
+            int completedSets,
+            BigDecimal volume,
+            BigDecimal energy,
+            long activeSeconds
+    ) {
     }
 
     /** Totales por semana (lunes a domingo en {@code zoneId}) desde {@code since}, sin registros sueltos. */
@@ -391,12 +408,20 @@ public class WorkoutHistoryRepository {
         return jdbcTemplate.query(
                 """
                 SELECT date_trunc('week', ws.completed_at AT TIME ZONE ?)::date AS week_start,
-                       count(DISTINCT ws.id) AS sessions,
+                       count(*) AS sessions,
                        count(DISTINCT (ws.completed_at AT TIME ZONE ?)::date) AS trained_days,
-                       count(wel.id) FILTER (WHERE wel.completed) AS completed_sets,
-                       COALESCE(sum(wel.reps * wel.weight_kg) FILTER (WHERE wel.completed), 0) AS volume
+                       COALESCE(sum(l.completed_sets), 0) AS completed_sets,
+                       COALESCE(sum(l.volume), 0) AS volume,
+                       COALESCE(sum(l.energy), 0) AS energy,
+                       COALESCE(sum(GREATEST(0, extract(epoch FROM ws.completed_at - ws.started_at))), 0)::bigint
+                           AS active_seconds
                 FROM workout_sessions ws
-                LEFT JOIN workout_exercise_logs wel ON wel.workout_session_id = ws.id
+                LEFT JOIN LATERAL (
+                    SELECT count(*) AS completed_sets, sum(wel.reps * wel.weight_kg) AS volume,
+                           sum(wel.energy_kcal) AS energy
+                    FROM workout_exercise_logs wel
+                    WHERE wel.workout_session_id = ws.id AND wel.completed
+                ) l ON true
                 WHERE ws.user_id = ? AND ws.status = 'COMPLETED' AND ws.kind <> 'QUICK_LOG' AND ws.completed_at >= ?
                 GROUP BY 1
                 ORDER BY 1
@@ -406,10 +431,37 @@ public class WorkoutHistoryRepository {
                         rs.getInt("sessions"),
                         rs.getInt("trained_days"),
                         rs.getInt("completed_sets"),
-                        rs.getBigDecimal("volume")
+                        rs.getBigDecimal("volume"),
+                        rs.getBigDecimal("energy"),
+                        rs.getLong("active_seconds")
                 ),
                 PostgresZones.resolve(jdbcTemplate, zoneId),
                 PostgresZones.resolve(jdbcTemplate, zoneId),
+                userId,
+                Timestamp.from(since)
+        );
+    }
+
+    /** Kcal y series por grupo muscular principal desde {@code since}, de mayor a menor gasto. */
+    public List<MuscleEffort> findMuscleEffort(UUID userId, Instant since) {
+        return jdbcTemplate.query(
+                """
+                SELECT COALESCE(NULLIF(e.primary_muscle_group, ''), 'Otros') AS muscle_group,
+                       COALESCE(sum(wel.energy_kcal), 0) AS energy,
+                       count(*) AS completed_sets
+                FROM workout_exercise_logs wel
+                JOIN workout_sessions ws ON ws.id = wel.workout_session_id
+                JOIN exercises e ON e.id = wel.exercise_id
+                WHERE ws.user_id = ? AND ws.status = 'COMPLETED' AND ws.kind <> 'QUICK_LOG' AND wel.completed
+                  AND ws.completed_at >= ?
+                GROUP BY 1
+                ORDER BY energy DESC, completed_sets DESC, muscle_group
+                """,
+                (rs, rowNum) -> new MuscleEffort(
+                        rs.getString("muscle_group"),
+                        rs.getBigDecimal("energy"),
+                        rs.getInt("completed_sets")
+                ),
                 userId,
                 Timestamp.from(since)
         );
@@ -435,8 +487,18 @@ public class WorkoutHistoryRepository {
                 rs.getInt("exercise_count"),
                 rs.getBigDecimal("volume"),
                 (Integer) rs.getObject("perceived_exertion"),
-                recordCount
+                recordCount,
+                (Integer) rs.getObject("planned_sets"),
+                rs.getBigDecimal("energy_kcal")
         );
-        return new SessionRow(item, rs.getString("notes"), completedAt == null ? null : completedAt.toInstant());
+        Integer modelVersion = (Integer) rs.getObject("energy_model_version");
+        SessionEnergy energy = modelVersion == null || rs.getBigDecimal("energy_kcal") == null ? null : new SessionEnergy(
+                rs.getBigDecimal("energy_kcal"),
+                rs.getBigDecimal("energy_work_kcal"),
+                rs.getBigDecimal("body_weight_kg"),
+                rs.getBoolean("body_weight_estimated"),
+                rs.getBoolean("energy_personalized"),
+                modelVersion);
+        return new SessionRow(item, rs.getString("notes"), completedAt == null ? null : completedAt.toInstant(), energy);
     }
 }

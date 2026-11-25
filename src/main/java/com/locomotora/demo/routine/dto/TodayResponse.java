@@ -33,7 +33,9 @@ public record TodayResponse(
             int monthWorkouts,
             int previousMonthWorkouts,
             List<BigDecimal> weeklyVolumeKg,
-            LastRecord lastRecord
+            LastRecord lastRecord,
+            /** Kcal estimadas por semana, de la mas vieja a la actual (mismas semanas que el volumen). */
+            List<BigDecimal> weeklyEnergyKcal
     ) {
     }
 

@@ -2,6 +2,7 @@ package com.locomotora.demo.routine.service;
 
 import com.locomotora.demo.common.ApiException;
 import com.locomotora.demo.common.CurrentUser;
+import com.locomotora.demo.progress.energy.WorkoutEnergyService;
 import com.locomotora.demo.routine.dto.LastPerformanceResponse;
 import com.locomotora.demo.routine.dto.RoutineResponse;
 import com.locomotora.demo.routine.dto.TodayResponse;
@@ -62,8 +63,9 @@ public class TrainingService {
         }
         var last = statsRepository.findLastSessions(userId, ids);
         var best = statsRepository.findBestSets(userId, ids);
+        var energy = statsRepository.findEnergyInfo(userId, ids, Instant.now().minus(WorkoutEnergyService.BEST_WINDOW));
         return ids.stream()
-                .map(id -> new LastPerformanceResponse(id.toString(), last.get(id), best.get(id)))
+                .map(id -> new LastPerformanceResponse(id.toString(), last.get(id), best.get(id), energy.get(id)))
                 .toList();
     }
 
@@ -115,11 +117,17 @@ public class TrainingService {
 
         LocalDate firstWeek = TrainingCalendar.weekStart(today).minusWeeks(PROGRESS_WEEKS - 1L);
         Map<LocalDate, BigDecimal> volumeByWeek = new HashMap<>();
+        Map<LocalDate, BigDecimal> energyByWeek = new HashMap<>();
         historyRepository.findWeeklyTotals(userId, zone.getId(), firstWeek.atStartOfDay(zone).toInstant())
-                .forEach(row -> volumeByWeek.put(row.weekStart(), row.volume()));
+                .forEach(row -> {
+                    volumeByWeek.put(row.weekStart(), row.volume());
+                    energyByWeek.put(row.weekStart(), row.energy());
+                });
         List<BigDecimal> volume = new ArrayList<>(PROGRESS_WEEKS);
+        List<BigDecimal> energy = new ArrayList<>(PROGRESS_WEEKS);
         for (int i = 0; i < PROGRESS_WEEKS; i++) {
             volume.add(volumeByWeek.getOrDefault(firstWeek.plusWeeks(i), BigDecimal.ZERO));
+            energy.add(energyByWeek.getOrDefault(firstWeek.plusWeeks(i), BigDecimal.ZERO));
         }
 
         return new TodayResponse.Progress(
@@ -127,7 +135,8 @@ public class TrainingService {
                 months == null ? 0 : months.current(),
                 months == null ? 0 : months.previous(),
                 volume,
-                statsRepository.findLastRecord(userId).orElse(null)
+                statsRepository.findLastRecord(userId).orElse(null),
+                energy
         );
     }
 

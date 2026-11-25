@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.locomotora.demo.common.ApiException;
+import com.locomotora.demo.progress.energy.WorkoutEnergyService;
 import com.locomotora.demo.routine.dto.WorkoutSessionExerciseRequest;
 import com.locomotora.demo.routine.dto.WorkoutSessionRequest;
 import com.locomotora.demo.routine.dto.WorkoutSessionResponse;
@@ -54,11 +55,14 @@ class WorkoutSessionServiceTest {
     @Mock
     private WorkoutSessionWriteRepository repository;
 
+    @Mock
+    private WorkoutEnergyService energyService;
+
     private WorkoutSessionService service;
 
     @BeforeEach
     void setUp() {
-        service = new WorkoutSessionService(repository);
+        service = new WorkoutSessionService(repository, energyService);
         TestingAuthenticationToken authentication = new TestingAuthenticationToken(userId.toString(), null);
         authentication.setAuthenticated(true);
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -188,7 +192,7 @@ class WorkoutSessionServiceTest {
         WorkoutSessionRequest request = new WorkoutSessionRequest(
                 clientSessionId, routineId, thirdDayId,
                 "2026-11-11T19:00:00Z", "2026-11-11T18:00:00Z",
-                null, null, List.of(squat(set(1, 10, "80"))));
+                null, null, List.of(squat(set(1, 10, "80"))), null);
 
         ApiException exception = assertThrows(ApiException.class, () -> service.saveSession(request));
 
@@ -208,7 +212,7 @@ class WorkoutSessionServiceTest {
     @Test
     void rejectsSessionWithoutCompletedSets() {
         stubRoutine();
-        WorkoutSetRequest skipped = new WorkoutSetRequest(1, 10, new BigDecimal("80"), null, false);
+        WorkoutSetRequest skipped = new WorkoutSetRequest(1, 10, new BigDecimal("80"), null, false, null);
 
         ApiException exception = assertThrows(ApiException.class,
                 () -> service.saveSession(request(thirdDayId, List.of(squat(skipped)))));
@@ -224,7 +228,8 @@ class WorkoutSessionServiceTest {
         WorkoutSessionRequest request = new WorkoutSessionRequest(
                 clientSessionId, null, null,
                 "2026-11-11T18:00:00Z", "2026-11-11T18:40:00Z",
-                7, "  ", List.of(new WorkoutSessionExerciseRequest(null, squatId, null, null, List.of(set(1, 5, "100")))));
+                7, "  ", List.of(new WorkoutSessionExerciseRequest(null, squatId, null, null, List.of(set(1, 5, "100")))),
+                null);
 
         service.saveSession(request);
 
@@ -234,6 +239,28 @@ class WorkoutSessionServiceTest {
         assertNull(session.getValue().routineDayId());
         assertNull(session.getValue().notes());
         assertEquals(1, capturedSets().get(0).exercisePosition());
+    }
+
+    @Test
+    void savesPlannedSetsAndSetTimesAndCalculatesEnergy() {
+        stubRoutine();
+        when(repository.insertSession(any())).thenReturn(Optional.of(sessionId));
+        when(repository.findSessionSummary(sessionId, userId)).thenReturn(Optional.of(summary()));
+
+        service.saveSession(request(thirdDayId, List.of(squat(
+                new WorkoutSetRequest(1, 10, new BigDecimal("80"), null, true, "2026-11-11T18:05:30Z"),
+                new WorkoutSetRequest(2, 10, new BigDecimal("80"), null, true, "no es una fecha"),
+                new WorkoutSetRequest(3, 10, new BigDecimal("80"), null, true, "2026-11-13T10:00:00Z")))));
+
+        ArgumentCaptor<NewSession> session = ArgumentCaptor.forClass(NewSession.class);
+        verify(repository).insertSession(session.capture());
+        assertEquals(15, session.getValue().plannedSets());
+        List<SetLog> rows = capturedSets();
+        assertEquals(java.time.Instant.parse("2026-11-11T18:05:30Z"), rows.get(0).completedAt());
+        // Una hora que no se entiende o que no es creible se guarda vacia: no rechaza la sesion.
+        assertNull(rows.get(1).completedAt());
+        assertNull(rows.get(2).completedAt());
+        verify(energyService).recalculate(sessionId);
     }
 
     private void stubRoutine() {
@@ -256,7 +283,7 @@ class WorkoutSessionServiceTest {
         return new WorkoutSessionRequest(
                 clientSessionId, routineId, dayId,
                 "2026-11-11T18:02:00Z", "2026-11-11T18:56:00Z",
-                8, "Buena sesion", exercises);
+                8, "Buena sesion", exercises, 15);
     }
 
     private WorkoutSessionExerciseRequest squat(WorkoutSetRequest... sets) {
@@ -264,13 +291,14 @@ class WorkoutSessionServiceTest {
     }
 
     private WorkoutSetRequest set(int number, int reps, String weight) {
-        return new WorkoutSetRequest(number, reps, new BigDecimal(weight), null, true);
+        return new WorkoutSetRequest(number, reps, new BigDecimal(weight), null, true, null);
     }
 
     private WorkoutSessionResponse summary() {
         return new WorkoutSessionResponse(
                 sessionId.toString(), clientSessionId.toString(), "ROUTINE",
                 routineId.toString(), thirdDayId.toString(), "Upper/Lower", "Lower A",
-                "2026-11-11T18:02:00Z", "2026-11-11T18:56:00Z", 3240, 4, new BigDecimal("3027.5"));
+                "2026-11-11T18:02:00Z", "2026-11-11T18:56:00Z", 3240, 4, new BigDecimal("3027.5"), 15,
+                new BigDecimal("286.40"));
     }
 }

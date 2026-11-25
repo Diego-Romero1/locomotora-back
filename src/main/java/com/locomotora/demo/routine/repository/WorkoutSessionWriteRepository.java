@@ -4,6 +4,7 @@ import com.locomotora.demo.routine.dto.WorkoutSessionResponse;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -122,8 +123,8 @@ public class WorkoutSessionWriteRepository {
                 """
                 INSERT INTO workout_sessions
                     (user_id, client_session_id, kind, routine_id, routine_day_id, routine_title, day_title,
-                     started_at, completed_at, status, perceived_exertion, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?)
+                     started_at, completed_at, status, perceived_exertion, notes, planned_sets)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?)
                 ON CONFLICT (user_id, client_session_id) DO NOTHING
                 RETURNING id
                 """,
@@ -138,7 +139,8 @@ public class WorkoutSessionWriteRepository {
                 session.startedAt(),
                 session.completedAt(),
                 session.perceivedExertion(),
-                session.notes()
+                session.notes(),
+                session.plannedSets()
         ).stream().findFirst();
     }
 
@@ -148,8 +150,8 @@ public class WorkoutSessionWriteRepository {
                 INSERT INTO workout_exercise_logs
                     (workout_session_id, routine_exercise_id, exercise_id, exercise_position, set_number,
                      reps, weight_kg, duration_seconds, completed, notes,
-                     target_reps_min, target_reps_max, target_weight_kg, rest_seconds)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     target_reps_min, target_reps_max, target_weight_kg, rest_seconds, completed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 sets,
                 sets.size(),
@@ -168,6 +170,7 @@ public class WorkoutSessionWriteRepository {
                     statement.setObject(12, set.targetRepsMax(), Types.INTEGER);
                     statement.setBigDecimal(13, set.targetWeightKg());
                     statement.setObject(14, set.restSeconds(), Types.INTEGER);
+                    statement.setTimestamp(15, set.completedAt() == null ? null : Timestamp.from(set.completedAt()));
                 }
         );
     }
@@ -176,7 +179,7 @@ public class WorkoutSessionWriteRepository {
         return jdbcTemplate.query(
                 """
                 SELECT ws.id, ws.client_session_id, ws.kind, ws.routine_id, ws.routine_day_id,
-                       ws.routine_title, ws.day_title, ws.started_at, ws.completed_at,
+                       ws.routine_title, ws.day_title, ws.started_at, ws.completed_at, ws.planned_sets, ws.energy_kcal,
                        count(wel.id) FILTER (WHERE wel.completed) AS completed_sets,
                        COALESCE(sum(wel.reps * wel.weight_kg) FILTER (WHERE wel.completed), 0) AS volume
                 FROM workout_sessions ws
@@ -206,7 +209,9 @@ public class WorkoutSessionWriteRepository {
                             completedAt == null ? null : completedAt.toInstant().toString(),
                             duration,
                             rs.getInt("completed_sets"),
-                            volume == null ? BigDecimal.ZERO : volume
+                            volume == null ? BigDecimal.ZERO : volume,
+                            (Integer) rs.getObject("planned_sets"),
+                            rs.getBigDecimal("energy_kcal")
                     );
                 },
                 sessionId,
@@ -238,7 +243,8 @@ public class WorkoutSessionWriteRepository {
             Timestamp startedAt,
             Timestamp completedAt,
             Integer perceivedExertion,
-            String notes
+            String notes,
+            Integer plannedSets
     ) {
     }
 
@@ -255,7 +261,8 @@ public class WorkoutSessionWriteRepository {
             Integer targetRepsMin,
             Integer targetRepsMax,
             BigDecimal targetWeightKg,
-            Integer restSeconds
+            Integer restSeconds,
+            Instant completedAt
     ) {
     }
 }

@@ -14,6 +14,8 @@ public record WorkoutSessionResponse(
         String completedAt,
         long durationSeconds,
         int completedSets,
-        BigDecimal totalVolumeKg
+        BigDecimal totalVolumeKg,
+        Integer plannedSets,
+        BigDecimal energyKcal
 ) {
 }

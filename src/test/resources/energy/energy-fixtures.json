@@ -1,0 +1,1774 @@
+{
+  "_comment": "Casos compartidos del modelo de energia v1. Copia canonica en locomotora-backend/src/test/resources/energy/energy-fixtures.json; la app tiene una copia identica. Generados con un calculo de referencia independiente.",
+  "modelVersion": 1,
+  "tolerance": 0.01,
+  "classification": [
+    {
+      "exercise": {
+        "name": "Sentadilla trasera",
+        "nameEn": null,
+        "primaryMuscleGroup": "Cuádriceps",
+        "mechanic": "COMPOUND",
+        "equipment": "BARBELL",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "A"
+    },
+    {
+      "exercise": {
+        "name": "Peso muerto",
+        "nameEn": null,
+        "primaryMuscleGroup": "Espalda",
+        "mechanic": "COMPOUND",
+        "equipment": "BARBELL",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "A"
+    },
+    {
+      "exercise": {
+        "name": "Peso muerto rumano",
+        "nameEn": null,
+        "primaryMuscleGroup": "Espalda",
+        "mechanic": "COMPOUND",
+        "equipment": "BARBELL",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "A"
+    },
+    {
+      "exercise": {
+        "name": "Hip Thrust",
+        "nameEn": null,
+        "primaryMuscleGroup": "Glúteos",
+        "mechanic": "COMPOUND",
+        "equipment": "BARBELL",
+        "exerciseType": "POWERLIFTING"
+      },
+      "energyClass": "A"
+    },
+    {
+      "exercise": {
+        "name": "Zancadas con mancuernas",
+        "nameEn": null,
+        "primaryMuscleGroup": "Cuádriceps",
+        "mechanic": "COMPOUND",
+        "equipment": "DUMBBELL",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "A"
+    },
+    {
+      "exercise": {
+        "name": "Swing a una mano con kettlebell",
+        "nameEn": null,
+        "primaryMuscleGroup": "Isquiotibiales",
+        "mechanic": "COMPOUND",
+        "equipment": "KETTLEBELL",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "A"
+    },
+    {
+      "exercise": {
+        "name": "Paseo del granjero",
+        "nameEn": null,
+        "primaryMuscleGroup": "Antebrazos",
+        "mechanic": "COMPOUND",
+        "equipment": "OTHER",
+        "exerciseType": "STRONGMAN"
+      },
+      "energyClass": "A"
+    },
+    {
+      "exercise": {
+        "name": "Thruster con kettlebells",
+        "nameEn": null,
+        "primaryMuscleGroup": "Hombros",
+        "mechanic": "COMPOUND",
+        "equipment": "KETTLEBELL",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "A"
+    },
+    {
+      "exercise": {
+        "name": "Prensa 45 grados",
+        "nameEn": null,
+        "primaryMuscleGroup": "Cuádriceps",
+        "mechanic": "COMPOUND",
+        "equipment": "MACHINE",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "C"
+    },
+    {
+      "exercise": {
+        "name": "Sentadilla hack",
+        "nameEn": null,
+        "primaryMuscleGroup": "Cuádriceps",
+        "mechanic": "COMPOUND",
+        "equipment": "MACHINE",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "C"
+    },
+    {
+      "exercise": {
+        "name": "Sentadilla guiada",
+        "nameEn": null,
+        "primaryMuscleGroup": "Cuádriceps",
+        "mechanic": "COMPOUND",
+        "equipment": "SMITH_MACHINE",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "C"
+    },
+    {
+      "exercise": {
+        "name": "Extensión de piernas",
+        "nameEn": null,
+        "primaryMuscleGroup": "Cuádriceps",
+        "mechanic": "ISOLATION",
+        "equipment": "MACHINE",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "C"
+    },
+    {
+      "exercise": {
+        "name": "Curl femoral acostado",
+        "nameEn": null,
+        "primaryMuscleGroup": "Isquiotibiales",
+        "mechanic": "ISOLATION",
+        "equipment": "MACHINE",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "C"
+    },
+    {
+      "exercise": {
+        "name": "Empuje de cadera en máquina",
+        "nameEn": null,
+        "primaryMuscleGroup": "Glúteos",
+        "mechanic": null,
+        "equipment": "MACHINE",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "C"
+    },
+    {
+      "exercise": {
+        "name": "Hiperextensiones",
+        "nameEn": null,
+        "primaryMuscleGroup": "Lumbares",
+        "mechanic": "ISOLATION",
+        "equipment": "OTHER",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "C"
+    },
+    {
+      "exercise": {
+        "name": "Press de banca plano",
+        "nameEn": null,
+        "primaryMuscleGroup": "Pecho",
+        "mechanic": "COMPOUND",
+        "equipment": "BARBELL",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "B"
+    },
+    {
+      "exercise": {
+        "name": "Jalón en máquina",
+        "nameEn": null,
+        "primaryMuscleGroup": "Espalda",
+        "mechanic": null,
+        "equipment": "MACHINE",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "B"
+    },
+    {
+      "exercise": {
+        "name": "Dominadas pronas",
+        "nameEn": null,
+        "primaryMuscleGroup": "Espalda",
+        "mechanic": "COMPOUND",
+        "equipment": "BODYWEIGHT",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "B"
+    },
+    {
+      "exercise": {
+        "name": "Fondos en paralelas",
+        "nameEn": null,
+        "primaryMuscleGroup": "Tríceps",
+        "mechanic": "COMPOUND",
+        "equipment": "BODYWEIGHT",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "B"
+    },
+    {
+      "exercise": {
+        "name": "Press militar",
+        "nameEn": null,
+        "primaryMuscleGroup": "Hombros",
+        "mechanic": "COMPOUND",
+        "equipment": "BARBELL",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "B"
+    },
+    {
+      "exercise": {
+        "name": "Curl con barra",
+        "nameEn": null,
+        "primaryMuscleGroup": "Bíceps",
+        "mechanic": "ISOLATION",
+        "equipment": "BARBELL",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "D"
+    },
+    {
+      "exercise": {
+        "name": "Elevaciones laterales en máquina",
+        "nameEn": null,
+        "primaryMuscleGroup": "Hombros",
+        "mechanic": null,
+        "equipment": "MACHINE",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "D"
+    },
+    {
+      "exercise": {
+        "name": "Elevación de talones de pie",
+        "nameEn": null,
+        "primaryMuscleGroup": "Pantorrillas",
+        "mechanic": "ISOLATION",
+        "equipment": "FREE_WEIGHT",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "D"
+    },
+    {
+      "exercise": {
+        "name": "Giro ruso",
+        "nameEn": null,
+        "primaryMuscleGroup": "Abdomen",
+        "mechanic": "COMPOUND",
+        "equipment": "BODYWEIGHT",
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "D"
+    },
+    {
+      "exercise": {
+        "name": "Escaladores",
+        "nameEn": null,
+        "primaryMuscleGroup": "Cuádriceps",
+        "mechanic": "COMPOUND",
+        "equipment": "BODYWEIGHT",
+        "exerciseType": "PLYOMETRICS"
+      },
+      "energyClass": "E"
+    },
+    {
+      "exercise": {
+        "name": "Superman",
+        "nameEn": null,
+        "primaryMuscleGroup": "Lumbares",
+        "mechanic": "COMPOUND",
+        "equipment": "BODYWEIGHT",
+        "exerciseType": "STRETCHING"
+      },
+      "energyClass": "F"
+    },
+    {
+      "exercise": {
+        "name": "Mi ejercicio",
+        "nameEn": null,
+        "primaryMuscleGroup": null,
+        "mechanic": null,
+        "equipment": null,
+        "exerciseType": "STRENGTH"
+      },
+      "energyClass": "D"
+    }
+  ],
+  "sessions": [
+    {
+      "name": "Pierna a medias: 5 de 15 series, sin hora por serie (descanso repartido 2,5 min)",
+      "input": {
+        "profile": {
+          "sex": "MALE",
+          "ageYears": 30,
+          "heightCm": 178,
+          "bodyWeightKg": 75
+        },
+        "activeSeconds": 942,
+        "completedAt": null,
+        "exercises": [
+          {
+            "name": "Sentadilla trasera",
+            "nameEn": null,
+            "primaryMuscleGroup": "Cuádriceps",
+            "mechanic": "COMPOUND",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 105,
+            "sets": [
+              {
+                "reps": 8,
+                "weightKg": 80
+              },
+              {
+                "reps": 8,
+                "weightKg": 80
+              },
+              {
+                "reps": 8,
+                "weightKg": 80
+              }
+            ]
+          },
+          {
+            "name": "Prensa 45 grados",
+            "nameEn": null,
+            "primaryMuscleGroup": "Cuádriceps",
+            "mechanic": "COMPOUND",
+            "equipment": "MACHINE",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 220,
+            "sets": [
+              {
+                "reps": 12,
+                "weightKg": 150
+              },
+              {
+                "reps": 12,
+                "weightKg": 150
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "restingKcalPerMin": 1.2401,
+        "bodyWeightKg": 75,
+        "bodyWeightEstimated": false,
+        "personalized": true,
+        "workKcal": 78.363,
+        "restKcal": 31.0031,
+        "totalKcal": 109.3662,
+        "exercises": [
+          {
+            "energyClass": "A",
+            "sets": [
+              {
+                "intensity": 0.7619,
+                "met": 24.8571,
+                "workSeconds": 32,
+                "workKcal": 16.4405,
+                "restSeconds": 150.0,
+                "restKcal": 6.2006,
+                "kcal": 22.6411
+              },
+              {
+                "intensity": 0.7619,
+                "met": 24.8571,
+                "workSeconds": 32,
+                "workKcal": 16.4405,
+                "restSeconds": 150.0,
+                "restKcal": 6.2006,
+                "kcal": 22.6411
+              },
+              {
+                "intensity": 0.7619,
+                "met": 24.8571,
+                "workSeconds": 32,
+                "workKcal": 16.4405,
+                "restSeconds": 150.0,
+                "restKcal": 6.2006,
+                "kcal": 22.6411
+              }
+            ],
+            "workKcal": 49.3216,
+            "restKcal": 18.6019,
+            "kcal": 67.9234
+          },
+          {
+            "energyClass": "C",
+            "sets": [
+              {
+                "intensity": 0.6818,
+                "met": 14.6364,
+                "workSeconds": 48,
+                "workKcal": 14.5207,
+                "restSeconds": 150.0,
+                "restKcal": 6.2006,
+                "kcal": 20.7214
+              },
+              {
+                "intensity": 0.6818,
+                "met": 14.6364,
+                "workSeconds": 48,
+                "workKcal": 14.5207,
+                "restSeconds": 150.0,
+                "restKcal": 6.2006,
+                "kcal": 20.7214
+              }
+            ],
+            "workKcal": 29.0415,
+            "restKcal": 12.4013,
+            "kcal": 41.4427
+          }
+        ]
+      }
+    },
+    {
+      "name": "Cuerpo completo, hombre 75 kg, 18 series en 49 min",
+      "input": {
+        "profile": {
+          "sex": "MALE",
+          "ageYears": 30,
+          "heightCm": 178,
+          "bodyWeightKg": 75
+        },
+        "activeSeconds": 2940,
+        "completedAt": null,
+        "exercises": [
+          {
+            "name": "Sentadilla trasera",
+            "nameEn": null,
+            "primaryMuscleGroup": "Cuádriceps",
+            "mechanic": "COMPOUND",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 100,
+            "sets": [
+              {
+                "reps": 10,
+                "weightKg": 70
+              },
+              {
+                "reps": 10,
+                "weightKg": 70
+              },
+              {
+                "reps": 10,
+                "weightKg": 70
+              }
+            ]
+          },
+          {
+            "name": "Peso muerto rumano",
+            "nameEn": null,
+            "primaryMuscleGroup": "Espalda",
+            "mechanic": "COMPOUND",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 110,
+            "sets": [
+              {
+                "reps": 10,
+                "weightKg": 70
+              },
+              {
+                "reps": 10,
+                "weightKg": 70
+              },
+              {
+                "reps": 10,
+                "weightKg": 70
+              }
+            ]
+          },
+          {
+            "name": "Press de banca plano",
+            "nameEn": null,
+            "primaryMuscleGroup": "Pecho",
+            "mechanic": "COMPOUND",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 80,
+            "sets": [
+              {
+                "reps": 10,
+                "weightKg": 57.5
+              },
+              {
+                "reps": 10,
+                "weightKg": 57.5
+              },
+              {
+                "reps": 10,
+                "weightKg": 57.5
+              }
+            ]
+          },
+          {
+            "name": "Remo con barra",
+            "nameEn": null,
+            "primaryMuscleGroup": "Espalda",
+            "mechanic": "COMPOUND",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 75,
+            "sets": [
+              {
+                "reps": 10,
+                "weightKg": 52.5
+              },
+              {
+                "reps": 10,
+                "weightKg": 52.5
+              },
+              {
+                "reps": 10,
+                "weightKg": 52.5
+              }
+            ]
+          },
+          {
+            "name": "Curl con barra",
+            "nameEn": null,
+            "primaryMuscleGroup": "Bíceps",
+            "mechanic": "ISOLATION",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 40,
+            "sets": [
+              {
+                "reps": 12,
+                "weightKg": 25
+              },
+              {
+                "reps": 12,
+                "weightKg": 25
+              },
+              {
+                "reps": 12,
+                "weightKg": 25
+              }
+            ]
+          },
+          {
+            "name": "Extensión de tríceps en polea con cuerda",
+            "nameEn": null,
+            "primaryMuscleGroup": "Tríceps",
+            "mechanic": "ISOLATION",
+            "equipment": "CABLE",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 35,
+            "sets": [
+              {
+                "reps": 12,
+                "weightKg": 22.5
+              },
+              {
+                "reps": 12,
+                "weightKg": 22.5
+              },
+              {
+                "reps": 12,
+                "weightKg": 22.5
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "restingKcalPerMin": 1.2401,
+        "bodyWeightKg": 75,
+        "bodyWeightEstimated": false,
+        "personalized": true,
+        "workKcal": 195.7963,
+        "restKcal": 89.7851,
+        "totalKcal": 285.5814,
+        "exercises": [
+          {
+            "energyClass": "A",
+            "sets": [
+              {
+                "intensity": 0.7,
+                "met": 23.0,
+                "workSeconds": 40,
+                "workKcal": 19.0153,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 24.0033
+              },
+              {
+                "intensity": 0.7,
+                "met": 23.0,
+                "workSeconds": 40,
+                "workKcal": 19.0153,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 24.0033
+              },
+              {
+                "intensity": 0.7,
+                "met": 23.0,
+                "workSeconds": 40,
+                "workKcal": 19.0153,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 24.0033
+              }
+            ],
+            "workKcal": 57.0458,
+            "restKcal": 14.9642,
+            "kcal": 72.0099
+          },
+          {
+            "energyClass": "A",
+            "sets": [
+              {
+                "intensity": 0.6364,
+                "met": 21.0909,
+                "workSeconds": 40,
+                "workKcal": 17.4369,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 22.425
+              },
+              {
+                "intensity": 0.6364,
+                "met": 21.0909,
+                "workSeconds": 40,
+                "workKcal": 17.4369,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 22.425
+              },
+              {
+                "intensity": 0.6364,
+                "met": 21.0909,
+                "workSeconds": 40,
+                "workKcal": 17.4369,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 22.425
+              }
+            ],
+            "workKcal": 52.3107,
+            "restKcal": 14.9642,
+            "kcal": 67.2749
+          },
+          {
+            "energyClass": "B",
+            "sets": [
+              {
+                "intensity": 0.7188,
+                "met": 11.2812,
+                "workSeconds": 40,
+                "workKcal": 9.3268,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 14.3148
+              },
+              {
+                "intensity": 0.7188,
+                "met": 11.2812,
+                "workSeconds": 40,
+                "workKcal": 9.3268,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 14.3148
+              },
+              {
+                "intensity": 0.7188,
+                "met": 11.2812,
+                "workSeconds": 40,
+                "workKcal": 9.3268,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 14.3148
+              }
+            ],
+            "workKcal": 27.9803,
+            "restKcal": 14.9642,
+            "kcal": 42.9445
+          },
+          {
+            "energyClass": "B",
+            "sets": [
+              {
+                "intensity": 0.7,
+                "met": 11.0,
+                "workSeconds": 40,
+                "workKcal": 9.0943,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 14.0823
+              },
+              {
+                "intensity": 0.7,
+                "met": 11.0,
+                "workSeconds": 40,
+                "workKcal": 9.0943,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 14.0823
+              },
+              {
+                "intensity": 0.7,
+                "met": 11.0,
+                "workSeconds": 40,
+                "workKcal": 9.0943,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 14.0823
+              }
+            ],
+            "workKcal": 27.2828,
+            "restKcal": 14.9642,
+            "kcal": 42.2469
+          },
+          {
+            "energyClass": "D",
+            "sets": [
+              {
+                "intensity": 0.625,
+                "met": 5.175,
+                "workSeconds": 48,
+                "workKcal": 5.1341,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 10.1222
+              },
+              {
+                "intensity": 0.625,
+                "met": 5.175,
+                "workSeconds": 48,
+                "workKcal": 5.1341,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 10.1222
+              },
+              {
+                "intensity": 0.625,
+                "met": 5.175,
+                "workSeconds": 48,
+                "workKcal": 5.1341,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 10.1222
+              }
+            ],
+            "workKcal": 15.4024,
+            "restKcal": 14.9642,
+            "kcal": 30.3665
+          },
+          {
+            "energyClass": "D",
+            "sets": [
+              {
+                "intensity": 0.6429,
+                "met": 5.3,
+                "workSeconds": 48,
+                "workKcal": 5.2581,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 10.2462
+              },
+              {
+                "intensity": 0.6429,
+                "met": 5.3,
+                "workSeconds": 48,
+                "workKcal": 5.2581,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 10.2462
+              },
+              {
+                "intensity": 0.6429,
+                "met": 5.3,
+                "workSeconds": 48,
+                "workKcal": 5.2581,
+                "restSeconds": 120.6667,
+                "restKcal": 4.9881,
+                "kcal": 10.2462
+              }
+            ],
+            "workKcal": 15.7744,
+            "restKcal": 14.9642,
+            "kcal": 30.7386
+          }
+        ]
+      }
+    },
+    {
+      "name": "Misma rutina, mujer 60 kg (Harris-Benedict mujer)",
+      "input": {
+        "profile": {
+          "sex": "FEMALE",
+          "ageYears": 28,
+          "heightCm": 163,
+          "bodyWeightKg": 60
+        },
+        "activeSeconds": 2940,
+        "completedAt": null,
+        "exercises": [
+          {
+            "name": "Sentadilla trasera",
+            "nameEn": null,
+            "primaryMuscleGroup": "Cuádriceps",
+            "mechanic": "COMPOUND",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 100,
+            "sets": [
+              {
+                "reps": 10,
+                "weightKg": 70
+              },
+              {
+                "reps": 10,
+                "weightKg": 70
+              },
+              {
+                "reps": 10,
+                "weightKg": 70
+              }
+            ]
+          },
+          {
+            "name": "Peso muerto rumano",
+            "nameEn": null,
+            "primaryMuscleGroup": "Espalda",
+            "mechanic": "COMPOUND",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 110,
+            "sets": [
+              {
+                "reps": 10,
+                "weightKg": 70
+              },
+              {
+                "reps": 10,
+                "weightKg": 70
+              },
+              {
+                "reps": 10,
+                "weightKg": 70
+              }
+            ]
+          },
+          {
+            "name": "Press de banca plano",
+            "nameEn": null,
+            "primaryMuscleGroup": "Pecho",
+            "mechanic": "COMPOUND",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 80,
+            "sets": [
+              {
+                "reps": 10,
+                "weightKg": 57.5
+              },
+              {
+                "reps": 10,
+                "weightKg": 57.5
+              },
+              {
+                "reps": 10,
+                "weightKg": 57.5
+              }
+            ]
+          },
+          {
+            "name": "Remo con barra",
+            "nameEn": null,
+            "primaryMuscleGroup": "Espalda",
+            "mechanic": "COMPOUND",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 75,
+            "sets": [
+              {
+                "reps": 10,
+                "weightKg": 52.5
+              },
+              {
+                "reps": 10,
+                "weightKg": 52.5
+              },
+              {
+                "reps": 10,
+                "weightKg": 52.5
+              }
+            ]
+          },
+          {
+            "name": "Curl con barra",
+            "nameEn": null,
+            "primaryMuscleGroup": "Bíceps",
+            "mechanic": "ISOLATION",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 40,
+            "sets": [
+              {
+                "reps": 12,
+                "weightKg": 25
+              },
+              {
+                "reps": 12,
+                "weightKg": 25
+              },
+              {
+                "reps": 12,
+                "weightKg": 25
+              }
+            ]
+          },
+          {
+            "name": "Extensión de tríceps en polea con cuerda",
+            "nameEn": null,
+            "primaryMuscleGroup": "Tríceps",
+            "mechanic": "ISOLATION",
+            "equipment": "CABLE",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 35,
+            "sets": [
+              {
+                "reps": 12,
+                "weightKg": 22.5
+              },
+              {
+                "reps": 12,
+                "weightKg": 22.5
+              },
+              {
+                "reps": 12,
+                "weightKg": 22.5
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "restingKcalPerMin": 0.9719,
+        "bodyWeightKg": 60,
+        "bodyWeightEstimated": false,
+        "personalized": true,
+        "workKcal": 153.4403,
+        "restKcal": 70.3621,
+        "totalKcal": 223.8024,
+        "exercises": [
+          {
+            "energyClass": "A",
+            "sets": [
+              {
+                "intensity": 0.7,
+                "met": 23.0,
+                "workSeconds": 40,
+                "workKcal": 14.9017,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 18.8107
+              },
+              {
+                "intensity": 0.7,
+                "met": 23.0,
+                "workSeconds": 40,
+                "workKcal": 14.9017,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 18.8107
+              },
+              {
+                "intensity": 0.7,
+                "met": 23.0,
+                "workSeconds": 40,
+                "workKcal": 14.9017,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 18.8107
+              }
+            ],
+            "workKcal": 44.7052,
+            "restKcal": 11.727,
+            "kcal": 56.4322
+          },
+          {
+            "energyClass": "A",
+            "sets": [
+              {
+                "intensity": 0.6364,
+                "met": 21.0909,
+                "workSeconds": 40,
+                "workKcal": 13.6648,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 17.5738
+              },
+              {
+                "intensity": 0.6364,
+                "met": 21.0909,
+                "workSeconds": 40,
+                "workKcal": 13.6648,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 17.5738
+              },
+              {
+                "intensity": 0.6364,
+                "met": 21.0909,
+                "workSeconds": 40,
+                "workKcal": 13.6648,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 17.5738
+              }
+            ],
+            "workKcal": 40.9945,
+            "restKcal": 11.727,
+            "kcal": 52.7215
+          },
+          {
+            "energyClass": "B",
+            "sets": [
+              {
+                "intensity": 0.7188,
+                "met": 11.2812,
+                "workSeconds": 40,
+                "workKcal": 7.3091,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 11.2181
+              },
+              {
+                "intensity": 0.7188,
+                "met": 11.2812,
+                "workSeconds": 40,
+                "workKcal": 7.3091,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 11.2181
+              },
+              {
+                "intensity": 0.7188,
+                "met": 11.2812,
+                "workSeconds": 40,
+                "workKcal": 7.3091,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 11.2181
+              }
+            ],
+            "workKcal": 21.9274,
+            "restKcal": 11.727,
+            "kcal": 33.6544
+          },
+          {
+            "energyClass": "B",
+            "sets": [
+              {
+                "intensity": 0.7,
+                "met": 11.0,
+                "workSeconds": 40,
+                "workKcal": 7.1269,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 11.0359
+              },
+              {
+                "intensity": 0.7,
+                "met": 11.0,
+                "workSeconds": 40,
+                "workKcal": 7.1269,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 11.0359
+              },
+              {
+                "intensity": 0.7,
+                "met": 11.0,
+                "workSeconds": 40,
+                "workKcal": 7.1269,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 11.0359
+              }
+            ],
+            "workKcal": 21.3808,
+            "restKcal": 11.727,
+            "kcal": 33.1078
+          },
+          {
+            "energyClass": "D",
+            "sets": [
+              {
+                "intensity": 0.625,
+                "met": 5.175,
+                "workSeconds": 48,
+                "workKcal": 4.0235,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 7.9325
+              },
+              {
+                "intensity": 0.625,
+                "met": 5.175,
+                "workSeconds": 48,
+                "workKcal": 4.0235,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 7.9325
+              },
+              {
+                "intensity": 0.625,
+                "met": 5.175,
+                "workSeconds": 48,
+                "workKcal": 4.0235,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 7.9325
+              }
+            ],
+            "workKcal": 12.0704,
+            "restKcal": 11.727,
+            "kcal": 23.7974
+          },
+          {
+            "energyClass": "D",
+            "sets": [
+              {
+                "intensity": 0.6429,
+                "met": 5.3,
+                "workSeconds": 48,
+                "workKcal": 4.1207,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 8.0297
+              },
+              {
+                "intensity": 0.6429,
+                "met": 5.3,
+                "workSeconds": 48,
+                "workKcal": 4.1207,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 8.0297
+              },
+              {
+                "intensity": 0.6429,
+                "met": 5.3,
+                "workSeconds": 48,
+                "workKcal": 4.1207,
+                "restSeconds": 120.6667,
+                "restKcal": 3.909,
+                "kcal": 8.0297
+              }
+            ],
+            "workKcal": 12.362,
+            "restKcal": 11.727,
+            "kcal": 24.089
+          }
+        ]
+      }
+    },
+    {
+      "name": "Sexo \"prefiere no decir\": promedio de ambas fórmulas",
+      "input": {
+        "profile": {
+          "sex": "PREFER_NOT_TO_SAY",
+          "ageYears": 40,
+          "heightCm": 170,
+          "bodyWeightKg": 68
+        },
+        "activeSeconds": 600,
+        "completedAt": null,
+        "exercises": [
+          {
+            "name": "Press militar",
+            "nameEn": null,
+            "primaryMuscleGroup": "Hombros",
+            "mechanic": "COMPOUND",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 50,
+            "sets": [
+              {
+                "reps": 8,
+                "weightKg": 35
+              },
+              {
+                "reps": 8,
+                "weightKg": 37.5
+              },
+              {
+                "reps": 6,
+                "weightKg": 40
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "restingKcalPerMin": 1.0468,
+        "bodyWeightKg": 68,
+        "bodyWeightEstimated": false,
+        "personalized": true,
+        "workKcal": 17.935,
+        "restKcal": 17.8652,
+        "totalKcal": 35.8002,
+        "exercises": [
+          {
+            "energyClass": "B",
+            "sets": [
+              {
+                "intensity": 0.7,
+                "met": 11.0,
+                "workSeconds": 32,
+                "workKcal": 6.1412,
+                "restSeconds": 170.6667,
+                "restKcal": 5.9551,
+                "kcal": 12.0962
+              },
+              {
+                "intensity": 0.75,
+                "met": 11.75,
+                "workSeconds": 32,
+                "workKcal": 6.5599,
+                "restSeconds": 170.6667,
+                "restKcal": 5.9551,
+                "kcal": 12.515
+              },
+              {
+                "intensity": 0.8,
+                "met": 12.5,
+                "workSeconds": 24,
+                "workKcal": 5.234,
+                "restSeconds": 170.6667,
+                "restKcal": 5.9551,
+                "kcal": 11.189
+              }
+            ],
+            "workKcal": 17.935,
+            "restKcal": 17.8652,
+            "kcal": 35.8002
+          }
+        ]
+      }
+    },
+    {
+      "name": "Con hora por serie: pausa larga de 25 min tope 5 min, primera serie tras 4 min de preparación",
+      "input": {
+        "profile": {
+          "sex": "MALE",
+          "ageYears": 30,
+          "heightCm": 178,
+          "bodyWeightKg": 75
+        },
+        "activeSeconds": 3000,
+        "completedAt": "2026-11-24T18:50:00Z",
+        "exercises": [
+          {
+            "name": "Press de banca plano",
+            "nameEn": null,
+            "primaryMuscleGroup": "Pecho",
+            "mechanic": "COMPOUND",
+            "equipment": "BARBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 90,
+            "sets": [
+              {
+                "reps": 8,
+                "weightKg": 70,
+                "completedAt": "2026-11-24T18:04:00Z"
+              },
+              {
+                "reps": 8,
+                "weightKg": 70,
+                "completedAt": "2026-11-24T18:07:00Z"
+              },
+              {
+                "reps": 8,
+                "weightKg": 70,
+                "completedAt": "2026-11-24T18:10:00Z"
+              }
+            ]
+          },
+          {
+            "name": "Jalón al pecho",
+            "nameEn": null,
+            "primaryMuscleGroup": "Espalda",
+            "mechanic": "COMPOUND",
+            "equipment": "CABLE",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": null,
+            "sets": [
+              {
+                "reps": 10,
+                "weightKg": 60,
+                "completedAt": "2026-11-24T18:35:00Z"
+              },
+              {
+                "reps": 10,
+                "weightKg": 60,
+                "completedAt": "2026-11-24T18:37:30Z"
+              },
+              {
+                "reps": 9,
+                "weightKg": 60,
+                "completedAt": "2026-11-24T18:40:00Z"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "restingKcalPerMin": 1.2401,
+        "bodyWeightKg": 75,
+        "bodyWeightEstimated": false,
+        "personalized": true,
+        "workKcal": 52.3126,
+        "restKcal": 42.495,
+        "totalKcal": 94.8076,
+        "exercises": [
+          {
+            "energyClass": "B",
+            "sets": [
+              {
+                "intensity": 0.7778,
+                "met": 12.1667,
+                "workSeconds": 32,
+                "workKcal": 8.047,
+                "restSeconds": 208.0,
+                "restKcal": 8.5982,
+                "kcal": 16.6452
+              },
+              {
+                "intensity": 0.7778,
+                "met": 12.1667,
+                "workSeconds": 32,
+                "workKcal": 8.047,
+                "restSeconds": 148.0,
+                "restKcal": 6.118,
+                "kcal": 14.165
+              },
+              {
+                "intensity": 0.7778,
+                "met": 12.1667,
+                "workSeconds": 32,
+                "workKcal": 8.047,
+                "restSeconds": 148.0,
+                "restKcal": 6.118,
+                "kcal": 14.165
+              }
+            ],
+            "workKcal": 24.1411,
+            "restKcal": 20.8341,
+            "kcal": 44.9752
+          },
+          {
+            "energyClass": "B",
+            "sets": [
+              {
+                "intensity": 0.75,
+                "met": 11.75,
+                "workSeconds": 40,
+                "workKcal": 9.7143,
+                "restSeconds": 300,
+                "restKcal": 12.4013,
+                "kcal": 22.1156
+              },
+              {
+                "intensity": 0.75,
+                "met": 11.75,
+                "workSeconds": 40,
+                "workKcal": 9.7143,
+                "restSeconds": 110.0,
+                "restKcal": 4.5471,
+                "kcal": 14.2614
+              },
+              {
+                "intensity": 0.75,
+                "met": 11.75,
+                "workSeconds": 36,
+                "workKcal": 8.7429,
+                "restSeconds": 114.0,
+                "restKcal": 4.7125,
+                "kcal": 13.4554
+              }
+            ],
+            "workKcal": 28.1715,
+            "restKcal": 21.6609,
+            "kcal": 49.8324
+          }
+        ]
+      }
+    },
+    {
+      "name": "Sin peso corporal ni perfil: 70 kg estimado y MET estándar; peso corporal con tope 8 MET",
+      "input": {
+        "profile": {
+          "sex": null,
+          "ageYears": null,
+          "heightCm": null,
+          "bodyWeightKg": null
+        },
+        "activeSeconds": 900,
+        "completedAt": null,
+        "exercises": [
+          {
+            "name": "Flexiones clásicas",
+            "nameEn": null,
+            "primaryMuscleGroup": "Pecho",
+            "mechanic": "COMPOUND",
+            "equipment": "BODYWEIGHT",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": null,
+            "sets": [
+              {
+                "reps": 15,
+                "weightKg": null
+              },
+              {
+                "reps": 12,
+                "weightKg": null
+              }
+            ]
+          },
+          {
+            "name": "Sentadilla con peso corporal",
+            "nameEn": null,
+            "primaryMuscleGroup": "Cuádriceps",
+            "mechanic": "COMPOUND",
+            "equipment": "BODYWEIGHT",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": null,
+            "sets": [
+              {
+                "reps": 20,
+                "weightKg": null
+              }
+            ]
+          },
+          {
+            "name": "Dominadas lastradas",
+            "nameEn": null,
+            "primaryMuscleGroup": "Espalda",
+            "mechanic": "COMPOUND",
+            "equipment": "BODYWEIGHT",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 30,
+            "sets": [
+              {
+                "reps": 6,
+                "weightKg": 10
+              }
+            ]
+          },
+          {
+            "name": "Crunch",
+            "nameEn": null,
+            "primaryMuscleGroup": "Abdomen",
+            "mechanic": "ISOLATION",
+            "equipment": "BODYWEIGHT",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": null,
+            "sets": [
+              {
+                "reps": 20,
+                "weightKg": 0
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "restingKcalPerMin": 1.225,
+        "bodyWeightKg": 70.0,
+        "bodyWeightEstimated": true,
+        "personalized": false,
+        "workKcal": 41.3045,
+        "restKcal": 24.8267,
+        "totalKcal": 66.1312,
+        "exercises": [
+          {
+            "energyClass": "B",
+            "sets": [
+              {
+                "intensity": 0.6383,
+                "met": 8.0,
+                "workSeconds": 60,
+                "workKcal": 9.8,
+                "restSeconds": 121.6,
+                "restKcal": 4.9653,
+                "kcal": 14.7653
+              },
+              {
+                "intensity": 0.6818,
+                "met": 8.0,
+                "workSeconds": 48,
+                "workKcal": 7.84,
+                "restSeconds": 121.6,
+                "restKcal": 4.9653,
+                "kcal": 12.8053
+              }
+            ],
+            "workKcal": 17.64,
+            "restKcal": 9.9307,
+            "kcal": 27.5707
+          },
+          {
+            "energyClass": "A",
+            "sets": [
+              {
+                "intensity": 0.5769,
+                "met": 8.0,
+                "workSeconds": 80,
+                "workKcal": 13.0667,
+                "restSeconds": 121.6,
+                "restKcal": 4.9653,
+                "kcal": 18.032
+              }
+            ],
+            "workKcal": 13.0667,
+            "restKcal": 4.9653,
+            "kcal": 18.032
+          },
+          {
+            "energyClass": "B",
+            "sets": [
+              {
+                "intensity": 0.3333,
+                "met": 5.5,
+                "workSeconds": 24,
+                "workKcal": 2.695,
+                "restSeconds": 121.6,
+                "restKcal": 4.9653,
+                "kcal": 7.6603
+              }
+            ],
+            "workKcal": 2.695,
+            "restKcal": 4.9653,
+            "kcal": 7.6603
+          },
+          {
+            "energyClass": "D",
+            "sets": [
+              {
+                "intensity": 0.5769,
+                "met": 4.8385,
+                "workSeconds": 80,
+                "workKcal": 7.9028,
+                "restSeconds": 121.6,
+                "restKcal": 4.9653,
+                "kcal": 12.8682
+              }
+            ],
+            "workKcal": 7.9028,
+            "restKcal": 4.9653,
+            "kcal": 12.8682
+          }
+        ]
+      }
+    },
+    {
+      "name": "Tipos especiales: pliometría, estiramiento con duración, máquina guiada, serie sin repeticiones",
+      "input": {
+        "profile": {
+          "sex": "MALE",
+          "ageYears": 35,
+          "heightCm": null,
+          "bodyWeightKg": 82
+        },
+        "activeSeconds": 1200,
+        "completedAt": null,
+        "exercises": [
+          {
+            "name": "Escaladores",
+            "nameEn": null,
+            "primaryMuscleGroup": "Cuádriceps",
+            "mechanic": "COMPOUND",
+            "equipment": "BODYWEIGHT",
+            "exerciseType": "PLYOMETRICS",
+            "bestE1rmKg": null,
+            "sets": [
+              {
+                "reps": 30,
+                "weightKg": null
+              }
+            ]
+          },
+          {
+            "name": "Estiramiento de isquiotibiales",
+            "nameEn": null,
+            "primaryMuscleGroup": "Isquiotibiales",
+            "mechanic": null,
+            "equipment": "BODYWEIGHT",
+            "exerciseType": "STRETCHING",
+            "bestE1rmKg": null,
+            "sets": [
+              {
+                "reps": 1,
+                "weightKg": null,
+                "durationSeconds": 45
+              }
+            ]
+          },
+          {
+            "name": "Sentadilla hack",
+            "nameEn": null,
+            "primaryMuscleGroup": "Cuádriceps",
+            "mechanic": "COMPOUND",
+            "equipment": "MACHINE",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": null,
+            "sets": [
+              {
+                "reps": 10,
+                "weightKg": 100
+              },
+              {
+                "reps": 8,
+                "weightKg": 110
+              }
+            ]
+          },
+          {
+            "name": "Curl martillo",
+            "nameEn": null,
+            "primaryMuscleGroup": "Bíceps",
+            "mechanic": "ISOLATION",
+            "equipment": "DUMBBELL",
+            "exerciseType": "STRENGTH",
+            "bestE1rmKg": 30,
+            "sets": [
+              {
+                "reps": null,
+                "weightKg": 14
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "restingKcalPerMin": 1.435,
+        "bodyWeightKg": 82,
+        "bodyWeightEstimated": false,
+        "personalized": false,
+        "workKcal": 41.4936,
+        "restKcal": 48.9335,
+        "totalKcal": 90.4271,
+        "exercises": [
+          {
+            "energyClass": "E",
+            "sets": [
+              {
+                "intensity": null,
+                "met": 8.0,
+                "workSeconds": 60,
+                "workKcal": 11.48,
+                "restSeconds": 204.6,
+                "restKcal": 9.7867,
+                "kcal": 21.2667
+              }
+            ],
+            "workKcal": 11.48,
+            "restKcal": 9.7867,
+            "kcal": 21.2667
+          },
+          {
+            "energyClass": "F",
+            "sets": [
+              {
+                "intensity": null,
+                "met": 2.3,
+                "workSeconds": 45,
+                "workKcal": 2.4754,
+                "restSeconds": 204.6,
+                "restKcal": 9.7867,
+                "kcal": 12.2621
+              }
+            ],
+            "workKcal": 2.4754,
+            "restKcal": 9.7867,
+            "kcal": 12.2621
+          },
+          {
+            "energyClass": "C",
+            "sets": [
+              {
+                "intensity": 0.7177,
+                "met": 15.3541,
+                "workSeconds": 40,
+                "workKcal": 14.6887,
+                "restSeconds": 204.6,
+                "restKcal": 9.7867,
+                "kcal": 24.4754
+              },
+              {
+                "intensity": 0.7895,
+                "met": 16.7895,
+                "workSeconds": 32,
+                "workKcal": 12.8495,
+                "restSeconds": 204.6,
+                "restKcal": 9.7867,
+                "kcal": 22.6362
+              }
+            ],
+            "workKcal": 27.5383,
+            "restKcal": 19.5734,
+            "kcal": 47.1117
+          },
+          {
+            "energyClass": "D",
+            "sets": [
+              {
+                "intensity": null,
+                "met": null,
+                "workSeconds": 0,
+                "workKcal": 0.0,
+                "restSeconds": 204.6,
+                "restKcal": 9.7867,
+                "kcal": 9.7867
+              }
+            ],
+            "workKcal": 0.0,
+            "restKcal": 9.7867,
+            "kcal": 9.7867
+          }
+        ]
+      }
+    },
+    {
+      "name": "Sesión sin series hechas",
+      "input": {
+        "profile": {
+          "sex": "MALE",
+          "ageYears": 30,
+          "heightCm": 178,
+          "bodyWeightKg": 75
+        },
+        "activeSeconds": 600,
+        "completedAt": null,
+        "exercises": []
+      },
+      "expected": {
+        "restingKcalPerMin": 1.2401,
+        "bodyWeightKg": 75,
+        "bodyWeightEstimated": false,
+        "personalized": true,
+        "workKcal": 0,
+        "restKcal": 0,
+        "totalKcal": 0,
+        "exercises": []
+      }
+    }
+  ]
+}

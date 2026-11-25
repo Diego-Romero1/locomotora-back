@@ -15,6 +15,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.locomotora.demo.common.ApiException;
+import com.locomotora.demo.progress.energy.WorkoutEnergyService;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionDetail;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionListItem;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionPage;
@@ -53,11 +54,14 @@ class WorkoutHistoryServiceTest {
     @Mock
     private WorkoutHistoryRepository repository;
 
+    @Mock
+    private WorkoutEnergyService energyService;
+
     private WorkoutHistoryService service;
 
     @BeforeEach
     void setUp() {
-        service = new WorkoutHistoryService(repository);
+        service = new WorkoutHistoryService(repository, energyService);
         TestingAuthenticationToken authentication = new TestingAuthenticationToken(userId.toString(), null);
         authentication.setAuthenticated(true);
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -162,6 +166,7 @@ class WorkoutHistoryServiceTest {
         service.update(sessionId, new SessionUpdateRequest(7, "   ", List.of(new SetUpdate(kept, 9, new BigDecimal("80"))), List.of(removed)));
 
         verify(repository).updateSessionInfo(sessionId, 7, null);
+        verify(energyService).recalculate(sessionId);
     }
 
     @Test
@@ -214,14 +219,27 @@ class WorkoutHistoryServiceTest {
     void weeklyFillsEmptyWeeksOldestFirst() {
         // Miercoles 11 nov 2026 en Buenos Aires: semana actual desde el lunes 9.
         when(repository.findWeeklyTotals(eq(userId), eq("America/Argentina/Buenos_Aires"), any())).thenReturn(List.of(
-                new WeekRow(LocalDate.of(2026, 10, 26), 3, 3, 40, new BigDecimal("30000")),
-                new WeekRow(LocalDate.of(2026, 11, 9), 1, 1, 13, new BigDecimal("12797.5"))));
+                new WeekRow(LocalDate.of(2026, 10, 26), 3, 3, 40, new BigDecimal("30000"), new BigDecimal("812.40"), 9000),
+                new WeekRow(LocalDate.of(2026, 11, 9), 1, 1, 13, new BigDecimal("12797.5"), new BigDecimal("301.10"), 3240)));
 
         List<WeekStats> weeks = service.weekly("America/Argentina/Buenos_Aires", 4, Instant.parse("2026-11-12T02:30:00Z"));
 
         assertEquals(List.of("2026-10-19", "2026-10-26", "2026-11-02", "2026-11-09"), weeks.stream().map(WeekStats::weekStart).toList());
         assertEquals(List.of(0, 3, 0, 1), weeks.stream().map(WeekStats::sessions).toList());
         assertEquals(BigDecimal.ZERO, weeks.get(2).volumeKg());
+        assertEquals(BigDecimal.ZERO, weeks.get(2).energyKcal());
+        assertEquals(new BigDecimal("301.10"), weeks.get(3).energyKcal());
+        assertEquals(3240, weeks.get(3).activeSeconds());
+    }
+
+    @Test
+    void muscleEffortStartsAtTheCurrentWeekByDefault() {
+        when(repository.findMuscleEffort(eq(userId), any())).thenReturn(List.of());
+
+        service.muscleEffort("America/Argentina/Buenos_Aires", null, Instant.parse("2026-11-12T02:30:00Z"));
+
+        // Lunes 9 nov 00:00 en Buenos Aires (UTC-3).
+        verify(repository).findMuscleEffort(userId, Instant.parse("2026-11-09T03:00:00Z"));
     }
 
     @Test
@@ -248,12 +266,12 @@ class WorkoutHistoryServiceTest {
         SessionListItem item = new SessionListItem(
                 id.toString(), "ROUTINE", null, "Upper/Lower", "Lower A",
                 completedAt.minusSeconds(3240).toString(), completedAt.toString(), 3240,
-                4, 2, new BigDecimal("3027.50"), 8, 0);
-        return new SessionRow(item, "nota", completedAt);
+                4, 2, new BigDecimal("3027.50"), 8, 0, 15, new BigDecimal("286.40"));
+        return new SessionRow(item, "nota", completedAt, null);
     }
 
     private LogRow log(UUID id, UUID exerciseId, int position, int setNumber, int reps, String weight) {
         return new LogRow(id, exerciseId, exerciseId.equals(squat) ? "Sentadilla" : "Prensa", "Cuádriceps", null,
-                position, setNumber, reps, new BigDecimal(weight), true, null, 8, 10, null, 120);
+                position, setNumber, reps, new BigDecimal(weight), true, null, 8, 10, null, 120, new BigDecimal("20.50"));
     }
 }

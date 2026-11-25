@@ -30,7 +30,11 @@ public final class HistoryDtos {
             int exerciseCount,
             BigDecimal totalVolumeKg,
             Integer perceivedExertion,
-            int recordCount
+            int recordCount,
+            /** Series que tenia el plan (null en sesiones anteriores a K2). */
+            Integer plannedSets,
+            /** Kcal estimadas (null si todavia no se calcularon). */
+            BigDecimal energyKcal
     ) {
     }
 
@@ -40,7 +44,22 @@ public final class HistoryDtos {
     public record SessionDetail(
             SessionListItem session,
             String notes,
-            List<SessionExercise> exercises
+            List<SessionExercise> exercises,
+            SessionEnergy energy
+    ) {
+    }
+
+    /**
+     * Como se calcularon las kcal de la sesion. {@code workKcal}: lo gastado en las series (el resto, en descansos).
+     * Null si todavia no se calcularon.
+     */
+    public record SessionEnergy(
+            BigDecimal kcal,
+            BigDecimal workKcal,
+            BigDecimal bodyWeightKg,
+            boolean bodyWeightEstimated,
+            boolean personalized,
+            int modelVersion
     ) {
     }
 
@@ -52,7 +71,8 @@ public final class HistoryDtos {
             String routineExerciseId,
             Plan plan,
             String notes,
-            List<SessionSet> sets
+            List<SessionSet> sets,
+            BigDecimal energyKcal
     ) {
     }
 
@@ -60,7 +80,15 @@ public final class HistoryDtos {
     public record Plan(Integer repsMin, Integer repsMax, BigDecimal weightKg, Integer restSeconds) {
     }
 
-    public record SessionSet(String id, int setNumber, Integer reps, BigDecimal weightKg, boolean completed, boolean record) {
+    public record SessionSet(
+            String id,
+            int setNumber,
+            Integer reps,
+            BigDecimal weightKg,
+            boolean completed,
+            boolean record,
+            BigDecimal energyKcal
+    ) {
     }
 
     /** Correccion de una sesion: valores de series existentes, series a borrar, esfuerzo y notas. */
@@ -107,7 +135,8 @@ public final class HistoryDtos {
             Integer bestReps,
             BigDecimal estimatedOneRepMaxKg,
             BigDecimal volumeKg,
-            int setCount
+            int setCount,
+            BigDecimal energyKcal
     ) {
     }
 
@@ -119,6 +148,19 @@ public final class HistoryDtos {
     }
 
     /** Una semana (lunes a domingo, en la zona horaria pedida). */
-    public record WeekStats(String weekStart, int sessions, int trainedDays, int completedSets, BigDecimal volumeKg) {
+    public record WeekStats(
+            String weekStart,
+            int sessions,
+            int trainedDays,
+            int completedSets,
+            BigDecimal volumeKg,
+            BigDecimal energyKcal,
+            /** Tiempo entrenando (sin pausas) de las sesiones de la semana. */
+            long activeSeconds
+    ) {
+    }
+
+    /** Esfuerzo por grupo muscular principal en un periodo: kcal y series hechas. */
+    public record MuscleEffort(String muscleGroup, BigDecimal energyKcal, int completedSets) {
     }
 }

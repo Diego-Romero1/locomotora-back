@@ -10,8 +10,16 @@ import java.util.List;
 public record LastPerformanceResponse(
         String exerciseId,
         LastSession lastSession,
-        BestSet bestSet
+        BestSet bestSet,
+        Energy energy
 ) {
+    /**
+     * Para estimar las kcal mientras se entrena con la misma formula del servidor: clase del ejercicio y mejor
+     * fuerza estimada de los ultimos 90 dias (null si no hay).
+     */
+    public record Energy(String energyClass, BigDecimal bestE1rmKg) {
+    }
+
     public record LastSession(String sessionId, String completedAt, List<SetValue> sets) {
     }
 

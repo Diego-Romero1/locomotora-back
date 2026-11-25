@@ -22,6 +22,8 @@ public record WorkoutSessionRequest(
         @NotBlank String completedAt,
         @Min(1) @Max(10) Integer perceivedExertion,
         @Size(max = 2000) String notes,
-        @NotEmpty @Size(max = 60) List<@Valid @NotNull WorkoutSessionExerciseRequest> exercises
+        @NotEmpty @Size(max = 60) List<@Valid @NotNull WorkoutSessionExerciseRequest> exercises,
+        /** Series que tenia el plan de hoy, hechas o no (para mostrar "5 de 15"). */
+        @Min(0) @Max(3000) Integer plannedSets
 ) {
 }

@@ -5,6 +5,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
 public record WorkoutSetRequest(
@@ -12,7 +13,9 @@ public record WorkoutSetRequest(
         @Min(0) @Max(1000) Integer reps,
         @DecimalMin("0.0") @DecimalMax("2000.0") BigDecimal weightKg,
         @Min(0) @Max(86400) Integer durationSeconds,
-        Boolean completed
+        Boolean completed,
+        /** Hora en que se marco la serie en el telefono (ISO-8601). Si no se entiende, se ignora. */
+        @Size(max = 40) String completedAt
 ) {
     public boolean isCompleted() {
         return completed == null || completed;

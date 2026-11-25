@@ -1,8 +1,12 @@
 package com.locomotora.demo.routine.repository;
 
+import com.locomotora.demo.progress.energy.EnergyEstimator;
+
+import com.locomotora.demo.routine.dto.LastPerformanceResponse;
 import com.locomotora.demo.routine.dto.LastPerformanceResponse.BestSet;
 import com.locomotora.demo.routine.dto.LastPerformanceResponse.LastSession;
 import com.locomotora.demo.routine.dto.LastPerformanceResponse.SetValue;
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -110,6 +114,41 @@ public class TrainingStatsRepository {
                             rs.getBigDecimal("e1rm").setScale(1, java.math.RoundingMode.HALF_UP),
                             rs.getTimestamp("completed_at").toInstant().toString()
                     ));
+                }
+        );
+        return result;
+    }
+
+    /** Clase de gasto y mejor fuerza estimada desde {@code since} de cada ejercicio (existan o no series). */
+    public Map<UUID, LastPerformanceResponse.Energy> findEnergyInfo(UUID userId, Collection<UUID> exerciseIds, Instant since) {
+        Map<UUID, LastPerformanceResponse.Energy> result = new HashMap<>();
+        jdbcTemplate.query(
+                connection -> {
+                    var statement = connection.prepareStatement(
+                            """
+                            SELECT e.id, e.name, e.name_en, e.primary_muscle_group, e.mechanic, e.equipment, e.exercise_type,
+                                   (SELECT max(CASE WHEN wel.reps = 1 THEN wel.weight_kg
+                                                    ELSE wel.weight_kg * (1 + wel.reps / 30.0) END)
+                                    FROM workout_exercise_logs wel
+                                    JOIN workout_sessions ws ON ws.id = wel.workout_session_id
+                                    WHERE ws.user_id = ? AND ws.status = 'COMPLETED' AND wel.completed
+                                      AND wel.weight_kg > 0 AND wel.reps > 0 AND wel.exercise_id = e.id
+                                      AND ws.completed_at >= ?) AS best
+                            FROM exercises e
+                            WHERE e.id = ANY (?)
+                            """);
+                    statement.setObject(1, userId);
+                    statement.setTimestamp(2, java.sql.Timestamp.from(since));
+                    statement.setArray(3, connection.createArrayOf("uuid", exerciseIds.toArray()));
+                    return statement;
+                },
+                rs -> {
+                    BigDecimal best = rs.getBigDecimal("best");
+                    result.put(rs.getObject("id", UUID.class), new LastPerformanceResponse.Energy(
+                            EnergyEstimator.classify(rs.getString("name"), rs.getString("name_en"),
+                                    rs.getString("primary_muscle_group"), rs.getString("mechanic"),
+                                    rs.getString("equipment"), rs.getString("exercise_type")).name(),
+                            best == null ? null : best.setScale(2, java.math.RoundingMode.HALF_UP)));
                 }
         );
         return result;

@@ -2,7 +2,9 @@ package com.locomotora.demo.routine.service;
 
 import com.locomotora.demo.common.ApiException;
 import com.locomotora.demo.common.CurrentUser;
+import com.locomotora.demo.progress.energy.WorkoutEnergyService;
 import com.locomotora.demo.routine.dto.HistoryDtos.ExerciseHistory;
+import com.locomotora.demo.routine.dto.HistoryDtos.MuscleEffort;
 import com.locomotora.demo.routine.dto.HistoryDtos.Plan;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionDetail;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionExercise;
@@ -47,9 +49,11 @@ public class WorkoutHistoryService {
     private static final BigDecimal RECORD_MARGIN = new BigDecimal("0.05");
 
     private final WorkoutHistoryRepository repository;
+    private final WorkoutEnergyService energyService;
 
-    public WorkoutHistoryService(WorkoutHistoryRepository repository) {
+    public WorkoutHistoryService(WorkoutHistoryRepository repository, WorkoutEnergyService energyService) {
         this.repository = repository;
+        this.energyService = energyService;
     }
 
     // ------------------------------------------------------------------ historial
@@ -113,6 +117,7 @@ public class WorkoutHistoryService {
         }
         String notes = request.notes() == null || request.notes().isBlank() ? null : request.notes().trim();
         repository.updateSessionInfo(sessionId, request.perceivedExertion(), notes);
+        energyService.recalculate(sessionId);
 
         return buildDetail(userId, repository.findSession(sessionId, userId).orElseThrow());
     }
@@ -162,10 +167,19 @@ public class WorkoutHistoryService {
             LocalDate week = firstWeek.plusWeeks(i);
             WeekRow row = byWeek.get(week);
             result.add(row == null
-                    ? new WeekStats(week.toString(), 0, 0, 0, BigDecimal.ZERO)
-                    : new WeekStats(week.toString(), row.sessions(), row.trainedDays(), row.completedSets(), row.volume()));
+                    ? new WeekStats(week.toString(), 0, 0, 0, BigDecimal.ZERO, BigDecimal.ZERO, 0)
+                    : new WeekStats(week.toString(), row.sessions(), row.trainedDays(), row.completedSets(), row.volume(),
+                            row.energy(), row.activeSeconds()));
         }
         return result;
+    }
+
+    /** Esfuerzo por grupo muscular de las ultimas {@code weeks} semanas, contando la actual (por defecto, solo esta). */
+    public List<MuscleEffort> muscleEffort(String timeZone, Integer weeks, Instant now) {
+        ZoneId zone = TrainingService.parseZone(timeZone);
+        int count = clamp(weeks, 1, MAX_WEEKS);
+        LocalDate firstWeek = TrainingCalendar.weekStart(now.atZone(zone).toLocalDate()).minusWeeks(count - 1L);
+        return repository.findMuscleEffort(CurrentUser.id(), firstWeek.atStartOfDay(zone).toInstant());
     }
 
     // ------------------------------------------------------------------ armado
@@ -194,8 +208,10 @@ public class WorkoutHistoryService {
             List<SessionSet> sets = group.stream()
                     .map(log -> new SessionSet(
                             log.id().toString(), log.setNumber(), log.reps(), log.weightKg(), log.completed(),
-                            log.id().equals(recordSetId)))
+                            log.id().equals(recordSetId), log.energyKcal()))
                     .toList();
+            BigDecimal exerciseEnergy = group.stream().map(LogRow::energyKcal).filter(java.util.Objects::nonNull)
+                    .reduce(BigDecimal::add).orElse(null);
             boolean hasPlan = first.targetRepsMin() != null || first.targetRepsMax() != null
                     || first.targetWeightKg() != null || first.restSeconds() != null;
             exercises.add(new SessionExercise(
@@ -206,10 +222,11 @@ public class WorkoutHistoryService {
                     first.routineExerciseId() == null ? null : first.routineExerciseId().toString(),
                     hasPlan ? new Plan(first.targetRepsMin(), first.targetRepsMax(), first.targetWeightKg(), first.restSeconds()) : null,
                     group.stream().map(LogRow::notes).filter(note -> note != null && !note.isBlank()).findFirst().orElse(null),
-                    sets
+                    sets,
+                    exerciseEnergy
             ));
         }
-        return new SessionDetail(withRecords(row.item(), recordCount), row.notes(), exercises);
+        return new SessionDetail(withRecords(row.item(), recordCount), row.notes(), exercises, row.energy());
     }
 
     /**
@@ -248,7 +265,8 @@ public class WorkoutHistoryService {
         return new SessionListItem(
                 item.id(), item.kind(), item.routineId(), item.routineTitle(), item.dayTitle(),
                 item.startedAt(), item.completedAt(), item.durationSeconds(), item.completedSets(),
-                item.exerciseCount(), item.totalVolumeKg(), item.perceivedExertion(), records);
+                item.exerciseCount(), item.totalVolumeKg(), item.perceivedExertion(), records, item.plannedSets(),
+                item.energyKcal());
     }
 
     private static int clamp(Integer value, int fallback, int max) {
