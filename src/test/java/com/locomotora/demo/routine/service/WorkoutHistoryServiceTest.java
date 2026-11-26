@@ -233,6 +233,31 @@ class WorkoutHistoryServiceTest {
     }
 
     @Test
+    void periodChartGoesByDayWeekOrMonthDependingOnTheLength() {
+        assertEquals("DAY", WorkoutHistoryService.granularity(LocalDate.of(2026, 11, 16), LocalDate.of(2026, 11, 22)));
+        assertEquals("WEEK", WorkoutHistoryService.granularity(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30)));
+        assertEquals("MONTH", WorkoutHistoryService.granularity(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 11, 30)));
+        // Noviembre 2026 empieza un domingo: la primera semana arranca el lunes 26 de octubre.
+        assertEquals(
+                List.of(LocalDate.of(2026, 10, 26), LocalDate.of(2026, 11, 2), LocalDate.of(2026, 11, 9),
+                        LocalDate.of(2026, 11, 16), LocalDate.of(2026, 11, 23), LocalDate.of(2026, 11, 30)),
+                WorkoutHistoryService.bucketStarts(LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30), "WEEK"));
+        assertEquals(3, WorkoutHistoryService.bucketStarts(LocalDate.of(2026, 9, 15), LocalDate.of(2026, 11, 2), "MONTH").size());
+    }
+
+    @Test
+    void periodRejectsInvertedTooLongOrHalfComparedRanges() {
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(ApiException.class,
+                () -> service.period("UTC", "2026-11-10", "2026-11-01", null, null)).status());
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(ApiException.class,
+                () -> service.period("UTC", "2023-01-01", "2026-11-01", null, null)).status());
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(ApiException.class,
+                () -> service.period("UTC", "2026-11-01", "2026-11-10", "2026-10-01", null)).status());
+        assertEquals(HttpStatus.BAD_REQUEST, assertThrows(ApiException.class,
+                () -> service.period("UTC", "1 de noviembre", "2026-11-10", null, null)).status());
+    }
+
+    @Test
     void muscleEffortStartsAtTheCurrentWeekByDefault() {
         when(repository.findMuscleEffort(eq(userId), any())).thenReturn(List.of());
 

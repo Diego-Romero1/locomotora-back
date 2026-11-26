@@ -2,6 +2,7 @@ package com.locomotora.demo.routine;
 
 import com.locomotora.demo.routine.dto.HistoryDtos.ExerciseHistory;
 import com.locomotora.demo.routine.dto.HistoryDtos.MuscleEffort;
+import com.locomotora.demo.routine.dto.HistoryDtos.PeriodSummary;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionDetail;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionPage;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionUpdateRequest;
@@ -73,6 +74,18 @@ public class WorkoutHistoryController {
             @RequestParam(required = false) Integer weeks
     ) {
         return historyService.weekly(tz, weeks, Instant.now());
+    }
+
+    /** Progreso entre dos fechas (incluidas), con un periodo opcional para comparar. */
+    @GetMapping("/progress/period")
+    public PeriodSummary period(
+            @RequestParam(required = false) String tz,
+            @RequestParam String from,
+            @RequestParam String to,
+            @RequestParam(required = false) String previousFrom,
+            @RequestParam(required = false) String previousTo
+    ) {
+        return historyService.period(tz, from, to, previousFrom, previousTo);
     }
 
     /** Kcal y series por grupo muscular de las ultimas semanas (por defecto, solo la actual). */

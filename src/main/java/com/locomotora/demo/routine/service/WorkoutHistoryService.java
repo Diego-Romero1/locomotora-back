@@ -5,6 +5,9 @@ import com.locomotora.demo.common.CurrentUser;
 import com.locomotora.demo.progress.energy.WorkoutEnergyService;
 import com.locomotora.demo.routine.dto.HistoryDtos.ExerciseHistory;
 import com.locomotora.demo.routine.dto.HistoryDtos.MuscleEffort;
+import com.locomotora.demo.routine.dto.HistoryDtos.PeriodBucket;
+import com.locomotora.demo.routine.dto.HistoryDtos.PeriodSummary;
+import com.locomotora.demo.routine.dto.HistoryDtos.PeriodTotals;
 import com.locomotora.demo.routine.dto.HistoryDtos.Plan;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionDetail;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionExercise;
@@ -180,6 +183,110 @@ public class WorkoutHistoryService {
         int count = clamp(weeks, 1, MAX_WEEKS);
         LocalDate firstWeek = TrainingCalendar.weekStart(now.atZone(zone).toLocalDate()).minusWeeks(count - 1L);
         return repository.findMuscleEffort(CurrentUser.id(), firstWeek.atStartOfDay(zone).toInstant());
+    }
+
+    /** Periodo mas largo que se puede pedir (dos anos). */
+    static final int MAX_PERIOD_DAYS = 731;
+    static final int PERIOD_SESSIONS = 30;
+
+    /**
+     * Progreso entre dos fechas (incluidas) en la zona del telefono, comparado con {@code previousFrom..previousTo}
+     * si se pide. El grafico va por dia hasta 14 dias, por semana hasta 120 y por mes en adelante.
+     */
+    public PeriodSummary period(
+            String timeZone, String from, String to, String previousFrom, String previousTo) {
+        UUID userId = CurrentUser.id();
+        ZoneId zone = TrainingService.parseZone(timeZone);
+        LocalDate start = parseDate(from, "from");
+        LocalDate end = parseDate(to, "to");
+        validateRange(start, end);
+        LocalDate prevStart = previousFrom == null || previousFrom.isBlank() ? null : parseDate(previousFrom, "previousFrom");
+        LocalDate prevEnd = previousTo == null || previousTo.isBlank() ? null : parseDate(previousTo, "previousTo");
+        if ((prevStart == null) != (prevEnd == null)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "previousFrom and previousTo go together");
+        }
+        if (prevStart != null) {
+            validateRange(prevStart, prevEnd);
+        }
+
+        Instant fromAt = start.atStartOfDay(zone).toInstant();
+        Instant toAt = end.plusDays(1).atStartOfDay(zone).toInstant();
+        PeriodTotals totals = repository.findPeriodTotals(userId, zone.getId(), fromAt, toAt);
+        PeriodTotals previous = prevStart == null ? null : repository.findPeriodTotals(
+                userId, zone.getId(), prevStart.atStartOfDay(zone).toInstant(), prevEnd.plusDays(1).atStartOfDay(zone).toInstant());
+
+        String granularity = granularity(start, end);
+        Map<LocalDate, PeriodTotals> byBucket = repository
+                .findPeriodBuckets(userId, zone.getId(), fromAt, toAt, granularity.toLowerCase(java.util.Locale.ROOT))
+                .stream()
+                .collect(Collectors.toMap(WorkoutHistoryRepository.BucketRow::start, WorkoutHistoryRepository.BucketRow::totals));
+        List<PeriodBucket> buckets = new ArrayList<>();
+        for (LocalDate bucket : bucketStarts(start, end, granularity)) {
+            PeriodTotals row = byBucket.get(bucket);
+            buckets.add(row == null
+                    ? new PeriodBucket(bucket.toString(), 0, 0, BigDecimal.ZERO, BigDecimal.ZERO, 0)
+                    : new PeriodBucket(bucket.toString(), row.sessions(), row.completedSets(), row.volumeKg(),
+                            row.energyKcal(), row.activeSeconds()));
+        }
+
+        List<SessionRow> rows = repository.findSessionsBetween(userId, fromAt, toAt, PERIOD_SESSIONS);
+        Map<UUID, Integer> records = repository.countRecords(
+                userId, rows.stream().map(row -> UUID.fromString(row.item().id())).toList());
+        List<SessionListItem> sessions = rows.stream()
+                .map(row -> withRecords(row.item(), records.getOrDefault(UUID.fromString(row.item().id()), 0)))
+                .toList();
+
+        return new PeriodSummary(
+                start.toString(), end.toString(), granularity, totals,
+                prevStart == null ? null : prevStart.toString(), prevEnd == null ? null : prevEnd.toString(), previous,
+                buckets,
+                repository.findMuscleEffort(userId, fromAt, toAt),
+                sessions,
+                totals.sessions());
+    }
+
+    static String granularity(LocalDate start, LocalDate end) {
+        long days = java.time.temporal.ChronoUnit.DAYS.between(start, end) + 1;
+        if (days <= 14) {
+            return "DAY";
+        }
+        return days <= 120 ? "WEEK" : "MONTH";
+    }
+
+    /** Inicio de cada tramo que toca el periodo (la primera semana o mes puede empezar antes de {@code start}). */
+    static List<LocalDate> bucketStarts(LocalDate start, LocalDate end, String granularity) {
+        List<LocalDate> result = new ArrayList<>();
+        LocalDate cursor = switch (granularity) {
+            case "DAY" -> start;
+            case "WEEK" -> TrainingCalendar.weekStart(start);
+            default -> start.withDayOfMonth(1);
+        };
+        while (!cursor.isAfter(end)) {
+            result.add(cursor);
+            cursor = switch (granularity) {
+                case "DAY" -> cursor.plusDays(1);
+                case "WEEK" -> cursor.plusWeeks(1);
+                default -> cursor.plusMonths(1);
+            };
+        }
+        return result;
+    }
+
+    private static void validateRange(LocalDate start, LocalDate end) {
+        if (end.isBefore(start)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "The period ends before it starts");
+        }
+        if (java.time.temporal.ChronoUnit.DAYS.between(start, end) + 1 > MAX_PERIOD_DAYS) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "The period can be at most " + MAX_PERIOD_DAYS + " days");
+        }
+    }
+
+    private static LocalDate parseDate(String value, String field) {
+        try {
+            return LocalDate.parse(value);
+        } catch (RuntimeException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, field + " must be a date (YYYY-MM-DD)");
+        }
     }
 
     // ------------------------------------------------------------------ armado

@@ -160,6 +160,48 @@ public final class HistoryDtos {
     ) {
     }
 
+    /** Totales de un periodo. {@code partialSessions}: sesiones que no completaron las series del plan. */
+    public record PeriodTotals(
+            int sessions,
+            int trainedDays,
+            int completedSets,
+            BigDecimal volumeKg,
+            BigDecimal energyKcal,
+            long activeSeconds,
+            int partialSessions
+    ) {
+    }
+
+    /** Un tramo del grafico del periodo: dia, semana (lunes) o mes (dia 1) segun el largo del periodo. */
+    public record PeriodBucket(
+            String start,
+            int sessions,
+            int completedSets,
+            BigDecimal volumeKg,
+            BigDecimal energyKcal,
+            long activeSeconds
+    ) {
+    }
+
+    /**
+     * Progreso de un periodo elegido (fechas incluidas, en la zona del telefono) y del periodo con el que se compara.
+     * {@code sessions}: las mas recientes del periodo, hasta {@code sessionCount}.
+     */
+    public record PeriodSummary(
+            String from,
+            String to,
+            String granularity,
+            PeriodTotals totals,
+            String previousFrom,
+            String previousTo,
+            PeriodTotals previous,
+            List<PeriodBucket> buckets,
+            List<MuscleEffort> muscles,
+            List<SessionListItem> sessions,
+            int sessionCount
+    ) {
+    }
+
     /** Esfuerzo por grupo muscular principal en un periodo: kcal y series hechas. */
     public record MuscleEffort(String muscleGroup, BigDecimal energyKcal, int completedSets) {
     }

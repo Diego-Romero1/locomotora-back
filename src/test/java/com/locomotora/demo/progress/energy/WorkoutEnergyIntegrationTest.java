@@ -166,6 +166,41 @@ class WorkoutEnergyIntegrationTest {
         assertThat(info.get(legPress).bestE1rmKg()).isNull();
     }
 
+    @Test
+    void periodTotalsBucketsAndSessionsRespectTheDatesInTheUserZone() {
+        UUID userId = user("energy-period@test.local");
+        weight(userId, "75", "2026-10-01T08:00:00Z");
+        // Santiago (UTC-3): el 2 de noviembre a las 23:30 local es el 3 a las 02:30 UTC.
+        UUID lateNight = session(userId, "2026-11-03T02:00:00Z", "2026-11-03T02:30:00Z", 6);
+        log(lateNight, squat, 1, 1, 8, "80", null);
+        UUID week2 = session(userId, "2026-11-10T21:00:00Z", "2026-11-10T21:40:00Z", 2);
+        log(week2, squat, 1, 1, 8, "80", null);
+        log(week2, legPress, 2, 1, 10, "150", null);
+        UUID outside = session(userId, "2026-12-01T21:00:00Z", "2026-12-01T21:20:00Z", null);
+        log(outside, squat, 1, 1, 8, "80", null);
+        service.backfill();
+
+        String zone = "America/Santiago";
+        Instant from = Instant.parse("2026-11-01T03:00:00Z");
+        Instant to = Instant.parse("2026-12-01T03:00:00Z");
+        var totals = history.findPeriodTotals(userId, zone, from, to);
+        assertThat(totals.sessions()).isEqualTo(2);
+        assertThat(totals.trainedDays()).isEqualTo(2);
+        assertThat(totals.completedSets()).isEqualTo(3);
+        assertThat(totals.activeSeconds()).isEqualTo(30 * 60 + 40 * 60);
+        assertThat(totals.partialSessions()).isEqualTo(1);
+        assertThat(totals.energyKcal()).isPositive();
+
+        var weeks = history.findPeriodBuckets(userId, zone, from, to, "week");
+        assertThat(weeks).extracting(row -> row.start().toString()).containsExactly("2026-11-02", "2026-11-09");
+        var days = history.findPeriodBuckets(userId, zone, from, to, "day");
+        assertThat(days.get(0).start().toString()).isEqualTo("2026-11-02");
+
+        assertThat(history.findSessionsBetween(userId, from, to, 30)).hasSize(2);
+        assertThat(history.findMuscleEffort(userId, from, to))
+                .extracting(MuscleEffort::completedSets).containsExactly(3);
+    }
+
     // ------------------------------------------------------------------ datos
 
     private static UUID exercise(String name) {

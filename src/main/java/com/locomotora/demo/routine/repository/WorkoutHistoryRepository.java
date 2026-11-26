@@ -2,6 +2,7 @@ package com.locomotora.demo.routine.repository;
 
 import com.locomotora.demo.routine.dto.HistoryDtos.ExercisePoint;
 import com.locomotora.demo.routine.dto.HistoryDtos.MuscleEffort;
+import com.locomotora.demo.routine.dto.HistoryDtos.PeriodTotals;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionEnergy;
 import com.locomotora.demo.routine.dto.HistoryDtos.SessionListItem;
 import com.locomotora.demo.routine.dto.HistoryDtos.TrainedExercise;
@@ -444,6 +445,11 @@ public class WorkoutHistoryRepository {
 
     /** Kcal y series por grupo muscular principal desde {@code since}, de mayor a menor gasto. */
     public List<MuscleEffort> findMuscleEffort(UUID userId, Instant since) {
+        return findMuscleEffort(userId, since, null);
+    }
+
+    /** Lo mismo, entre {@code since} (incluido) y {@code until} (excluido; null = sin limite). */
+    public List<MuscleEffort> findMuscleEffort(UUID userId, Instant since, Instant until) {
         return jdbcTemplate.query(
                 """
                 SELECT COALESCE(NULLIF(e.primary_muscle_group, ''), 'Otros') AS muscle_group,
@@ -453,7 +459,7 @@ public class WorkoutHistoryRepository {
                 JOIN workout_sessions ws ON ws.id = wel.workout_session_id
                 JOIN exercises e ON e.id = wel.exercise_id
                 WHERE ws.user_id = ? AND ws.status = 'COMPLETED' AND ws.kind <> 'QUICK_LOG' AND wel.completed
-                  AND ws.completed_at >= ?
+                  AND ws.completed_at >= ? AND (?::timestamptz IS NULL OR ws.completed_at < ?::timestamptz)
                 GROUP BY 1
                 ORDER BY energy DESC, completed_sets DESC, muscle_group
                 """,
@@ -463,7 +469,100 @@ public class WorkoutHistoryRepository {
                         rs.getInt("completed_sets")
                 ),
                 userId,
-                Timestamp.from(since)
+                Timestamp.from(since),
+                until == null ? null : Timestamp.from(until),
+                until == null ? null : Timestamp.from(until)
+        );
+    }
+
+    /** Sesiones (con sus series agregadas) entre {@code from} incluido y {@code to} excluido. */
+    private static final String PERIOD_SESSIONS = """
+            FROM workout_sessions ws
+            LEFT JOIN LATERAL (
+                SELECT count(*) AS completed_sets, sum(wel.reps * wel.weight_kg) AS volume, sum(wel.energy_kcal) AS energy
+                FROM workout_exercise_logs wel
+                WHERE wel.workout_session_id = ws.id AND wel.completed
+            ) l ON true
+            WHERE ws.user_id = ? AND ws.status = 'COMPLETED' AND ws.kind <> 'QUICK_LOG'
+              AND ws.completed_at >= ? AND ws.completed_at < ?
+            """;
+
+    private static final String PERIOD_TOTALS = """
+            count(*) AS sessions,
+            count(DISTINCT (ws.completed_at AT TIME ZONE ?)::date) AS trained_days,
+            COALESCE(sum(l.completed_sets), 0) AS completed_sets,
+            COALESCE(sum(l.volume), 0) AS volume,
+            COALESCE(sum(l.energy), 0) AS energy,
+            COALESCE(sum(GREATEST(0, extract(epoch FROM ws.completed_at - ws.started_at))), 0)::bigint AS active_seconds,
+            count(*) FILTER (WHERE ws.planned_sets IS NOT NULL AND l.completed_sets < ws.planned_sets) AS partial_sessions
+            """;
+
+    public PeriodTotals findPeriodTotals(UUID userId, String zoneId, Instant from, Instant to) {
+        String zone = PostgresZones.resolve(jdbcTemplate, zoneId);
+        return jdbcTemplate.queryForObject(
+                "SELECT " + PERIOD_TOTALS + PERIOD_SESSIONS,
+                (rs, rowNum) -> new PeriodTotals(
+                        rs.getInt("sessions"),
+                        rs.getInt("trained_days"),
+                        rs.getInt("completed_sets"),
+                        rs.getBigDecimal("volume"),
+                        rs.getBigDecimal("energy"),
+                        rs.getLong("active_seconds"),
+                        rs.getInt("partial_sessions")
+                ),
+                zone,
+                userId,
+                Timestamp.from(from),
+                Timestamp.from(to)
+        );
+    }
+
+    public record BucketRow(LocalDate start, PeriodTotals totals) {
+    }
+
+    /** Totales por dia, semana o mes ({@code unit} de date_trunc) en la zona pedida. */
+    public List<BucketRow> findPeriodBuckets(UUID userId, String zoneId, Instant from, Instant to, String unit) {
+        if (!List.of("day", "week", "month").contains(unit)) {
+            throw new IllegalArgumentException("unit");
+        }
+        String zone = PostgresZones.resolve(jdbcTemplate, zoneId);
+        return jdbcTemplate.query(
+                "SELECT date_trunc('" + unit + "', ws.completed_at AT TIME ZONE ?)::date AS bucket, " + PERIOD_TOTALS
+                        + PERIOD_SESSIONS + " GROUP BY 1 ORDER BY 1",
+                (rs, rowNum) -> new BucketRow(rs.getObject("bucket", LocalDate.class), new PeriodTotals(
+                        rs.getInt("sessions"),
+                        rs.getInt("trained_days"),
+                        rs.getInt("completed_sets"),
+                        rs.getBigDecimal("volume"),
+                        rs.getBigDecimal("energy"),
+                        rs.getLong("active_seconds"),
+                        rs.getInt("partial_sessions")
+                )),
+                zone,
+                zone,
+                userId,
+                Timestamp.from(from),
+                Timestamp.from(to)
+        );
+    }
+
+    /** Las sesiones mas recientes del periodo (sin registros sueltos). */
+    public List<SessionRow> findSessionsBetween(UUID userId, Instant from, Instant to, int limit) {
+        return jdbcTemplate.query(
+                "SELECT " + SESSION_COLUMNS + """
+                FROM workout_sessions ws
+                LEFT JOIN routines r ON r.id = ws.routine_id
+                LEFT JOIN routine_days rd ON rd.id = ws.routine_day_id
+                WHERE ws.user_id = ? AND ws.status = 'COMPLETED' AND ws.kind <> 'QUICK_LOG'
+                  AND ws.completed_at >= ? AND ws.completed_at < ?
+                ORDER BY ws.completed_at DESC, ws.id DESC
+                LIMIT ?
+                """,
+                (rs, rowNum) -> mapSession(rs, 0),
+                userId,
+                Timestamp.from(from),
+                Timestamp.from(to),
+                limit
         );
     }
 
